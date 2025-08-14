@@ -1,0 +1,288 @@
+{% extends "eglisapp/base.html" %}
+{% load static %}
+{% block content %}
+
+<!-- Hero Section -->
+<section class="hero-section min-vh-100 d-flex align-items-center py-4 py-md-5" style="background: transparent;">
+    <div class="container px-4">
+        
+        <!-- Botones de Acción Principal -->
+        <div class="row justify-content-center mb-4 mb-md-5">
+            <div class="col-12 col-md-8 col-lg-6">
+                <div class="row g-3 g-md-4">
+                    <div class="col-12 col-md-6">
+                        <div class="card h-100 bg-recibir hover-shadow transition">
+                            <div class="card-body text-center p-3 p-sm-4">
+                                <div class="mb-3">
+                                    <i class="fas fa-plus fa-2x fa-sm-3x text-success"></i>
+                                </div>
+                                <a href="{% url 'remesas:nueva_remesa' %}" class="btn w-100 btn-action btn-recibir">
+                                    <i class="fas fa-plus me-2"></i> Recibir
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-sm-6">
+                        <div class="card h-100 bg-enviar hover-shadow transition">
+                            <div class="card-body text-center p-3 p-sm-4">
+                                <div class="mb-3">
+                                    <i class="fas fa-minus fa-2x fa-sm-3x text-primary"></i>
+                                </div>
+                                <a href="{% url 'remesas:crear_pago' %}" class="btn w-100 btn-action btn-enviar">
+                                    <i class="fas fa-minus me-2"></i> Enviar
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabla de Cotizaciones -->
+        <div class="row justify-content-center">
+            <div class="col-12 col-md-8 col-lg-6">
+                <div class="card shadow-lg cotizaciones-card">
+                    <div class="card-header py-4 border-0" style="background: linear-gradient(145deg, #1a1c2e, #2c3e50);">
+                        <div class="d-flex align-items-center justify-content-center">
+                            <div class="header-icon me-3">
+                                <i class="fas fa-coins fa-lg text-warning"></i>
+                            </div>
+                            <h5 class="mb-0 text-white fw-semibold">Cotizaciones de Monedas</h5>
+                        </div>
+                    </div>
+                    <div class="card-body px-4 py-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0 cotizaciones-table">
+                                <thead>
+                                    <tr>
+                                        <th class="py-4 text-center text-uppercase"><small>Código</small></th>
+                                        <th class="py-4 text-uppercase"><small>Nombre</small></th>
+                                        <th class="py-4 text-end text-uppercase"><small>Valor Actual</small></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for moneda in monedas %}
+                                    <tr class="cotizacion-row">
+                                        <td class="py-3 px-4 border-0 text-center">
+                                            <span class="text-white-75">{{ moneda.codigo }}</span>
+                                        </td>
+                                        <td class="py-3 px-4 border-0">
+                                            <span class="text-white-75">{{ moneda.nombre }}</span>
+                                        </td>
+                                        <td class="py-3 px-4 border-0 text-end">
+                                            <span class="fw-semibold" style="color: #ffd700;">$ {{ moneda.valor_actual|floatformat:2 }}</span>
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="3" class="text-center py-4 text-muted">
+                                            <i class="fas fa-info-circle me-2"></i>
+                                            No hay monedas disponibles
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+                       
+    </div>
+</section>
+
+<style>
+.hover-shadow {
+    transition: all 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hover-shadow:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.transition {
+    transition: all 0.3s ease;
+}
+
+
+
+.bg-recibir {
+    background: #219150;
+    color: #fff;
+    border: none;
+}
+
+.bg-enviar {
+    background: #1565c0;
+    color: #fff;
+    border: none;
+}
+
+.btn-recibir {
+    background-color: #219150;
+    color: #fff;
+}
+
+.btn-recibir:hover {
+    background-color: #17693a;
+    color: #fff;
+}
+
+.btn-enviar {
+    background-color: #1565c0;
+    color: #fff;
+}
+
+.btn-enviar:hover {
+    background-color: #0d397a;
+    color: #fff;
+}
+
+.btn-action {
+    padding: 0.75rem 1.5rem;
+    font-weight: 600;
+    border-radius: 0.5rem;
+    transition: all 0.3s ease;
+    border: none;
+}
+
+.btn-action:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.cotizaciones-card {
+    background: rgba(26, 28, 46, 0.7);
+}
+
+.header-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 193, 7, 0.1);
+    border-radius: 12px;
+}
+
+.cotizaciones-table {
+    font-size: 0.95rem;
+    color: #fff;
+    margin: 0;
+}
+
+.cotizaciones-table thead {
+    border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.cotizaciones-table th {
+    font-weight: 600;
+    letter-spacing: 0.7px;
+    color: rgba(255, 255, 255, 0.7);
+    text-transform: uppercase;
+    font-size: 0.8rem;
+}
+
+.cotizacion-row {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.cotizacion-row:hover {
+    background-color: rgba(255, 255, 255, 0.03) !important;
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+}
+
+.cotizacion-row td {
+    vertical-align: middle;
+}
+
+.cotizacion-row:last-child {
+    border-bottom: none;
+}
+
+.card {
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 1.25rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Ajustes específicos para las cartas de acción */
+.card.bg-recibir, .card.bg-enviar {
+    background-color: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.table-dark {
+    --bs-table-bg: transparent;
+}
+
+.badge {
+    font-weight: 600;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 576px) {
+    .fa-sm-3x {
+        font-size: 1.75em;
+    }
+    
+    .h5 {
+        font-size: 1.1rem;
+    }
+
+    .card-body {
+        padding: 1.25rem !important;
+    }
+    
+    .btn-action {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.9rem;
+    }
+
+    .row.g-3 {
+        gap: 0.75rem !important;
+    }
+
+    .col-12.col-sm-6 {
+        padding: 0 0.5rem;
+    }
+    
+    .cotizaciones-table {
+        font-size: 0.85rem;
+    }
+    
+    .cotizaciones-table td,
+    .cotizaciones-table th {
+        padding: 0.5rem 0.25rem !important;
+    }
+    
+    .badge {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.5rem;
+    }
+}
+
+/* Animaciones suaves */
+.card, .btn, .badge {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+
+</style>
+
+{% endblock %}

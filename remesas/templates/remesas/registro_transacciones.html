@@ -1,0 +1,3221 @@
+{% extends 'eglisapp/base.html' %}
+{% load static %}
+
+{% block content %}
+<!-- SweetAlert2 CDN -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<style>
+/* Prevenir parpadeo en botones de acción */
+.btn-group .btn {
+    pointer-events: auto !important;
+    position: relative !important;
+}
+
+/* Asegurar que los tooltips no interfieran con los clicks */
+[data-bs-toggle="tooltip"] {
+    pointer-events: auto !important;
+    cursor: pointer !important;
+}
+
+/* Prevenir conflictos de z-index con tooltips */
+.table-container {
+    position: relative;
+    z-index: 1;
+}
+
+.tooltip {
+    z-index: 1070 !important;
+}
+
+/* Ajustes para el menú dropdown del botón "Nueva" en móvil */
+@media (max-width: 768px) {
+    .dropdown-menu {
+        /* Asegurar que el menú no se salga del viewport */
+        max-width: calc(100vw - 2rem);
+        width: auto;
+        min-width: 200px;
+        /* Posicionamiento más preciso en móvil */
+        left: auto !important;
+        right: 0 !important;
+        transform: none !important;
+        /* Mejorar la visibilidad del menú */
+        margin-top: 0.25rem;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.125);
+    }
+
+    /* Específico para el dropdown del botón Nueva */
+    #newTransactionButton + .dropdown-menu {
+        /* Forzar posicionamiento desde la derecha */
+        left: auto !important;
+        right: 0 !important;
+        /* Ajustar el ancho para que quepa cómodamente */
+        width: 180px;
+        /* Asegurar que no se corte en pantallas pequeñas */
+        margin-right: 0;
+    }
+
+    .dropdown-item {
+        padding: 0.75rem 1rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Ajustar el contenedor del botón en móvil */
+    .btn-group {
+        position: relative;
+    }
+
+    /* Asegurar que el dropdown tenga suficiente espacio */
+    .d-flex.justify-content-between.align-items-center {
+        position: relative;
+        overflow: visible;
+    }
+}
+
+/* Mejoras adicionales para el dropdown en general */
+.dropdown-menu-dark .dropdown-item {
+    transition: background-color 0.15s ease-in-out;
+}
+
+.dropdown-menu-dark .dropdown-item:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.dropdown-menu-dark .dropdown-item i {
+    width: 1.2rem;
+    text-align: center;
+}
+</style>
+
+<div class="container-fluid p-4">
+    <!-- Título y Botones -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="h4 mb-0 text-white">
+                    <i class="fas fa-list-check me-2"></i>
+                    Registro de Operaciones
+                </h2>
+                <div class="btn-group">
+                    <button class="btn btn-success dropdown-toggle" type="button" id="newTransactionButton" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-plus fw"></i>Crear
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
+                        <li>
+                            <a class="dropdown-item" href="{% url 'remesas:nueva_remesa' %}">
+                                <i class="fas fa-plus fw"></i>Recibo
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item" href="{% url 'remesas:crear_pago' %}">
+                                <i class="fas fa-minus fw"></i>Envio
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Estadísticas -->
+    <div class="row g-4 mb-4">
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card bg-primary text-white h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-paper-plane fa-2x mb-2"></i>
+                    <h5 class="card-title">Total Remesas</h5>
+                    <h3 class="mt-2 mb-0">{{ remesas_count }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card bg-success text-white h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-dollar-sign fa-2x mb-2"></i>
+                    <h5 class="card-title">Total en Remesas</h5>
+                    <h3 class="mt-2 mb-0 text-white">${{ total_remesas|floatformat:2 }} USD</h3>
+
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card bg-info text-white h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-credit-card fa-2x mb-2"></i>
+                    <h5 class="card-title">Total Pagos</h5>
+                    <h3 class="mt-2 mb-0">{{ pagos_count }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-3">
+            <div class="card bg-warning text-dark h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-money-bill-wave fa-2x mb-2"></i>
+                    <h5 class="card-title">Total en Pagos</h5>
+                    <h3 class="mt-2 mb-0">${{ total_pagos|floatformat:2 }} USD</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card bg-dark border-0 shadow-sm mb-4">
+        <div class="card-header bg-transparent border-0">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 text-white">
+                    <i class="fas fa-filter me-2"></i>Filtros
+                </h5>
+                <button class="btn btn-sm btn-outline-light" type="button" id="toggleFilters">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body" id="filtersContent" style="display: none;">
+
+            <!-- Filtros para Remesas -->
+            <form method="GET" id="filterFormRemesas" class="filter-form" data-target="remesas">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Buscar Remesa</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary"
+                               name="search_remesas" placeholder="ID, remitente..."
+                               value="{{ request.GET.search_remesas }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Estado</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="estado_remesas">
+                            <option value="">Todos los estados</option>
+                            <option value="pendiente" {% if request.GET.estado_remesas == 'pendiente' %}selected{% endif %}>Pendiente</option>
+                            <option value="confirmada" {% if request.GET.estado_remesas == 'confirmada' %}selected{% endif %}>Confirmada</option>
+                            <option value="completada" {% if request.GET.estado_remesas == 'completada' %}selected{% endif %}>Completada</option>
+                            <option value="cancelada" {% if request.GET.estado_remesas == 'cancelada' %}selected{% endif %}>Cancelada</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Moneda</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="moneda_remesas">
+                            <option value="">Todas las monedas</option>
+                            {% for moneda in monedas %}
+                                <option value="{{ moneda.id }}" {% if request.GET.moneda_remesas == moneda.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ moneda.nombre }} ({{ moneda.codigo }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Tipo de Pago</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="tipo_pago_remesas">
+                            <option value="">Todos los tipos</option>
+                            <option value="transferencia" {% if request.GET.tipo_pago_remesas == 'transferencia' %}selected{% endif %}>Transferencia</option>
+                            <option value="efectivo" {% if request.GET.tipo_pago_remesas == 'efectivo' %}selected{% endif %}>Efectivo</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Rango de Fechas</label>
+                        <div class="row g-2">
+                            <div class="col">
+                                <input type="date" class="form-control bg-dark text-white border-secondary"
+                                       name="fecha_desde_remesas" value="{{ request.GET.fecha_desde_remesas }}">
+                            </div>
+                            <div class="col">
+                                <input type="date" class="form-control bg-dark text-white border-secondary"
+                                       name="fecha_hasta_remesas" value="{{ request.GET.fecha_hasta_remesas }}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Rango de Importe</label>
+                        <div class="row g-2">
+                            <div class="col">
+                                <input type="number" step="0.01" class="form-control bg-dark text-white border-secondary"
+                                       name="importe_min_remesas" placeholder="Mín" value="{{ request.GET.importe_min_remesas }}">
+                            </div>
+                            <div class="col">
+                                <input type="number" step="0.01" class="form-control bg-dark text-white border-secondary"
+                                       name="importe_max_remesas" placeholder="Máx" value="{{ request.GET.importe_max_remesas }}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 d-flex justify-content-between align-items-center">
+                        <div>
+                            <button type="button" class="btn btn-primary" onclick="aplicarFiltros('remesas')">
+                                <i class="fas fa-search me-2"></i>Aplicar
+                            </button>
+                            <button type="button" class="btn btn-outline-light" onclick="limpiarFiltros('remesas')">
+                                <i class="fas fa-eraser me-2"></i>Limpiar
+                            </button>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-success" onclick="exportarExcel('remesas')">
+                                <i class="fas fa-file-excel me-2"></i>Exportar a Excel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Filtros para Pagos -->
+            <form method="GET" id="filterFormPagos" class="filter-form" data-target="pagos" style="display: none;">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Buscar Pago</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary"
+                               name="search_pagos" placeholder="ID, destinatario..."
+                               value="{{ request.GET.search_pagos }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Tipo de Pago</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="tipo_pago_pagos">
+                            <option value="">Todos los tipos</option>
+                            <option value="transferencia" {% if request.GET.tipo_pago_pagos == 'transferencia' %}selected{% endif %}>Transferencia</option>
+                            <option value="efectivo" {% if request.GET.tipo_pago_pagos == 'efectivo' %}selected{% endif %}>Efectivo</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Moneda</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="moneda_pagos">
+                            <option value="">Todas las monedas</option>
+                            {% for moneda in monedas %}
+                                <option value="{{ moneda.id }}" {% if request.GET.moneda_pagos == moneda.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ moneda.nombre }} ({{ moneda.codigo }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Destinatario</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary"
+                               name="destinatario_pagos" placeholder="Nombre destinatario..."
+                               value="{{ request.GET.destinatario_pagos }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Rango de Fechas</label>
+                        <div class="row g-2">
+                            <div class="col">
+                                <input type="date" class="form-control bg-dark text-white border-secondary"
+                                       name="fecha_desde_pagos" value="{{ request.GET.fecha_desde_pagos }}">
+                            </div>
+                            <div class="col">
+                                <input type="date" class="form-control bg-dark text-white border-secondary"
+                                       name="fecha_hasta_pagos" value="{{ request.GET.fecha_hasta_pagos }}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Rango de Cantidad</label>
+                        <div class="row g-2">
+                            <div class="col">
+                                <input type="number" step="0.01" class="form-control bg-dark text-white border-secondary"
+                                       name="cantidad_min_pagos" placeholder="Mín" value="{{ request.GET.cantidad_min_pagos }}">
+                            </div>
+                            <div class="col">
+                                <input type="number" step="0.01" class="form-control bg-dark text-white border-secondary"
+                                       name="cantidad_max_pagos" placeholder="Máx" value="{{ request.GET.cantidad_max_pagos }}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 d-flex justify-content-between align-items-center">
+                        <div>
+                            <button type="button" class="btn btn-primary" onclick="aplicarFiltros('pagos')">
+                                <i class="fas fa-search me-2"></i>Aplicar
+                            </button>
+                            <button type="button" class="btn btn-outline-light" onclick="limpiarFiltros('pagos')">
+                                <i class="fas fa-eraser me-2"></i>Limpiar
+                            </button>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-success" onclick="exportarExcel('pagos')">
+                                <i class="fas fa-file-excel me-2"></i>Exportar a Excel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Filtros para Total -->
+            <form method="GET" id="filterFormTotal" class="filter-form" data-target="total" style="display: none;">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Buscar Operación</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary"
+                               name="search_total" placeholder="ID, destinatario, remitente..."
+                               value="{{ request.GET.search_total }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Tipo de Operación</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="tipo_operacion">
+                            <option value="">Todos los tipos</option>
+                            <option value="remesa" {% if request.GET.tipo_operacion == 'remesa' %}selected{% endif %}>Remesas</option>
+                            <option value="pago" {% if request.GET.tipo_operacion == 'pago' %}selected{% endif %}>Pagos</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Moneda</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="moneda_total">
+                            <option value="">Todas las monedas</option>
+                            {% for moneda in monedas %}
+                                <option value="{{ moneda.id }}" {% if request.GET.moneda_total == moneda.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ moneda.nombre }} ({{ moneda.codigo }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Rango USD</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="rango_usd">
+                            <option value="">Todos los rangos</option>
+                            <option value="0-100" {% if request.GET.rango_usd == '0-100' %}selected{% endif %}>$0 - $100</option>
+                            <option value="100-500" {% if request.GET.rango_usd == '100-500' %}selected{% endif %}>$100 - $500</option>
+                            <option value="500-1000" {% if request.GET.rango_usd == '500-1000' %}selected{% endif %}>$500 - $1,000</option>
+                            <option value="1000-5000" {% if request.GET.rango_usd == '1000-5000' %}selected{% endif %}>$1,000 - $5,000</option>
+                            <option value="5000+" {% if request.GET.rango_usd == '5000+' %}selected{% endif %}>$5,000+</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Rango de Fechas</label>
+                        <div class="row g-2">
+                            <div class="col">
+                                <input type="date" class="form-control bg-dark text-white border-secondary"
+                                       name="fecha_desde_total" value="{{ request.GET.fecha_desde_total }}">
+                            </div>
+                            <div class="col">
+                                <input type="date" class="form-control bg-dark text-white border-secondary"
+                                       name="fecha_hasta_total" value="{{ request.GET.fecha_hasta_total }}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Rango de Cantidad</label>
+                        <div class="row g-2">
+                            <div class="col">
+                                <input type="number" step="0.01" class="form-control bg-dark text-white border-secondary"
+                                       name="cantidad_min_total" placeholder="Mín" value="{{ request.GET.cantidad_min_total }}">
+                            </div>
+                            <div class="col">
+                                <input type="number" step="0.01" class="form-control bg-dark text-white border-secondary"
+                                       name="cantidad_max_total" placeholder="Máx" value="{{ request.GET.cantidad_max_total }}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 d-flex justify-content-between align-items-center">
+                        <div>
+                            <button type="button" class="btn btn-primary" onclick="aplicarFiltros('total')">
+                                <i class="fas fa-search me-2"></i>Aplicar
+                            </button>
+                            <button type="button" class="btn btn-outline-light" onclick="limpiarFiltros('total')">
+                                <i class="fas fa-eraser me-2"></i>Limpiar
+                            </button>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-success" onclick="exportarExcel('total')">
+                                <i class="fas fa-file-excel me-2"></i>Exportar a Excel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Pestañas y Contenido -->
+    <div class="card bg-dark">
+        <div class="card-body">
+            <ul class="nav nav-tabs" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link {% if tab_activa == 'remesas' %}active{% endif %}" data-bs-toggle="tab" href="#remesas" role="tab">
+                        <i class="fas fa-paper-plane me-2"></i>Remesas
+                        <span class="badge bg-primary ms-1">{{ remesas_filtradas_count }}</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if tab_activa == 'pagos' %}active{% endif %}" data-bs-toggle="tab" href="#pagos" role="tab">
+                        <i class="fas fa-credit-card me-2"></i>Pagos
+                        <span class="badge bg-info ms-1">{{ pagos_filtrados_count }}</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if tab_activa == 'total' %}active{% endif %}" data-bs-toggle="tab" href="#total" role="tab">
+                        <i class="fas fa-list me-2"></i>Total
+                        <span class="badge bg-warning ms-1">{{ total_filtradas_count }}</span>
+                    </a>
+                </li>
+            </ul>
+
+            <div class="tab-content mt-3 content-transition" id="tabContent">
+                <!-- Pestaña Remesas -->
+                <div class="tab-pane fade {% if tab_activa == 'remesas' %}show active{% endif %}" id="remesas" role="tabpanel">
+                    <!-- Información de filtros para Remesas -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="alert alert-info d-flex justify-content-between align-items-center mb-0" style="background-color: #1e3a8a; border-color: #3b82f6; color: #dbeafe;">
+                                <div>
+                                    <i class="fas fa-filter me-2"></i>
+                                    <strong>Resultados filtrados:</strong>
+                                    <span id="remesas-count">{{ remesas_filtradas_count }}</span> remesa{{ remesas_filtradas_count|pluralize:"s" }}
+                                    {% if remesas_filtradas_count != remesas_count %}
+                                        de {{ remesas_count }} total{{ remesas_count|pluralize:"es" }}
+                                    {% endif %}
+                                </div>
+                                <div class="text-end">
+                                    <small>
+                                        <i class="fas fa-check-circle me-1"></i>
+                                        <span id="remesas-total-usd" class="text-success">${{ total_remesas|floatformat:2 }} USD</span>
+
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <!-- Vista Desktop -->
+                        <table class="table table-dark table-sm">
+                            <thead>
+                                <tr>
+                                    <th style="min-width: 120px;">ID Remesa</th>
+                                    <th class="d-none d-md-table-cell" style="min-width: 150px;">Receptor</th>
+                                    <th style="min-width: 100px;">Estado</th>
+                                    <th style="min-width: 100px;">Importe</th>
+                                    <th style="min-width: 80px;">Moneda</th>
+                                    <th style="min-width: 100px;">Equiv. USD</th>
+                                    <th style="min-width: 200px;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for remesa in remesas %}
+                                <tr>
+                                    <td>
+                                        <span class="text-info">{{ remesa.remesa_id }}</span>
+                                    </td>
+                                    <td class="d-none d-md-table-cell">
+                                        {% if remesa.receptor_nombre %}
+                                            <div class="text-truncate" style="max-width: 150px;" title="{{ remesa.receptor_nombre }}">
+                                                {{ remesa.receptor_nombre }}
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted">No especificado</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if remesa.estado == 'completada' %}
+                                            <span class="badge bg-success">Completada</span>
+                                        {% elif remesa.estado == 'confirmada' %}
+                                            <span class="badge bg-info">Confirmada</span>
+                                        {% elif remesa.estado == 'pendiente' %}
+                                            <span class="badge bg-warning text-dark">Pendiente</span>
+                                        {% elif remesa.estado == 'cancelada' %}
+                                            <span class="badge bg-danger">Cancelada</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ remesa.estado|title }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><span class="text-success">${{ remesa.importe|floatformat:2 }}</span></td>
+                                    <td>
+                                        {% if remesa.moneda %}
+                                            {{ remesa.moneda.codigo }}
+                                        {% else %}
+                                            USD
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="text-success">${{ remesa.calcular_monto_en_usd|floatformat:2 }}</span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <!-- Botón Ver Detalle -->
+                                            <a href="{% url 'remesas:detalle_remesa' remesa.id %}"
+                                               class="btn btn-outline-info btn-sm"
+                                               title="Ver detalles"
+                                               data-bs-toggle="tooltip">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+
+                                            {% if remesa.estado == 'pendiente' %}
+                                            <!-- Botón Editar -->
+                                            <button class="btn btn-outline-warning btn-sm btn-editar"
+                                                    data-remesa-id="{{ remesa.id }}"
+                                                    title="Editar remesa"
+                                                    data-bs-toggle="tooltip">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+
+                                            <!-- Botón Confirmar -->
+                                            <button class="btn btn-outline-primary btn-sm btn-confirmar"
+                                                    data-remesa-id="{{ remesa.id }}"
+                                                    data-remesa-numero="{{ remesa.remesa_id }}"
+                                                    title="Confirmar remesa"
+                                                    data-bs-toggle="tooltip">
+                                                <i class="fas fa-check-circle"></i>
+                                            </button>
+
+                                            <!-- Botón Cancelar -->
+                                            <button class="btn btn-outline-danger btn-sm btn-cancelar"
+                                                    data-remesa-id="{{ remesa.id }}"
+                                                    data-remesa-numero="{{ remesa.remesa_id }}"
+                                                    title="Cancelar remesa"
+                                                    data-bs-toggle="tooltip">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+
+                                            {% elif remesa.estado == 'confirmada' %}
+                                            <!-- Botón Procesar -->
+                                            <button class="btn btn-outline-success btn-sm btn-procesar"
+                                                    data-remesa-id="{{ remesa.id }}"
+                                                    data-remesa-numero="{{ remesa.remesa_id }}"
+                                                    title="Completar remesa"
+                                                    data-bs-toggle="tooltip">
+                                                <i class="fas fa-check"></i>
+                                            </button>
+
+                                            <!-- Botón Cancelar -->
+                                            <button class="btn btn-outline-danger btn-sm btn-cancelar"
+                                                    data-remesa-id="{{ remesa.id }}"
+                                                    data-remesa-numero="{{ remesa.remesa_id }}"
+                                                    title="Cancelar remesa"
+                                                    data-bs-toggle="tooltip">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                            {% else %}
+                                            <!-- Botón de estado (deshabilitado) -->
+                                            <button class="btn btn-outline-secondary btn-sm"
+                                                    disabled
+                                                    title="Remesa {{ remesa.estado|lower }}"
+                                                    data-bs-toggle="tooltip">
+                                                <i class="fas fa-lock"></i>
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted">No hay remesas registradas</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginación para Remesas - COMENTADA TEMPORALMENTE -->
+                    <!--
+                    {% if remesas.has_other_pages %}
+                    <div class="d-flex justify-content-center mt-3 mb-3">
+                        <nav aria-label="Paginación de remesas">
+                            <ul class="pagination pagination-sm">
+                                {% if remesas.has_previous %}
+                                    <li class="page-item">
+                                        <a class="page-link bg-dark border-secondary text-white"
+                                           href="?remesas_page=1#remesas" aria-label="Primera página">
+                                            <i class="fas fa-angle-double-left"></i>
+                                        </a>
+                                    </li>
+                                    <li class="page-item">
+                                        <a class="page-link bg-dark border-secondary text-white"
+                                           href="?remesas_page={{ remesas.previous_page_number }}#remesas" aria-label="Anterior">
+                                            <i class="fas fa-angle-left"></i>
+                                        </a>
+                                    </li>
+                                {% endif %}
+
+                                {% for num in remesas.paginator.page_range %}
+                                    {% if num == remesas.number %}
+                                        <li class="page-item active">
+                                            <span class="page-link bg-primary border-primary">{{ num }}</span>
+                                        </li>
+                                    {% elif num > remesas.number|add:'-2' and num < remesas.number|add:'2' %}
+                                        <li class="page-item">
+                                            <a class="page-link bg-dark border-secondary text-white"
+                                               href="?remesas_page={{ num }}#remesas">{{ num }}</a>
+                                        </li>
+                                    {% endif %}
+                                {% endfor %}
+
+                                {% if remesas.has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link bg-dark border-secondary text-white"
+                                           href="?remesas_page={{ remesas.next_page_number }}#remesas" aria-label="Siguiente">
+                                            <i class="fas fa-angle-right"></i>
+                                        </a>
+                                    </li>
+                                    <li class="page-item">
+                                        <a class="page-link bg-dark border-secondary text-white"
+                                           href="?remesas_page={{ remesas.paginator.num_pages }}#remesas" aria-label="Última">
+                                            <i class="fas fa-angle-double-right"></i>
+                                        </a>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    </div>
+                    <div class="text-center">
+                        <small class="text-muted">
+                            Mostrando {{ remesas.start_index|default:"0" }} - {{ remesas.end_index|default:"0" }}
+                            de {{ remesas.paginator.count|default:"0" }} remesas
+                        </small>
+                    </div>
+                    {% endif %}
+                    -->                    <!-- Vista móvil (cards) -->
+                    <div class="mobile-cards">
+                        {% for remesa in remesas %}
+                        <div class="mobile-item">
+                            <div class="mobile-item-header">
+                                <span class="text-info fw-bold">{{ remesa.remesa_id }}</span>
+                                <span class="badge {% if remesa.estado == 'completada' %}bg-success{% elif remesa.estado == 'confirmada' %}bg-info{% elif remesa.estado == 'pendiente' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                                    {{ remesa.get_estado_display }}
+                                </span>
+                            </div>
+                            <div class="mobile-item-body">
+                                <div class="mb-2">
+                                    <small class="text-muted">Receptor:</small><br>
+                                    {{ remesa.receptor_nombre|default:"No especificado" }}
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <small class="text-muted">Importe:</small><br>
+                                        <span class="text-success">${{ remesa.importe|floatformat:2 }} {{ remesa.moneda.codigo|default:"USD" }}</span>
+                                    </div>
+                                    <div class="text-end">
+                                        <small class="text-muted">Equiv. USD:</small><br>
+                                        <span class="text-success">${{ remesa.calcular_monto_en_usd|floatformat:2 }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mobile-item-footer">
+                                <small class="text-muted">Creada: {{ remesa.fecha_creacion|date:"d/m/Y H:i" }}</small>
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <a href="{% url 'remesas:detalle_remesa' remesa.id %}"
+                                       class="btn btn-info btn-sm">
+                                        <i class="fas fa-eye"></i> Ver
+                                    </a>
+
+                                    {% if remesa.estado == 'pendiente' %}
+                                    <button class="btn btn-warning btn-sm btn-editar"
+                                            data-remesa-id="{{ remesa.id }}">
+                                        <i class="fas fa-edit"></i> Editar
+                                    </button>
+                                    <button class="btn btn-primary btn-sm btn-confirmar"
+                                            data-remesa-id="{{ remesa.id }}"
+                                            data-remesa-numero="{{ remesa.remesa_id }}">
+                                        <i class="fas fa-check-circle"></i> Confirmar
+                                    </button>
+                                    {% elif remesa.estado == 'confirmada' %}
+                                    <button class="btn btn-success btn-sm btn-procesar"
+                                            data-remesa-id="{{ remesa.id }}"
+                                            data-remesa-numero="{{ remesa.remesa_id }}">
+                                        <i class="fas fa-check"></i> Completar
+                                    </button>
+                                    {% endif %}
+
+                                    {% if remesa.estado != 'completada' and remesa.estado != 'cancelada' %}
+                                    <button class="btn btn-danger btn-sm btn-cancelar"
+                                            data-remesa-id="{{ remesa.id }}"
+                                            data-remesa-numero="{{ remesa.remesa_id }}">
+                                        <i class="fas fa-times"></i> Cancelar
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Pestaña Pagos -->
+                <div class="tab-pane fade {% if tab_activa == 'pagos' %}show active{% endif %}" id="pagos" role="tabpanel">
+                    <!-- Información de filtros para Pagos -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="alert alert-info d-flex justify-content-between align-items-center mb-0" style="background-color: #0891b2; border-color: #06b6d4; color: #cffafe;">
+                                <div>
+                                    <i class="fas fa-filter me-2"></i>
+                                    <strong>Resultados filtrados:</strong>
+                                    <span id="pagos-count">{{ pagos_filtrados_count }}</span> pago{{ pagos_filtrados_count|pluralize:"s" }}
+                                    {% if pagos_filtrados_count != pagos_count %}
+                                        de {{ pagos_count }} total{{ pagos_count|pluralize:"es" }}
+                                    {% endif %}
+                                </div>
+                                <div class="text-end">
+                                    <small>
+                                        <i class="fas fa-dollar-sign me-1"></i>
+                                        <span id="pagos-total-usd">${{ total_pagos|floatformat:2 }} USD</span>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <!-- Vista Desktop -->
+                        <table class="table table-dark table-sm">
+                            <thead>
+                                <tr>
+                                    <th style="min-width: 120px;">ID Pago</th>
+                                    <th style="min-width: 100px;">Tipo</th>
+                                    <th style="min-width: 150px;">Destinatario</th>
+                                    <th style="min-width: 100px;">Cantidad</th>
+                                    <th style="min-width: 80px;">Moneda</th>
+                                    <th style="min-width: 100px;">Equiv. USD</th>
+                                    <th class="d-none d-md-table-cell" style="min-width: 100px;">Teléfono</th>
+                                    <th class="d-none d-lg-table-cell" style="min-width: 100px;">CI</th>
+                                    <th style="min-width: 150px;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for pago in pagos %}
+                                <tr>
+                                    <td>
+                                        <span class="text-info">{{ pago.pago_id }}</span>
+                                    </td>
+                                    <td>
+                                        {% if pago.tipo_pago == 'transferencia' %}
+                                            <span class="badge bg-primary">Transferencia</span>
+                                        {% else %}
+                                            <span class="badge bg-success">Efectivo</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="text-truncate" style="max-width: 150px;" title="{{ pago.destinatario }}">
+                                            {{ pago.destinatario }}
+                                        </div>
+                                    </td>
+                                    <td><span class="text-danger">-${{ pago.cantidad|floatformat:2 }}</span></td>
+                                    <td>
+                                        {% if pago.tipo_moneda %}
+                                            {{ pago.tipo_moneda.codigo }}
+                                        {% else %}
+                                            USD
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="text-danger">-${{ pago.calcular_monto_en_usd|floatformat:2 }}</span>
+                                    </td>
+                                    <td class="d-none d-md-table-cell">{{ pago.telefono|default:"-" }}</td>
+                                    <td class="d-none d-lg-table-cell">{{ pago.carnet_identidad|default:"-" }}</td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <!-- Botón Ver Detalle -->
+                                            <a href="{% url 'remesas:detalle_pago' pago.id %}"
+                                               class="btn btn-outline-info btn-sm"
+                                               title="Ver detalles"
+                                               data-bs-toggle="tooltip">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+
+                                            <!-- Botón Editar -->
+                                            <a href="{% url 'remesas:editar_pago' pago.id %}"
+                                               class="btn btn-outline-warning btn-sm"
+                                               title="Editar pago"
+                                               data-bs-toggle="tooltip">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+
+                                            <!-- Botón Eliminar -->
+                                            <button type="button"
+                                                    class="btn btn-outline-danger btn-sm btn-eliminar-pago"
+                                                    data-pago-id="{{ pago.id }}"
+                                                    data-pago-destinatario="{{ pago.destinatario }}"
+                                                    title="Eliminar pago"
+                                                    data-bs-toggle="tooltip">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="9" class="text-center text-muted">No hay pagos registrados</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginación para Pagos - COMENTADA TEMPORALMENTE -->
+                    <!--
+                    {% if pagos.has_other_pages %}
+                    <div class="d-flex justify-content-center mt-3 mb-3">
+                        <nav aria-label="Paginación de pagos">
+                            <ul class="pagination pagination-sm">
+                                {% if pagos.has_previous %}
+                                    <li class="page-item">
+                                        <a class="page-link bg-dark border-secondary text-white"
+                                           href="?pagos_page=1#pagos" aria-label="Primera página">
+                                            <i class="fas fa-angle-double-left"></i>
+                                        </a>
+                                    </li>
+                                    <li class="page-item">
+                                        <a class="page-link bg-dark border-secondary text-white"
+                                           href="?pagos_page={{ pagos.previous_page_number }}#pagos" aria-label="Anterior">
+                                            <i class="fas fa-angle-left"></i>
+                                        </a>
+                                    </li>
+                                {% endif %}
+
+                                {% for num in pagos.paginator.page_range %}
+                                    {% if num == pagos.number %}
+                                        <li class="page-item active">
+                                            <span class="page-link bg-primary border-primary">{{ num }}</span>
+                                        </li>
+                                    {% elif num > pagos.number|add:'-2' and num < pagos.number|add:'2' %}
+                                        <li class="page-item">
+                                            <a class="page-link bg-dark border-secondary text-white"
+                                               href="?pagos_page={{ num }}#pagos">{{ num }}</a>
+                                        </li>
+                                    {% endif %}
+                                {% endfor %}
+
+                                {% if pagos.has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link bg-dark border-secondary text-white"
+                                           href="?pagos_page={{ pagos.next_page_number }}#pagos" aria-label="Siguiente">
+                                            <i class="fas fa-angle-right"></i>
+                                        </a>
+                                    </li>
+                                    <li class="page-item">
+                                        <a class="page-link bg-dark border-secondary text-white"
+                                           href="?pagos_page={{ pagos.paginator.num_pages }}#pagos" aria-label="Última">
+                                            <i class="fas fa-angle-double-right"></i>
+                                        </a>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    </div>
+                    <div class="text-center">
+                        <small class="text-muted">
+                            Mostrando {{ pagos.start_index|default:"0" }} - {{ pagos.end_index|default:"0" }}
+                            de {{ pagos.paginator.count|default:"0" }} pagos
+                        </small>
+                    </div>
+                    {% endif %}
+                    -->                    <!-- Vista móvil (cards) -->
+                    <div class="mobile-cards">
+                        {% for pago in pagos %}
+                        <div class="mobile-item">
+                            <div class="mobile-item-header">
+                                <div>
+                                    <span class="text-info fw-bold">{{ pago.pago_id }}</span>
+                                    <br>
+                                    <span class="badge {% if pago.tipo_pago == 'transferencia' %}bg-primary{% else %}bg-success{% endif %}">
+                                        {{ pago.tipo_pago|title }}
+                                    </span>
+                                </div>
+                                <span class="text-muted">{{ pago.fecha_creacion|date:"d/m/Y H:i" }}</span>
+                            </div>
+                            <div class="mobile-item-body">
+                                <div class="mb-2">
+                                    <small class="text-muted">Destinatario:</small><br>
+                                    {{ pago.destinatario }}
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div>
+                                        <small class="text-muted">Cantidad:</small><br>
+                                        <span class="text-danger">-${{ pago.cantidad|floatformat:2 }} {{ pago.tipo_moneda.codigo|default:"USD" }}</span>
+                                    </div>
+                                    <div class="text-end">
+                                        <small class="text-muted">Equiv. USD:</small><br>
+                                        <span class="text-danger">-${{ pago.calcular_monto_en_usd|floatformat:2 }}</span>
+                                    </div>
+                                </div>
+                                {% if pago.telefono or pago.carnet_identidad %}
+                                <div class="mt-2">
+                                    {% if pago.telefono %}
+                                    <div><small class="text-muted">Tel: </small>{{ pago.telefono }}</div>
+                                    {% endif %}
+                                    {% if pago.carnet_identidad %}
+                                    <div><small class="text-muted">CI: </small>{{ pago.carnet_identidad }}</div>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="mobile-item-footer">
+                                <small class="text-muted">{{ pago.fecha_creacion|date:"d/m/Y H:i" }}</small>
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <a href="{% url 'remesas:detalle_pago' pago.id %}"
+                                       class="btn btn-info btn-sm">
+                                        <i class="fas fa-eye"></i> Ver
+                                    </a>
+                                    <a href="{% url 'remesas:editar_pago' pago.id %}"
+                                       class="btn btn-warning btn-sm">
+                                        <i class="fas fa-edit"></i> Editar
+                                    </a>
+                                    <button type="button"
+                                            class="btn btn-danger btn-sm btn-eliminar-pago"
+                                            data-pago-id="{{ pago.id }}"
+                                            data-pago-destinatario="{{ pago.destinatario }}">
+                                        <i class="fas fa-trash"></i> Eliminar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Pestaña Total -->
+                <div class="tab-pane fade {% if tab_activa == 'total' %}show active{% endif %}" id="total" role="tabpanel">
+                    <!-- Información de filtros para Total -->
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="alert alert-warning d-flex justify-content-between align-items-center mb-0" style="background-color: #92400e; border-color: #f59e0b; color: #fef3c7;">
+                                <div>
+                                    <i class="fas fa-filter me-2"></i>
+                                    <strong>Resultados filtrados:</strong>
+                                    <span id="total-count">{{ total_filtradas_count }}</span> operacion{{ total_filtradas_count|pluralize:"es" }}
+                                    {% if total_filtradas_count != total_operaciones_count %}
+                                        de {{ total_operaciones_count }} total{{ total_operaciones_count|pluralize:"es" }}
+                                    {% endif %}
+                                </div>
+                                <div class="text-end">
+                                    <small>
+                                        <i class="fas fa-chart-line me-1"></i>
+                                        Combinando remesas y pagos
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-container-total" style="max-height: 600px; overflow-y: auto; border: 1px solid #495057; border-radius: 0.375rem;">
+                        <!-- Vista Desktop -->
+                        <table class="table table-dark table-sm mb-0">
+                            <thead class="sticky-top">
+                                <tr>
+                                    <th style="min-width: 150px; background-color: #343a40; z-index: 10;">ID Operación</th>
+                                    <th style="min-width: 100px; background-color: #343a40; z-index: 10;">Tipo</th>
+                                    <th style="min-width: 120px; background-color: #343a40; z-index: 10;">Cantidad</th>
+                                    <th style="min-width: 80px; background-color: #343a40; z-index: 10;">Moneda</th>
+                                    <th style="min-width: 120px; background-color: #343a40; z-index: 10;">Equiv. USD</th>
+                                    <th style="min-width: 100px; background-color: #343a40; z-index: 10;">Estado</th>
+                                    <th style="min-width: 80px; background-color: #343a40; z-index: 10;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for operacion in total_operaciones %}
+                                <tr>
+                                    <td class="fw-bold text-info">{{ operacion.id_operacion }}</td>
+                                    <td>
+                                        <span class="badge {% if operacion.tipo == 'Transferencia' %}bg-primary{% else %}bg-success{% endif %}">
+                                            {{ operacion.tipo }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if operacion.tipo_operacion == 'Pago' %}
+                                            <span class="text-danger">-${{ operacion.cantidad|floatformat:2 }}</span>
+                                        {% else %}
+                                            <span class="text-success">${{ operacion.cantidad|floatformat:2 }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ operacion.moneda }}</td>
+                                    <td class="fw-bold">
+                                        {% if operacion.tipo_operacion == 'Pago' %}
+                                            <span class="text-danger">-${{ operacion.equiv_usd|floatformat:2 }}</span>
+                                        {% else %}
+                                            <span class="text-success">${{ operacion.equiv_usd|floatformat:2 }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if operacion.tipo_operacion == 'Remesa' %}
+                                            <span class="badge
+                                                {% if operacion.estado == 'pendiente' %}bg-warning text-dark
+                                                {% elif operacion.estado == 'confirmada' or operacion.estado == 'procesado' %}bg-info
+                                                {% elif operacion.estado == 'completada' or operacion.estado == 'completado' %}bg-success
+                                                {% elif operacion.estado == 'cancelada' or operacion.estado == 'cancelado' %}bg-danger
+                                                {% else %}bg-secondary{% endif %}">
+                                                {{ operacion.estado|capfirst }}
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-success">
+                                                Efectuado
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            {% if operacion.tipo_operacion == 'Remesa' %}
+                                                <button type="button" class="btn btn-outline-info btn-sm btn-ver-total"
+                                                        data-id="{{ operacion.id_original }}"
+                                                        data-tipo="remesa"
+                                                        data-bs-toggle="tooltip" title="Ver detalles">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                            {% else %}
+                                                <button type="button" class="btn btn-outline-info btn-sm btn-ver-total"
+                                                        data-id="{{ operacion.id_original }}"
+                                                        data-tipo="pago"
+                                                        data-bs-toggle="tooltip" title="Ver detalles">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-4">
+                                        <i class="fas fa-inbox fa-2x mb-2"></i><br>
+                                        No hay operaciones para mostrar
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Paginación para Total - COMENTADA TEMPORALMENTE -->
+                    <!--
+                    {% if total_operaciones.has_other_pages %}
+                    <div class="d-flex justify-content-between align-items-center">
+                        <nav aria-label="Paginación Total">
+                            <ul class="pagination pagination-sm">
+                                {% if total_operaciones.has_previous %}
+                                    <li class="page-item">
+                                        <a class="page-link bg-dark border-secondary text-white pagination-total-link"
+                                           href="?total_page=1#total"
+                                           data-page="1" aria-label="Primera página">
+                                            <i class="fas fa-angle-double-left"></i>
+                                        </a>
+                                    </li>
+                                    <li class="page-item">
+                                        <a class="page-link bg-dark border-secondary text-white pagination-total-link"
+                                           href="?total_page={{ total_operaciones.previous_page_number }}#total"
+                                           data-page="{{ total_operaciones.previous_page_number }}" aria-label="Anterior">
+                                            <i class="fas fa-angle-left"></i>
+                                        </a>
+                                    </li>
+                                {% endif %}
+
+                                {% for num in total_operaciones.paginator.page_range %}
+                                    {% if num == total_operaciones.number %}
+                                        <li class="page-item active">
+                                            <span class="page-link bg-primary border-primary">{{ num }}</span>
+                                        </li>
+                                    {% elif num > total_operaciones.number|add:'-3' and num < total_operaciones.number|add:'3' %}
+                                        <li class="page-item">
+                                            <a class="page-link bg-dark border-secondary text-white pagination-total-link"
+                                               href="?total_page={{ num }}#total"
+                                               data-page="{{ num }}">{{ num }}</a>
+                                        </li>
+                                    {% endif %}
+                                {% endfor %}
+
+                                {% if total_operaciones.has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link bg-dark border-secondary text-white pagination-total-link"
+                                           href="?total_page={{ total_operaciones.next_page_number }}#total"
+                                           data-page="{{ total_operaciones.next_page_number }}" aria-label="Siguiente">
+                                            <i class="fas fa-angle-right"></i>
+                                        </a>
+                                    </li>
+                                    <li class="page-item">
+                                        <a class="page-link bg-dark border-secondary text-white pagination-total-link"
+                                           href="?total_page={{ total_operaciones.paginator.num_pages }}#total"
+                                           data-page="{{ total_operaciones.paginator.num_pages }}" aria-label="Última">
+                                            <i class="fas fa-angle-double-right"></i>
+                                        </a>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    </div>
+                    <div class="text-center">
+                        <small class="text-muted">
+                            Mostrando {{ total_operaciones.start_index|default:"0" }} - {{ total_operaciones.end_index|default:"0" }}
+                            de {{ total_operaciones.paginator.count|default:"0" }} operaciones
+                        </small>
+                    </div>
+                    {% endif %}
+                    -->
+
+                    <!-- Vista móvil (cards) para Total -->
+                    <div class="mobile-cards">
+                        {% for operacion in total_operaciones %}
+                        <div class="mobile-item">
+                            <div class="mobile-item-header">
+                                <div>
+                                    <span class="text-info fw-bold">{{ operacion.id_operacion }}</span>
+                                    <br>
+                                    <span class="badge {% if operacion.tipo == 'Transferencia' %}bg-primary{% else %}bg-success{% endif %}">
+                                        {{ operacion.tipo }}
+                                    </span>
+                                </div>
+                                {% if operacion.tipo_operacion == 'Remesa' %}
+                                    <span class="badge
+                                        {% if operacion.estado == 'pendiente' %}bg-warning text-dark
+                                        {% elif operacion.estado == 'confirmada' or operacion.estado == 'procesado' %}bg-info
+                                        {% elif operacion.estado == 'completada' or operacion.estado == 'completado' %}bg-success
+                                        {% elif operacion.estado == 'cancelada' or operacion.estado == 'cancelado' %}bg-danger
+                                        {% else %}bg-secondary{% endif %}">
+                                        {{ operacion.estado|capfirst }}
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-success">
+                                        Efectuado
+                                    </span>
+                                {% endif %}
+                            </div>
+                            <div class="mobile-item-body">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div>
+                                        <small class="text-muted">Cantidad:</small><br>
+                                        {% if operacion.tipo_operacion == 'Pago' %}
+                                            <span class="text-danger">-${{ operacion.cantidad|floatformat:2 }} {{ operacion.moneda }}</span>
+                                        {% else %}
+                                            ${{ operacion.cantidad|floatformat:2 }} {{ operacion.moneda }}
+                                        {% endif %}
+                                    </div>
+                                    <div class="text-end">
+                                        <small class="text-muted">Equiv. USD:</small><br>
+                                        {% if operacion.tipo_operacion == 'Pago' %}
+                                            <span class="text-danger fw-bold">-${{ operacion.equiv_usd|floatformat:2 }}</span>
+                                        {% else %}
+                                            <span class="text-success fw-bold">${{ operacion.equiv_usd|floatformat:2 }}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mobile-item-footer">
+                                {% if operacion.tipo_operacion == 'Remesa' %}
+                                    <small class="text-muted">Estado: {{ operacion.estado|capfirst }}</small>
+                                {% else %}
+                                    <small class="text-muted">Estado: Efectuado</small>
+                                {% endif %}
+                                <div class="btn-group" role="group">
+                                    {% if operacion.tipo_operacion == 'Remesa' %}
+                                        <button type="button" class="btn btn-outline-info btn-sm btn-ver-total"
+                                                data-id="{{ operacion.id_original }}"
+                                                data-tipo="remesa">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    {% else %}
+                                        <button type="button" class="btn btn-outline-info btn-sm btn-ver-total"
+                                                data-id="{{ operacion.id_original }}"
+                                                data-tipo="pago">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% csrf_token %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Variables globales - inicializar con el valor del backend
+    let activeTab = '{{ tab_activa|default:"remesas" }}';
+
+    // Configurar manejo del dropdown del botón "Nueva"
+    setupDropdownBehavior();
+
+    // Verificar filtros activos al cargar la página
+    checkActiveFilters();
+
+    // Event listeners para botones de la pestaña Total
+    setupTotalTabListeners();
+
+    // Función para configurar el comportamiento del dropdown
+    function setupDropdownBehavior() {
+        const dropdownButton = document.getElementById('newTransactionButton');
+
+        if (!dropdownButton) {
+            console.log('Botón dropdown no encontrado');
+            return;
+        }
+
+        console.log('Configurando dropdown behavior');
+
+        // Función simple para cerrar dropdown
+        function forceCloseDropdown() {
+            // Obtener la instancia de Bootstrap
+            const dropdownInstance = bootstrap.Dropdown.getInstance(dropdownButton);
+            if (dropdownInstance) {
+                dropdownInstance.hide();
+                return true;
+            }
+
+            // Fallback: trigger click en el botón si está abierto
+            if (dropdownButton.getAttribute('aria-expanded') === 'true') {
+                dropdownButton.click();
+                return true;
+            }
+
+            return false;
+        }
+
+        // Listener para clicks fuera del dropdown
+        document.addEventListener('click', function(event) {
+            // Verificar si el dropdown está abierto
+            if (dropdownButton.getAttribute('aria-expanded') !== 'true') {
+                return;
+            }
+
+            // Verificar si el click fue fuera del dropdown
+            const dropdownContainer = dropdownButton.closest('.btn-group');
+            if (dropdownContainer && !dropdownContainer.contains(event.target)) {
+                console.log('Click fuera del dropdown, cerrando...');
+                forceCloseDropdown();
+            }
+        }, true);
+
+        // Listener para tecla Escape
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape' && dropdownButton.getAttribute('aria-expanded') === 'true') {
+                console.log('Escape presionado, cerrando dropdown...');
+                forceCloseDropdown();
+                event.preventDefault();
+            }
+        });
+
+        // Listener para scroll en móvil
+        let scrollTimeout;
+        window.addEventListener('scroll', function() {
+            if (dropdownButton.getAttribute('aria-expanded') === 'true') {
+                clearTimeout(scrollTimeout);
+                scrollTimeout = setTimeout(function() {
+                    console.log('Scroll detectado, cerrando dropdown...');
+                    forceCloseDropdown();
+                }, 100);
+            }
+        });
+
+        console.log('Dropdown behavior configurado correctamente');
+    }
+
+    // Función para configurar listeners de paginación específicos
+    function setupPaginationListeners() {
+        // Paginación de Remesas
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.pagination-remesas-link')) {
+                e.preventDefault();
+                e.stopPropagation();
+                handlePagination(e.target.closest('.pagination-remesas-link'), 'remesas');
+            }
+        });
+
+        // Paginación de Pagos
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.pagination-pagos-link')) {
+                e.preventDefault();
+                e.stopPropagation();
+                handlePagination(e.target.closest('.pagination-pagos-link'), 'pagos');
+            }
+        });
+
+        // Paginación de Total - usar navegación directa
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.pagination-total-link')) {
+                // Permitir navegación directa sin preventDefault para Total
+                // La navegación se maneja con el href del enlace
+                return true;
+            }
+        });
+    }
+
+    // Función para manejar paginación específica
+    function handlePagination(link, type) {
+        const page = link.getAttribute('data-page');
+        const filterForm = document.getElementById(`filterForm${type.charAt(0).toUpperCase() + type.slice(1)}`);
+
+        if (!filterForm) return;
+
+        const formData = new FormData(filterForm);
+        const params = new URLSearchParams();
+
+        for (let [key, value] of formData.entries()) {
+            if (value.trim() !== '') {
+                params.append(key, value);
+            }
+        }
+
+        // Agregar número de página específico
+        params.append(`${type}_page`, page);
+        params.append('tab', type);
+
+        // Construir URL
+        const url = window.location.pathname + '?' + params.toString();
+
+        // Mostrar indicador de carga
+        const tabContent = document.getElementById('tabContent');
+        tabContent.style.opacity = '0.7';
+
+        // Hacer petición AJAX
+        fetch(url, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'text/html'
+            }
+        })
+        .then(response => response.text())
+        .then(html => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            updatePageContent(doc, type);
+
+            // Actualizar URL sin recargar
+            history.pushState(null, null, url);
+
+            // Restaurar opacidad
+            tabContent.style.opacity = '1';
+        })
+        .catch(error => {
+            console.error('Error al cargar página:', error);
+            tabContent.style.opacity = '1';
+            // Fallback: navegación normal
+            window.location.href = url;
+        });
+    }
+
+    // Función para configurar listeners de la tabla Total
+    function setupTotalTabListeners() {
+        console.log('Configurando listeners de tabla Total...');
+
+        // Funciones para ver detalles desde la tabla Total
+        function verRemesa(remesaId) {
+            console.log('Viendo remesa ID:', remesaId);
+            const url = `{% url 'remesas:detalle_remesa' 0 %}`.replace('0', remesaId);
+            console.log('Navegando a URL:', url);
+            window.location.href = url;
+        }
+
+        function verPago(pagoId) {
+            console.log('Viendo pago ID:', pagoId);
+            const url = `{% url 'remesas:detalle_pago' 0 %}`.replace('0', pagoId);
+            console.log('Navegando a URL:', url);
+            window.location.href = url;
+        }
+
+        // Event listeners para botones de la pestaña Total
+        document.addEventListener('click', function(e) {
+            // Log todos los clicks para debug
+            if (e.target.classList.contains('btn-ver-total') || e.target.closest('.btn-ver-total')) {
+                console.log('Click detectado en botón ver total');
+                console.log('Target:', e.target);
+                console.log('Closest:', e.target.closest('.btn-ver-total'));
+            }
+
+            if (e.target.closest('.btn-ver-total')) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const button = e.target.closest('.btn-ver-total');
+                const id = button.getAttribute('data-id');
+                const tipo = button.getAttribute('data-tipo');
+
+                console.log('Botón ver total clickeado:');
+                console.log('- Button element:', button);
+                console.log('- ID:', id);
+                console.log('- Tipo:', tipo);
+                console.log('- Button HTML:', button.outerHTML);
+
+                if (!id || !tipo) {
+                    console.error('Faltan atributos data-id o data-tipo en el botón');
+                    console.log('Todos los atributos del botón:', button.attributes);
+                    return;
+                }
+
+                // Deshabilitar el botón temporalmente para evitar doble click
+                button.disabled = true;
+                button.style.opacity = '0.6';
+
+                setTimeout(() => {
+                    button.disabled = false;
+                    button.style.opacity = '1';
+                }, 2000);
+
+                if (tipo === 'remesa') {
+                    console.log('Llamando a verRemesa con ID:', id);
+                    verRemesa(id);
+                } else if (tipo === 'pago') {
+                    console.log('Llamando a verPago con ID:', id);
+                    verPago(id);
+                } else {
+                    console.error('Tipo de operación no reconocido:', tipo);
+                }
+            }
+
+            if (e.target.closest('.btn-editar-total')) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const button = e.target.closest('.btn-editar-total');
+                const id = button.getAttribute('data-id');
+                const tipo = button.getAttribute('data-tipo');
+
+                if (tipo === 'remesa') {
+                    editarRemesa(id);
+                } else if (tipo === 'pago') {
+                    editarPago(id);
+                }
+            }
+        });
+
+        console.log('Listeners de tabla Total configurados correctamente');
+    }
+
+    // Inicializar dropdown de Bootstrap
+    var dropdownElementList = [].slice.call(document.querySelectorAll('.dropdown-toggle'))
+    dropdownElementList.map(function (dropdownToggleEl) {
+        return new bootstrap.Dropdown(dropdownToggleEl, {
+            autoClose: true
+        })
+    });
+
+    // Configurar comportamiento adicional del dropdown después de inicializar Bootstrap
+    setTimeout(function() {
+        setupDropdownBehavior();
+    }, 100);
+
+    // Toggle Filtros
+    const toggleButton = document.getElementById('toggleFilters');
+    const filtersContent = document.getElementById('filtersContent');
+
+    if (toggleButton && filtersContent) {
+        toggleButton.addEventListener('click', function() {
+            const isVisible = filtersContent.style.display !== 'none';
+            filtersContent.style.display = isVisible ? 'none' : 'block';
+            toggleButton.querySelector('i').className = isVisible ?
+                'fas fa-chevron-down' : 'fas fa-chevron-up';
+        });
+    }
+
+    // Función para cambiar entre filtros de remesas, pagos y total
+    function switchFilters(tabName) {
+        activeTab = tabName;
+        const remesasFilters = document.getElementById('filterFormRemesas');
+        const pagosFilters = document.getElementById('filterFormPagos');
+        const totalFilters = document.getElementById('filterFormTotal');
+
+        if (remesasFilters && pagosFilters && totalFilters) {
+            // Ocultar todos los filtros primero
+            remesasFilters.style.display = 'none';
+            pagosFilters.style.display = 'none';
+            totalFilters.style.display = 'none';
+
+            // Mostrar el filtro correspondiente
+            if (tabName === 'remesas') {
+                remesasFilters.style.display = 'block';
+            } else if (tabName === 'pagos') {
+                pagosFilters.style.display = 'block';
+            } else if (tabName === 'total') {
+                totalFilters.style.display = 'block';
+            }
+        }
+    }
+
+    // Inicializar con los filtros de la pestaña activa
+    switchFilters(activeTab);
+
+    // Agregar validación en tiempo real para campos de filtros
+    function setupRealTimeValidation() {
+        // Validación para rangos de fechas
+        document.querySelectorAll('input[type="date"]').forEach(input => {
+            input.addEventListener('change', function() {
+                validateDateRange(this);
+            });
+        });
+
+        // Validación para campos numéricos
+        document.querySelectorAll('input[type="number"]').forEach(input => {
+            input.addEventListener('input', function() {
+                validateNumericField(this);
+            });
+
+            input.addEventListener('blur', function() {
+                validateNumericRange(this);
+            });
+        });
+
+        // Validación para campos de texto
+        document.querySelectorAll('input[type="text"]').forEach(input => {
+            input.addEventListener('input', function() {
+                validateTextField(this);
+            });
+        });
+    }
+
+    // Funciones de validación individual
+    function validateDateRange(dateInput) {
+        const form = dateInput.closest('form');
+        const name = dateInput.name;
+        const isFromDate = name.includes('desde');
+        const isToDate = name.includes('hasta');
+
+        if (isFromDate) {
+            const toDateName = name.replace('desde', 'hasta');
+            const toDateInput = form.querySelector(`[name="${toDateName}"]`);
+            if (toDateInput && toDateInput.value) {
+                const fromDate = new Date(dateInput.value);
+                const toDate = new Date(toDateInput.value);
+
+                if (fromDate > toDate) {
+                    dateInput.classList.add('is-invalid');
+                    toDateInput.classList.add('is-invalid');
+                } else {
+                    dateInput.classList.remove('is-invalid');
+                    toDateInput.classList.remove('is-invalid');
+                    dateInput.classList.add('is-valid');
+                    toDateInput.classList.add('is-valid');
+                }
+            } else {
+                dateInput.classList.remove('is-invalid', 'is-valid');
+            }
+        } else if (isToDate) {
+            const fromDateName = name.replace('hasta', 'desde');
+            const fromDateInput = form.querySelector(`[name="${fromDateName}"]`);
+            if (fromDateInput && fromDateInput.value) {
+                const fromDate = new Date(fromDateInput.value);
+                const toDate = new Date(dateInput.value);
+
+                if (fromDate > toDate) {
+                    dateInput.classList.add('is-invalid');
+                    fromDateInput.classList.add('is-invalid');
+                } else {
+                    dateInput.classList.remove('is-invalid');
+                    fromDateInput.classList.remove('is-invalid');
+                    dateInput.classList.add('is-valid');
+                    fromDateInput.classList.add('is-valid');
+                }
+            } else {
+                dateInput.classList.remove('is-invalid', 'is-valid');
+            }
+        }
+    }
+
+    function validateNumericField(numericInput) {
+        const value = numericInput.value;
+
+        if (value === '') {
+            numericInput.classList.remove('is-invalid', 'is-valid');
+            return;
+        }
+
+        const numValue = parseFloat(value);
+
+        if (isNaN(numValue) || numValue < 0) {
+            numericInput.classList.add('is-invalid');
+            numericInput.classList.remove('is-valid');
+        } else {
+            numericInput.classList.remove('is-invalid');
+            numericInput.classList.add('is-valid');
+        }
+    }
+
+    function validateNumericRange(numericInput) {
+        const form = numericInput.closest('form');
+        const name = numericInput.name;
+        const isMinField = name.includes('min');
+        const isMaxField = name.includes('max');
+
+        if (isMinField) {
+            const maxFieldName = name.replace('min', 'max');
+            const maxField = form.querySelector(`[name="${maxFieldName}"]`);
+            if (maxField && maxField.value) {
+                const minVal = parseFloat(numericInput.value);
+                const maxVal = parseFloat(maxField.value);
+
+                if (!isNaN(minVal) && !isNaN(maxVal) && minVal > maxVal) {
+                    numericInput.classList.add('is-invalid');
+                    maxField.classList.add('is-invalid');
+                } else if (!isNaN(minVal) && !isNaN(maxVal)) {
+                    numericInput.classList.remove('is-invalid');
+                    maxField.classList.remove('is-invalid');
+                    numericInput.classList.add('is-valid');
+                    maxField.classList.add('is-valid');
+                }
+            }
+        } else if (isMaxField) {
+            const minFieldName = name.replace('max', 'min');
+            const minField = form.querySelector(`[name="${minFieldName}"]`);
+            if (minField && minField.value) {
+                const minVal = parseFloat(minField.value);
+                const maxVal = parseFloat(numericInput.value);
+
+                if (!isNaN(minVal) && !isNaN(maxVal) && minVal > maxVal) {
+                    numericInput.classList.add('is-invalid');
+                    minField.classList.add('is-invalid');
+                } else if (!isNaN(minVal) && !isNaN(maxVal)) {
+                    numericInput.classList.remove('is-invalid');
+                    minField.classList.remove('is-invalid');
+                    numericInput.classList.add('is-valid');
+                    minField.classList.add('is-valid');
+                }
+            }
+        }
+    }
+
+    function validateTextField(textInput) {
+        const value = textInput.value.trim();
+
+        if (value === '') {
+            textInput.classList.remove('is-invalid', 'is-valid');
+            return;
+        }
+
+        // Validaciones específicas según el tipo de campo
+        if (textInput.name.includes('search')) {
+            // Para campos de búsqueda, al menos 2 caracteres
+            if (value.length < 2) {
+                textInput.classList.add('is-invalid');
+                textInput.classList.remove('is-valid');
+            } else {
+                textInput.classList.remove('is-invalid');
+                textInput.classList.add('is-valid');
+            }
+        } else {
+            // Para otros campos de texto, cualquier valor es válido
+            textInput.classList.remove('is-invalid');
+            textInput.classList.add('is-valid');
+        }
+    }
+
+    // Configurar validación en tiempo real
+    setupRealTimeValidation();
+
+    // Inicializar todas las pestañas
+    const tabList = document.querySelectorAll('a[data-bs-toggle="tab"]');
+    tabList.forEach(function(tabEl) {
+        const tab = new bootstrap.Tab(tabEl);
+
+        tabEl.addEventListener('click', function(e) {
+            e.preventDefault();
+            tab.show();
+
+            // Cambiar filtros según la pestaña activa
+            const targetId = this.getAttribute('href');
+            if (targetId === '#remesas') {
+                switchFilters('remesas');
+            } else if (targetId === '#pagos') {
+                switchFilters('pagos');
+            } else if (targetId === '#total') {
+                switchFilters('total');
+            }
+
+            // Guardar la pestaña activa
+            localStorage.setItem('activeTab', this.getAttribute('href'));
+        });
+    });
+
+    // Mostrar la pestaña activa al cargar o basada en el hash de la URL
+    const urlHash = window.location.hash;
+    let savedTab = localStorage.getItem('activeTab');
+
+    // Si hay un hash en la URL (#remesas, #pagos o #total), usarlo
+    if (urlHash === '#remesas' || urlHash === '#pagos' || urlHash === '#total') {
+        savedTab = urlHash;
+        localStorage.setItem('activeTab', savedTab);
+    }
+
+    if (savedTab) {
+        const tabElement = document.querySelector(`a[href="${savedTab}"]`);
+        if (tabElement) {
+            const tab = new bootstrap.Tab(tabElement);
+            tab.show();
+            // Cambiar filtros según la pestaña activa
+            if (savedTab === '#remesas') {
+                switchFilters('remesas');
+            } else if (savedTab === '#pagos') {
+                switchFilters('pagos');
+            } else if (savedTab === '#total') {
+                switchFilters('total');
+            }
+        }
+    } else {
+        // Si no hay pestaña guardada, mostrar la primera
+        const firstTab = new bootstrap.Tab(document.querySelector('a[data-bs-toggle="tab"]'));
+        firstTab.show();
+        switchFilters('remesas');
+    }
+
+    // Interceptar clics en enlaces de paginación para mantener la pestaña activa
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.pagination a')) {
+            e.preventDefault();
+            const link = e.target.closest('.pagination a');
+            const activeTab = document.querySelector('.nav-link.active').getAttribute('href');
+            localStorage.setItem('activeTab', activeTab);
+
+            // Cargar página con AJAX en lugar de redireccionar
+            loadPageAjax(link.href);
+        }
+    });
+
+    // Event listeners para botones de acción
+    document.addEventListener('click', function(e) {
+        console.log('Click detectado en:', e.target);
+
+        if (e.target.closest('.btn-editar')) {
+            const remesaId = e.target.closest('.btn-editar').dataset.remesaId;
+            console.log('Editando remesa ID:', remesaId);
+            editarRemesa(remesaId);
+        }
+
+        if (e.target.closest('.btn-confirmar')) {
+            const btn = e.target.closest('.btn-confirmar');
+            const remesaId = btn.dataset.remesaId;
+            const remesaNumero = btn.dataset.remesaNumero;
+            console.log('Confirmando remesa ID:', remesaId, 'Número:', remesaNumero);
+            confirmarRemesa(remesaId, remesaNumero);
+        }
+
+        if (e.target.closest('.btn-procesar')) {
+            const btn = e.target.closest('.btn-procesar');
+            const remesaId = btn.dataset.remesaId;
+            const remesaNumero = btn.dataset.remesaNumero;
+            console.log('Procesando remesa ID:', remesaId, 'Número:', remesaNumero);
+            procesarRemesa(remesaId, remesaNumero);
+        }
+
+        if (e.target.closest('.btn-cancelar')) {
+            const btn = e.target.closest('.btn-cancelar');
+            const remesaId = btn.dataset.remesaId;
+            const remesaNumero = btn.dataset.remesaNumero;
+            console.log('Cancelando remesa ID:', remesaId, 'Número:', remesaNumero);
+            cancelarRemesa(remesaId, remesaNumero);
+        }
+
+        if (e.target.closest('.btn-eliminar-pago')) {
+            const btn = e.target.closest('.btn-eliminar-pago');
+            const pagoId = btn.dataset.pagoId;
+            const destinatario = btn.dataset.pagoDestinatario;
+            console.log('Eliminando pago ID:', pagoId, 'Destinatario:', destinatario);
+            eliminarPago(pagoId, destinatario);
+        }
+    });
+
+    // Funciones para las acciones de remesas
+    function editarRemesa(remesaId) {
+        console.log('Función editarRemesa llamada con ID:', remesaId);
+        window.location.href = `/remesas/editar/${remesaId}/`;
+    }
+
+    function confirmarRemesa(remesaId, remesaNumero) {
+        console.log('Función confirmarRemesa llamada con ID:', remesaId, 'Número:', remesaNumero);
+        Swal.fire({
+            title: `¿Confirmar la remesa #${remesaNumero}?`,
+            text: "Esta acción no se puede deshacer",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Sí, confirmar',
+            cancelButtonText: 'Cancelar',
+            background: '#212529',
+            color: '#fff'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+                fetch(`/remesas/confirmar/${remesaId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'same-origin'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            title: '¡Confirmada!',
+                            text: 'La remesa ha sido confirmada exitosamente.',
+                            icon: 'success',
+                            background: '#212529',
+                            color: '#fff'
+                        }).then(() => window.location.reload());
+                    } else {
+                        throw new Error(data.error || 'Error al confirmar la remesa');
+                    }
+                })
+                .catch(error => {
+                    Swal.fire({
+                        title: 'Error',
+                        text: error.message,
+                        icon: 'error',
+                        background: '#212529',
+                        color: '#fff'
+                    });
+                });
+            }
+        });
+    }
+
+    function procesarRemesa(remesaId, remesaNumero) {
+        Swal.fire({
+            title: `¿Completar la remesa #${remesaNumero}?`,
+            text: "Esta acción no se puede deshacer",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#28a745',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Sí, completar',
+            cancelButtonText: 'Cancelar',
+            background: '#212529',
+            color: '#fff'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+                fetch(`/remesas/procesar/${remesaId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'same-origin'
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.text().then(text => {
+                            try {
+                                return JSON.parse(text);
+                            } catch (e) {
+                                throw new Error('Error en el servidor: ' + text);
+                            }
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            title: '¡Completada!',
+                            text: 'La remesa ha sido completada exitosamente.',
+                            icon: 'success',
+                            background: '#212529',
+                            color: '#fff'
+                        }).then(() => {
+                            window.location.reload();
+                        });
+                    } else {
+                        throw new Error(data.error || data.message || 'Error al completar la remesa');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    Swal.fire({
+                        title: 'Error',
+                        text: error.message || 'Error al procesar la remesa. Por favor, intente nuevamente.',
+                        icon: 'error',
+                        background: '#212529',
+                        color: '#fff'
+                    });
+                });
+            }
+        });
+    }
+
+    function cancelarRemesa(remesaId, remesaNumero) {
+        Swal.fire({
+            title: `¿Cancelar la remesa #${remesaNumero}?`,
+            text: "Esta acción no se puede deshacer",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Sí, cancelar',
+            cancelButtonText: 'No, mantener',
+            background: '#212529',
+            color: '#fff'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+                fetch(`/remesas/cancelar/${remesaId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'same-origin'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            title: '¡Cancelada!',
+                            text: 'La remesa ha sido cancelada exitosamente.',
+                            icon: 'success',
+                            background: '#212529',
+                            color: '#fff'
+                        }).then(() => window.location.reload());
+                    } else {
+                        throw new Error(data.error || 'Error al cancelar la remesa');
+                    }
+                })
+                .catch(error => {
+                    Swal.fire({
+                        title: 'Error',
+                        text: error.message,
+                        icon: 'error',
+                        background: '#212529',
+                        color: '#fff'
+                    });
+                });
+            }
+        });
+    }
+
+    // Función para eliminar pagos
+    function eliminarPago(pagoId, destinatario) {
+        Swal.fire({
+            title: '¿Eliminar pago?',
+            html: `<p class="text-muted">Se eliminará el pago para:</p><p class="text-white">${destinatario}</p>`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar',
+            background: '#212529',
+            color: '#fff'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Mostrar loading
+                Swal.fire({
+                    title: 'Eliminando...',
+                    text: 'Por favor espere',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    showConfirmButton: false,
+                    background: '#212529',
+                    color: '#fff',
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
+                fetch(`/remesas/pagos/eliminar/${pagoId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'same-origin'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            title: '¡Eliminado!',
+                            text: data.message,
+                            icon: 'success',
+                            background: '#212529',
+                            color: '#fff',
+                            showConfirmButton: false,
+                            timer: 1500
+                        }).then(() => {
+                            location.reload();
+                        });
+                    } else {
+                        Swal.fire({
+                            title: 'Error',
+                            text: data.message,
+                            icon: 'error',
+                            background: '#212529',
+                            color: '#fff'
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    Swal.fire({
+                        title: 'Error',
+                        text: 'Ocurrió un error al procesar la solicitud',
+                        icon: 'error',
+                        background: '#212529',
+                        color: '#fff'
+                    });
+                });
+            }
+        });
+    }
+
+    // Función para limpiar filtros
+    window.limpiarFiltros = function(tipo) {
+        const form = document.getElementById(`filterForm${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`);
+        if (!form) return;
+
+        // Limpiar todos los campos
+        const inputs = form.querySelectorAll('input, select');
+        inputs.forEach(input => {
+            if (input.type === 'text' || input.type === 'number' || input.type === 'date') {
+                input.value = '';
+            } else if (input.tagName === 'SELECT') {
+                input.selectedIndex = 0;
+            }
+            // Remover clases de validación
+            input.classList.remove('is-valid', 'is-invalid');
+        });
+
+        // Mostrar indicador de carga
+        const button = form.querySelector('button[onclick*="limpiarFiltros"]');
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Limpiando...';
+        button.disabled = true;
+
+        // Construir URL sin filtros, solo con tab activo (usar el tipo que se está limpiando)
+        const params = new URLSearchParams();
+        params.append('tab', tipo);
+        const url = window.location.pathname + '?' + params.toString();
+
+        // Realizar petición AJAX para obtener datos sin filtros
+        fetch(url, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'text/html'
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Error: ${response.status}`);
+            }
+            return response.text();
+        })
+        .then(html => {
+            // Parsear el HTML y actualizar contenido
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            updatePageContent(doc, tipo);
+
+            // Actualizar URL
+            window.history.pushState({}, '', url);
+
+            // Mostrar notificación de éxito
+            Swal.fire({
+                title: 'Filtros limpiados',
+                text: 'Se han removido todos los filtros',
+                icon: 'success',
+                background: '#1a1a1a',
+                color: '#ffffff',
+                timer: 2000,
+                showConfirmButton: false,
+                position: 'bottom-end',
+                toast: true,
+                timerProgressBar: true
+            });
+        })
+        .catch(error => {
+            console.error('Error al limpiar filtros:', error);
+
+            Swal.fire({
+                title: 'Error',
+                text: 'No se pudieron limpiar los filtros. Inténtalo de nuevo.',
+                icon: 'error',
+                background: '#1a1a1a',
+                color: '#ffffff'
+            });
+        })
+        .finally(() => {
+            // Restaurar botón
+            button.innerHTML = originalText;
+            button.disabled = false;
+        });
+    };
+
+    // Función para aplicar filtros con validación AJAX
+    window.aplicarFiltros = function(tipo) {
+        const form = document.getElementById(`filterForm${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`);
+        if (!form) return;
+
+        // Validar formulario antes de enviar
+        if (!validarFormularioFiltros(tipo)) {
+            return;
+        }
+
+        // Agregar clase de aplicación de filtros
+        form.classList.add('applying');
+
+        // Mostrar indicador de carga
+        const button = form.querySelector('button[onclick*="aplicarFiltros"]');
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Aplicando filtros...';
+        button.disabled = true;
+
+        // Mostrar notificación de procesamiento
+        const processingToast = Swal.fire({
+            title: 'Aplicando filtros...',
+            text: 'Actualizando resultados',
+            icon: 'info',
+            background: '#1a1a1a',
+            color: '#ffffff',
+            showConfirmButton: false,
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            timer: 2000,
+            timerProgressBar: true
+        });
+
+        // Recopilar datos del formulario
+        const formData = new FormData(form);
+        const params = new URLSearchParams();
+
+        for (let [key, value] of formData.entries()) {
+            if (value.trim() !== '') {
+                params.append(key, value);
+            }
+        }
+
+        // Agregar parámetro de tab activo (usar el tipo que se está filtrando)
+        params.append('tab', tipo);
+
+        // Construir URL con filtros
+        const url = window.location.pathname + '?' + params.toString();
+
+        // Realizar la petición AJAX con timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+        fetch(url, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'text/html'
+            },
+            signal: controller.signal
+        })
+        .then(response => {
+            clearTimeout(timeoutId);
+            if (!response.ok) {
+                throw new Error(`Error del servidor: ${response.status}`);
+            }
+            return response.text();
+        })
+        .then(html => {
+            // Cerrar notificación de procesamiento
+            processingToast.close();
+
+            // Crear un documento temporal para parsear el HTML
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+
+            // Actualizar las tablas y estadísticas sin recargar la página
+            updatePageContent(doc, tipo);
+
+            // Actualizar la URL sin recargar la página
+            window.history.pushState({}, '', url);
+
+            // Mostrar notificación de éxito
+            Swal.fire({
+                title: 'Filtros aplicados',
+                text: 'Los resultados se han actualizado correctamente',
+                icon: 'success',
+                background: '#1a1a1a',
+                color: '#ffffff',
+                timer: 2000,
+                showConfirmButton: false,
+                position: 'bottom-end',
+                toast: true,
+                timerProgressBar: true
+            });
+        })
+        .catch(error => {
+            clearTimeout(timeoutId);
+            console.error('Error al aplicar filtros:', error);
+
+            // Cerrar notificación de procesamiento
+            processingToast.close();
+
+            let errorMessage = 'No se pudieron aplicar los filtros. Inténtalo de nuevo.';
+
+            if (error.name === 'AbortError') {
+                errorMessage = 'La solicitud tardó demasiado tiempo. Verifica tu conexión.';
+            } else if (error.message.includes('servidor')) {
+                errorMessage = 'Error del servidor. Inténtalo más tarde.';
+            }
+
+            Swal.fire({
+                title: 'Error',
+                text: errorMessage,
+                icon: 'error',
+                background: '#1a1a1a',
+                color: '#ffffff',
+                confirmButtonText: 'Entendido'
+            });
+        })
+        .finally(() => {
+            // Restaurar botón y formulario
+            form.classList.remove('applying');
+            button.innerHTML = originalText;
+            button.disabled = false;
+        });
+    };
+
+    // Función para validar formulario de filtros
+    function validarFormularioFiltros(tipo) {
+        const form = document.getElementById(`filterForm${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`);
+        let isValid = true;
+        let errorMessages = [];
+
+        // Validar rangos de fechas
+        const fechaDesde = form.querySelector(`[name="fecha_desde_${tipo}"]`);
+        const fechaHasta = form.querySelector(`[name="fecha_hasta_${tipo}"]`);
+
+        if (fechaDesde && fechaHasta && fechaDesde.value && fechaHasta.value) {
+            const desde = new Date(fechaDesde.value);
+            const hasta = new Date(fechaHasta.value);
+
+            if (desde > hasta) {
+                errorMessages.push('La fecha "desde" no puede ser mayor que la fecha "hasta"');
+                isValid = false;
+                fechaDesde.classList.add('is-invalid');
+                fechaHasta.classList.add('is-invalid');
+            } else {
+                fechaDesde.classList.remove('is-invalid');
+                fechaHasta.classList.remove('is-invalid');
+                fechaDesde.classList.add('is-valid');
+                fechaHasta.classList.add('is-valid');
+            }
+        }
+
+        // Validar rangos de importes/cantidades
+        let minField, maxField;
+        if (tipo === 'remesas') {
+            minField = form.querySelector('[name="importe_min_remesas"]');
+            maxField = form.querySelector('[name="importe_max_remesas"]');
+        } else {
+            minField = form.querySelector('[name="cantidad_min_pagos"]');
+            maxField = form.querySelector('[name="cantidad_max_pagos"]');
+        }
+
+        if (minField && maxField && minField.value && maxField.value) {
+            const minVal = parseFloat(minField.value);
+            const maxVal = parseFloat(maxField.value);
+
+            if (isNaN(minVal) || isNaN(maxVal)) {
+                errorMessages.push('Los valores de importe/cantidad deben ser números válidos');
+                isValid = false;
+                minField.classList.add('is-invalid');
+                maxField.classList.add('is-invalid');
+            } else if (minVal > maxVal) {
+                errorMessages.push('El valor mínimo no puede ser mayor que el valor máximo');
+                isValid = false;
+                minField.classList.add('is-invalid');
+                maxField.classList.add('is-invalid');
+            } else if (minVal < 0 || maxVal < 0) {
+                errorMessages.push('Los valores de importe/cantidad no pueden ser negativos');
+                isValid = false;
+                minField.classList.add('is-invalid');
+                maxField.classList.add('is-invalid');
+            } else {
+                minField.classList.remove('is-invalid');
+                maxField.classList.remove('is-invalid');
+            }
+        }
+
+        // Validar que al menos un campo tenga valor
+        const inputs = form.querySelectorAll('input[type="text"], input[type="number"], input[type="date"], select');
+        const hasValue = Array.from(inputs).some(input => input.value && input.value.trim() !== '');
+
+        if (!hasValue) {
+            errorMessages.push('Debe seleccionar al menos un filtro para aplicar');
+            isValid = false;
+        }
+
+        // Mostrar errores si los hay
+        if (!isValid) {
+            Swal.fire({
+                title: 'Errores de Validación',
+                html: errorMessages.map(msg => `• ${msg}`).join('<br>'),
+                icon: 'warning',
+                background: '#1a1a1a',
+                color: '#ffffff',
+                confirmButtonText: 'Entendido'
+            });
+        }
+
+        return isValid;
+    }
+
+    // Función para actualizar el contenido de la página sin recargar
+    function updatePageContent(newDoc, tipo) {
+        try {
+            const tabContent = document.getElementById('tabContent');
+
+            // Guardar posición actual de scroll
+            const currentScrollY = window.scrollY;
+
+            // Agregar clases de transición
+            tabContent.classList.add('content-transition', 'updating');
+
+            // Actualizar estadísticas
+            const statsContainer = document.querySelector('.row.mb-4');
+            const newStatsContainer = newDoc.querySelector('.row.mb-4');
+            if (statsContainer && newStatsContainer) {
+                statsContainer.innerHTML = newStatsContainer.innerHTML;
+            }
+
+            // Actualizar badges de las pestañas con contadores
+            const newTabBadges = {
+                'remesas': newDoc.querySelector('#remesas-count')?.textContent || '0',
+                'pagos': newDoc.querySelector('#pagos-count')?.textContent || '0',
+                'total': newDoc.querySelector('#total-count')?.textContent || '0'
+            };
+
+            // Actualizar badges en las pestañas
+            document.querySelectorAll('.nav-link').forEach(link => {
+                const href = link.getAttribute('href');
+                const badge = link.querySelector('.badge');
+                if (href && badge) {
+                    const tabType = href.replace('#', '');
+                    if (newTabBadges[tabType]) {
+                        badge.textContent = newTabBadges[tabType];
+                    }
+                }
+            });
+
+            // Actualizar contenido de las pestañas con delay para suavizar transición
+            setTimeout(() => {
+                const newTabContent = newDoc.getElementById('tabContent');
+                if (tabContent && newTabContent) {
+                    tabContent.innerHTML = newTabContent.innerHTML;
+                }
+
+                // Reinicializar tooltips para los nuevos elementos
+                initializeTooltips();
+
+                // Reinicializar event listeners para los nuevos botones de acción
+                reinitializeActionButtons();
+
+                // Verificar filtros activos después de actualizar contenido
+                checkActiveFilters();
+
+                // Remover clases de transición
+                tabContent.classList.remove('updating');
+
+                // Restaurar posición de scroll exacta
+                window.scrollTo(0, currentScrollY);
+
+            }, 150);
+
+        } catch (error) {
+            console.error('Error al actualizar contenido:', error);
+            // Si hay error en la actualización, recargar la página como fallback
+            Swal.fire({
+                title: 'Error de actualización',
+                text: 'Recargando la página para aplicar los cambios...',
+                icon: 'info',
+                background: '#1a1a1a',
+                color: '#ffffff',
+                timer: 2000,
+                showConfirmButton: false
+            }).then(() => {
+                window.location.reload();
+            });
+        }
+    }
+
+    // Función para exportar datos a Excel
+    window.exportarExcel = function(tipo) {
+        try {
+            // Mostrar indicador de carga
+            Swal.fire({
+                title: 'Generando archivo Excel...',
+                text: 'Por favor espere',
+                icon: 'info',
+                background: '#1a1a1a',
+                color: '#ffffff',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            // Obtener filtros activos del formulario correspondiente
+            const form = document.getElementById(`filterForm${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`);
+            const formData = new FormData(form);
+            const params = new URLSearchParams();
+
+            // Agregar todos los filtros a los parámetros
+            for (let [key, value] of formData.entries()) {
+                if (value.trim() !== '') {
+                    params.append(key, value);
+                }
+            }
+
+            // Construir URL de exportación
+            const exportUrl = `/remesas/exportar/${tipo}/?${params.toString()}`;
+
+            // Crear enlace temporal para descarga
+            const link = document.createElement('a');
+            link.href = exportUrl;
+            link.download = `${tipo}_${new Date().toISOString().split('T')[0]}.csv`;
+            link.style.display = 'none';
+
+            // Agregar al DOM, hacer clic y remover
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // Cerrar indicador de carga y mostrar confirmación
+            setTimeout(() => {
+                Swal.fire({
+                    title: '¡Exportación completada!',
+                    text: `Se ha descargado el archivo CSV con los datos de ${tipo}`,
+                    icon: 'success',
+                    background: '#1a1a1a',
+                    color: '#ffffff',
+                    confirmButtonColor: '#198754',
+                    timer: 3000,
+                    timerProgressBar: true
+                });
+            }, 1000);
+
+        } catch (error) {
+            console.error('Error al exportar:', error);
+            Swal.fire({
+                title: 'Error de exportación',
+                text: 'No se pudo generar el archivo. Intente nuevamente.',
+                icon: 'error',
+                background: '#1a1a1a',
+                color: '#ffffff',
+                confirmButtonColor: '#dc3545'
+            });
+        }
+    };
+
+    // Función para reinicializar los botones de acción
+    function reinitializeActionButtons() {
+        // Los event listeners ya están configurados con delegación de eventos
+        // por lo que los nuevos botones funcionarán automáticamente
+
+        // Reinicializar eventos específicos de la tabla Total
+        setupTotalTabListeners();
+
+        // Reinicializar dropdowns de Bootstrap si los hay
+        const dropdownElementList = [].slice.call(document.querySelectorAll('.dropdown-toggle'));
+        dropdownElementList.map(function (dropdownToggleEl) {
+            return new bootstrap.Dropdown(dropdownToggleEl, {
+                autoClose: true
+            });
+        });
+    }
+
+    // Función para reinicializar paginación con AJAX
+    function reinitializePagination() {
+        // Ya no es necesaria, cada tabla tiene su propio listener específico
+        console.log('Paginación inicializada con listeners específicos');
+    }
+
+    // Función para detectar si hay filtros activos
+    function checkActiveFilters() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const filterParams = [
+            'search_remesas', 'estado_remesas', 'moneda_remesas', 'tipo_pago_remesas',
+            'fecha_desde_remesas', 'fecha_hasta_remesas', 'importe_min_remesas', 'importe_max_remesas',
+            'search_pagos', 'tipo_pago_pagos', 'moneda_pagos', 'destinatario_pagos',
+            'fecha_desde_pagos', 'fecha_hasta_pagos', 'cantidad_min_pagos', 'cantidad_max_pagos',
+            'search_total', 'tipo_operacion', 'moneda_total', 'rango_usd',
+            'fecha_desde_total', 'fecha_hasta_total', 'cantidad_min_total', 'cantidad_max_total'
+        ];
+
+        const activeFilters = filterParams.filter(param => {
+            const value = urlParams.get(param);
+            return value && value.trim() !== '';
+        });
+
+        // Agregar clase visual si hay filtros activos
+        const alertElements = document.querySelectorAll('.alert');
+        alertElements.forEach(alert => {
+            if (activeFilters.length > 0) {
+                alert.classList.add('filters-active');
+            } else {
+                alert.classList.remove('filters-active');
+            }
+        });
+
+        // Agregar indicador en las pestañas si hay filtros
+        const navLinks = document.querySelectorAll('.nav-link');
+        navLinks.forEach(link => {
+            const href = link.getAttribute('href');
+            const hasFiltersForTab = activeFilters.some(filter => {
+                if (href === '#remesas') return filter.includes('remesas');
+                if (href === '#pagos') return filter.includes('pagos');
+                if (href === '#total') return filter.includes('total');
+                return false;
+            });
+
+            if (hasFiltersForTab) {
+                link.classList.add('filters-indicator');
+            } else {
+                link.classList.remove('filters-indicator');
+            }
+        });
+
+        return activeFilters.length > 0;
+    }
+
+    // Función para cargar páginas with AJAX
+    function loadPageAjax(url) {
+        // Guardar posición actual de scroll
+        const currentScrollY = window.scrollY;
+
+        // Mostrar indicador de carga sutil
+        const tabContent = document.getElementById('tabContent');
+        tabContent.style.opacity = '0.7';
+
+        fetch(url, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'text/html'
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Error: ${response.status}`);
+            }
+            return response.text();
+        })
+        .then(html => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+
+            // Actualizar solo el contenido de las pestañas
+            const newTabContent = doc.getElementById('tabContent');
+            if (newTabContent) {
+                tabContent.innerHTML = newTabContent.innerHTML;
+            }
+
+            // Actualizar URL sin afectar el scroll
+            window.history.pushState({}, '', url);
+
+            // Reinicializar tooltips y botones
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+
+            reinitializeActionButtons();
+
+            // Restaurar posición de scroll exacta
+            window.scrollTo(0, currentScrollY);
+        })
+        .catch(error => {
+            console.error('Error al cargar página:', error);
+            // Fallback: recargar la página
+            window.location.href = url;
+        })
+        .finally(() => {
+            tabContent.style.opacity = '1';
+        });
+    }
+
+    // Inicializar tooltips de forma segura
+    function initializeTooltips() {
+        // Destruir tooltips existentes primero
+        const existingTooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+        existingTooltips.forEach(function(el) {
+            const tooltip = bootstrap.Tooltip.getInstance(el);
+            if (tooltip) {
+                tooltip.dispose();
+            }
+        });
+
+        // Inicializar nuevos tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        });
+    }
+
+    // Función para limpiar event listeners duplicados
+    function cleanupEventListeners() {
+        // Remover todos los event listeners duplicados de botones
+        const buttons = document.querySelectorAll('.btn-editar, .btn-confirmar, .btn-procesar, .btn-cancelar, .btn-eliminar-pago');
+        buttons.forEach(function(button) {
+            // Clonar el elemento para remover todos sus event listeners
+            const newButton = button.cloneNode(true);
+            button.parentNode.replaceChild(newButton, button);
+        });
+    }
+
+    // Inicializar tooltips al cargar la página
+    initializeTooltips();
+
+    // Limpiar y reinicializar al cargar la página
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeTooltips();
+    });
+
+    // Funciones para la pestaña Total
+    window.verRemesa = function(id) {
+        window.location.href = `/remesas/detalle/${id}/`;
+    };
+
+    window.editarRemesa = function(id) {
+        // Aquí puedes agregar la lógica para editar una remesa
+        // Por ejemplo, abrir un modal o redirigir a una página de edición
+        console.log('Editar remesa:', id);
+        // window.location.href = `/remesas/editar/${id}/`;
+    };
+
+    window.verPago = function(id) {
+        window.location.href = `/remesas/pagos/detalle/${id}/`;
+    };
+
+    window.editarPago = function(id) {
+        // Aquí puedes agregar la lógica para editar un pago
+        // Por ejemplo, abrir un modal o redirigir a una página de edición
+        console.log('Editar pago:', id);
+        // window.location.href = `/pagos/editar/${id}/`;
+    };
+
+    // Activar pestaña correcta basándose en los parámetros URL
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('total_page')) {
+        // Si hay paginación de total, activar pestaña total
+        const totalTab = document.querySelector('#total-tab');
+        const totalPane = document.querySelector('#total');
+        if (totalTab && totalPane) {
+            // Desactivar todas las pestañas
+            document.querySelectorAll('.nav-link').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-pane').forEach(pane => {
+                pane.classList.remove('show', 'active');
+            });
+
+            // Activar pestaña total
+            totalTab.classList.add('active');
+            totalPane.classList.add('show', 'active');
+        }
+    }
+});
+</script>
+
+<style>
+/* CSS para cuadros responsive en móvil */
+@media (max-width: 576px) {
+    .row.g-4.mb-4 {
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: center !important;
+        overflow-x: auto;
+        gap: 0.5rem !important;
+        margin-bottom: 0.5rem !important;
+        padding-bottom: 0.5rem !important;
+    }
+    .row.g-4.mb-4 > [class^='col-'] {
+        flex: 0 0 auto !important;
+        width: 160px !important;
+        min-width: 140px !important;
+        max-width: 180px !important;
+        padding: 0 !important;
+    }
+    .card-body.text-center {
+        padding: 0.3rem !important;
+    }
+    .card-body .fa-2x {
+        font-size: 1rem !important;
+        margin-bottom: 0.15rem !important;
+    }
+    .card-body h5.card-title {
+        font-size: 0.7rem !important;
+        margin-bottom: 0.1rem !important;
+    }
+    .card-body h3 {
+        font-size: 0.85rem !important;
+        margin-top: 0.1rem !important;
+    }
+}
+
+/* Estilos para las pestañas */
+.nav-tabs {
+    border-bottom: 1px solid rgba(255,255,255,.125);
+}
+
+.nav-tabs .nav-link {
+    color: #fff;
+    border: none;
+    border-bottom: 2px solid transparent;
+}
+
+.nav-tabs .nav-link:hover {
+    border-color: transparent;
+    border-bottom: 2px solid rgba(255,255,255,.5);
+}
+
+.nav-tabs .nav-link.active {
+    color: #fff;
+    background-color: transparent;
+    border-bottom: 2px solid #fff;
+}
+
+/* Estilos de tabla similares al historial */
+.table-dark th {
+    border-color: #495057;
+    background-color: #343a40;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.table-dark td {
+    border-color: #495057;
+    vertical-align: middle;
+}
+
+/* Efectos de hover para filas de todas las tablas */
+.table-dark tbody tr {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.table-dark tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.15) !important;
+    box-shadow: 0 0 15px rgba(0, 123, 255, 0.3);
+    transform: translateY(-1px);
+    border-left: 3px solid #007bff;
+}
+
+.table-dark tbody tr:hover td {
+    border-color: rgba(0, 123, 255, 0.4);
+    color: #ffffff;
+}
+
+/* Efecto de iluminación más sutil para elementos móviles */
+@media (max-width: 768px) {
+    .mobile-item {
+        transition: all 0.3s ease;
+        cursor: pointer;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        padding: 15px;
+    }
+
+    .mobile-item:hover {
+        background-color: rgba(0, 123, 255, 0.1) !important;
+        box-shadow: 0 0 10px rgba(0, 123, 255, 0.2);
+        transform: translateY(-2px);
+        border-left: 3px solid #007bff;
+    }
+
+    .mobile-item:hover .text-muted {
+        color: #b8daff !important;
+    }
+}
+
+/* Tabla Total con scroll independiente */
+.table-container-total {
+    position: relative;
+    border: 1px solid #495057;
+    border-radius: 0.375rem;
+    background-color: #212529;
+}
+
+.table-container-total .table {
+    margin-bottom: 0;
+}
+
+.table-container-total .table thead th {
+    position: sticky;
+    top: 0;
+    background-color: #343a40 !important;
+    z-index: 10;
+    border-bottom: 2px solid #495057;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.table-container-total::-webkit-scrollbar {
+    width: 8px;
+}
+
+.table-container-total::-webkit-scrollbar-track {
+    background: #495057;
+    border-radius: 4px;
+}
+
+.table-container-total::-webkit-scrollbar-thumb {
+    background: #6c757d;
+    border-radius: 4px;
+}
+
+.table-container-total::-webkit-scrollbar-thumb:hover {
+    background: #adb5bd;
+}
+
+#total .table-responsive {
+    max-height: 600px;
+    overflow-y: auto;
+    border: 1px solid #495057;
+    border-radius: 0.375rem;
+}
+
+#total .table thead th {
+    position: sticky;
+    top: 0;
+    background-color: #343a40;
+    z-index: 10;
+    border-bottom: 2px solid #495057;
+}
+
+/* Mejorar el scroll horizontal */
+.table-responsive {
+    max-height: 60vh;
+    overflow-x: auto;
+    overflow-y: auto;
+    border: 1px solid #495057;
+    border-radius: 0.375rem;
+    margin: 0;
+    padding: 0;
+}
+
+/* Asegurar que el texto no se desborde */
+.text-truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Estilo para badges más pequeños */
+.badge {
+    font-size: 0.75em;
+}
+
+/* Mejorar botones en tablas */
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    line-height: 1.2;
+    border-radius: 0.2rem;
+}
+
+/* Hover específico para botones dentro de filas */
+.table-dark tbody tr:hover .btn {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.table-dark tbody tr:hover .btn-info {
+    background-color: #0dcaf0;
+    border-color: #0dcaf0;
+}
+
+.table-dark tbody tr:hover .btn-warning {
+    background-color: #ffc107;
+    border-color: #ffc107;
+    color: #212529;
+}
+
+.table-dark tbody tr:hover .btn-danger {
+    background-color: #dc3545;
+    border-color: #dc3545;
+}
+
+.table-dark tbody tr:hover .btn-success {
+    background-color: #198754;
+    border-color: #198754;
+}
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+/* Estilos para botones de acción */
+.btn-group .btn {
+    border-radius: 0.375rem !important;
+    margin: 0 1px;
+}
+
+.btn-outline-info:hover,
+.btn-outline-warning:hover,
+.btn-outline-success:hover,
+.btn-outline-danger:hover,
+.btn-outline-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.btn {
+    transition: all 0.2s ease;
+}
+
+/* Asegurar que los tooltips se vean bien */
+.tooltip {
+    z-index: 1070;
+}
+
+/* Mejorar la tabla para acciones */
+.table-dark td {
+    vertical-align: middle;
+}
+
+/* Estilos específicos para botones de tabla */
+.table .btn-group {
+    white-space: nowrap;
+}
+
+/* Estilos responsivos para móviles */
+@media (max-width: 768px) {
+    /* Vista móvil */
+    .table-responsive {
+        display: none; /* Ocultar tabla en móvil */
+    }
+
+    .mobile-cards {
+        display: block; /* Mostrar cards en móvil */
+    }
+
+    .mobile-item {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .mobile-item-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .mobile-item-body {
+        font-size: 0.9rem;
+    }
+
+    .mobile-item-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 0.5rem;
+        padding-top: 0.5rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+}
+
+@media (min-width: 769px) {
+    /* Vista desktop */
+    .table-responsive {
+        display: block;
+    }
+
+    .mobile-cards {
+        display: none; /* Ocultar cards en desktop */
+    }
+}
+
+/* Estilos para paginación */
+.pagination-sm .page-link {
+    transition: all 0.3s ease;
+    font-size: 0.875rem;
+}
+
+.pagination-sm .page-link:hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    border-color: rgba(255, 255, 255, 0.3) !important;
+    transform: translateY(-1px);
+}
+
+.pagination-sm .page-item.active .page-link {
+    background-color: #0d6efd !important;
+    border-color: #0d6efd !important;
+    box-shadow: 0 0 8px rgba(13, 110, 253, 0.5);
+}
+
+/* Eliminar hover de las tablas */
+.table-hover tbody tr:hover {
+    background-color: transparent !important;
+}
+
+/* Estilos para validación de formularios */
+.form-control.is-invalid,
+.form-select.is-invalid {
+    border-color: #dc3545 !important;
+    box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25) !important;
+    background-color: rgba(220, 53, 69, 0.1) !important;
+}
+
+.form-control.is-valid,
+.form-select.is-valid {
+    border-color: #198754 !important;
+    box-shadow: 0 0 0 0.25rem rgba(25, 135, 84, 0.25) !important;
+    background-color: rgba(25, 135, 84, 0.1) !important;
+}
+
+/* Estilos para botones de filtros */
+.btn[onclick*="aplicarFiltros"] {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.btn[onclick*="aplicarFiltros"]:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.btn[onclick*="aplicarFiltros"]:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Estilos para botón de exportación a Excel */
+.btn[onclick*="exportarExcel"] {
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    background: linear-gradient(45deg, #198754, #20c997);
+    border: none;
+    color: white;
+    font-weight: 500;
+}
+
+.btn[onclick*="exportarExcel"]:hover {
+    background: linear-gradient(45deg, #146c43, #17a085);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(25, 135, 84, 0.3);
+}
+
+.btn[onclick*="exportarExcel"]:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(25, 135, 84, 0.2);
+}
+
+.btn[onclick*="exportarExcel"] .fa-file-excel {
+    color: #ffffff;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.1));
+}
+
+/* Animación para el botón de aplicar filtros */
+.btn[onclick*="aplicarFiltros"] .fa-spinner {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Estilos para retroalimentación visual en filtros */
+.filter-form {
+    transition: all 0.3s ease;
+}
+
+.filter-form.applying {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+/* Estilos para indicadores de carga */
+.loading-overlay {
+    position: relative;
+}
+
+.loading-overlay::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.1);
+    z-index: 10;
+    display: none;
+}
+
+.loading-overlay.loading::before {
+    display: block;
+}
+
+.loading-overlay::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 40px;
+    height: 40px;
+    margin: -20px 0 0 -20px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-top: 3px solid #0d6efd;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    z-index: 11;
+    display: none;
+}
+
+.loading-overlay.loading::after {
+    display: block;
+}
+
+/* Transiciones suaves para actualizaciones de contenido */
+.content-transition {
+    transition: opacity 0.3s ease, transform 0.2s ease;
+}
+
+.content-transition.updating {
+    opacity: 0.7;
+    transform: scale(0.99);
+}
+
+/* Estilos para badges de contadores filtrados */
+.nav-link .badge {
+    font-size: 0.7em;
+    border-radius: 10px;
+    min-width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nav-link.active .badge {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-weight: bold;
+}
+
+/* Indicadores de filtros activos */
+.alert.filters-active {
+    animation: pulse-glow 2s infinite;
+}
+
+@keyframes pulse-glow {
+    0% { box-shadow: 0 0 5px rgba(0, 123, 255, 0.3); }
+    50% { box-shadow: 0 0 20px rgba(0, 123, 255, 0.6); }
+    100% { box-shadow: 0 0 5px rgba(0, 123, 255, 0.3); }
+}
+
+.filters-indicator {
+    position: relative;
+}
+
+.filters-indicator::before {
+    content: '🔍';
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    font-size: 0.8em;
+    background: #ffc107;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+    0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+    40% { transform: translateY(-10px); }
+    60% { transform: translateY(-5px); }
+}
+</style>
+{% endblock %}

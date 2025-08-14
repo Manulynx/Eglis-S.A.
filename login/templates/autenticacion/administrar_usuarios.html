@@ -1,0 +1,1210 @@
+{% extends "eglisapp/base.html" %}
+
+{% load static %}
+
+{% block content %}
+<style>
+@media (max-width: 576px) {
+        .row.g-3.mb-4 {
+            display: flex !important;
+            flex-direction: row !important;
+            justify-content: center !important;
+            overflow-x: auto;
+            gap: 0.5rem !important;
+            margin-bottom: 0.5rem !important;
+            padding-bottom: 0.5rem !important;
+        }
+    .row.g-3.mb-4 > [class^='col-'] {
+        flex: 0 0 auto !important;
+        width: 160px !important;
+        min-width: 140px !important;
+        max-width: 180px !important;
+        padding: 0 !important;
+    }
+    .card-body.text-center.d-flex.flex-column {
+        padding: 0.3rem !important;
+    }
+    .card-body .fa-2x {
+        font-size: 1rem !important;
+        margin-bottom: 0.15rem !important;
+    }
+    .card-body h5 {
+        font-size: 0.85rem !important;
+        margin-bottom: 0.1rem !important;
+    }
+    .card-body h3 {
+        font-size: 0.95rem !important;
+        margin-top: 0.1rem !important;
+    }
+}
+</style>
+<!-- Agregar los scripts necesarios -->
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<div class="container mt-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-white">
+            <i class="fas fa-users-cog me-2"></i>
+            Administración de Usuarios
+        </h2>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#agregarUsuarioModal">
+            <i class="fas fa-user-plus me-2"></i>
+            Agregar
+        </button>
+    </div>
+
+    <!-- Cards de estadísticas -->
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-sm-6 col-md-3">
+            <div class="card bg-primary text-white h-100">
+                <div class="card-body text-center d-flex flex-column">
+                    <i class="fas fa-users fa-2x mb-2"></i>
+                    <h5 class="text-nowrap">Total Usuarios</h5>
+                    <h3 class="mt-auto">{{ usuarios.count }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-md-3">
+            <div class="card bg-success text-white h-100">
+                <div class="card-body text-center d-flex flex-column">
+                    <i class="fas fa-paper-plane fa-2x mb-2"></i>
+                    <h5 class="text-nowrap">Total Remesas</h5>
+                    <h3 class="mt-auto">{{ total_remesas }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-md-3">
+            <div class="card bg-info text-white h-100">
+                <div class="card-body text-center d-flex flex-column">
+                    <i class="fas fa-credit-card fa-2x mb-2"></i>
+                    <h5 class="text-nowrap">Total Pagos</h5>
+                    <h3 class="mt-auto">{{ total_pagos }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-md-3">
+            <div class="card {% if suma_todos_balances >= 0 %}bg-warning{% else %}bg-danger{% endif %} text-white h-100">
+                <div class="card-body text-center d-flex flex-column">
+                    <i class="fas fa-wallet fa-2x mb-2"></i>
+                    <h5 class="text-nowrap">Suma Total Balances</h5>
+                    <h3 class="mt-auto">
+                        {% if suma_todos_balances < 0 %}
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                        {% endif %}
+                        ${{ suma_todos_balances|floatformat:2 }} USD
+                    </h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de usuarios -->
+    <div class="card-body">
+        <!-- Vista Desktop -->
+        <div class="d-none d-lg-block">
+            <div class="table-responsive">
+                <!-- Mantener la tabla actual para desktop -->
+                <table class="table table-dark table-hover">
+                    <thead>
+                        <tr>
+                            <th>Usuario</th>
+                            <th>Balance</th>
+                            <th>Remesas</th>
+                            <th>Pagos</th>
+                            <th>Estado</th>
+                            <th>Fecha registro</th>
+                            <th>Último acceso</th>
+                            <th class="text-end">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for usuario in usuarios %}
+                        <tr>
+                            <td>
+                                {{ usuario.username }}
+                                <br>
+                                <small class="text-muted">{{ usuario.first_name }} {{ usuario.last_name }}</small>
+                                {% if usuario.is_superuser %}
+                                    <span class="badge bg-warning text-dark ms-2">
+                                        <i class="fas fa-crown"></i> Admin
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="{% if usuario.balance_display >= 0 %}text-success{% else %}text-danger balance-negative{% endif %} fw-bold">
+                                    {% if usuario.balance_display < 0 %}
+                                        <i class="fas fa-exclamation-triangle me-1"></i>
+                                    {% else %}
+                                        <i class="fas fa-dollar-sign me-1"></i>
+                                    {% endif %}
+                                    ${{ usuario.balance_display|floatformat:2 }} USD
+                                </span>
+                            </td>
+                            <td>
+                                <div class="d-flex flex-column">
+                                    <span class="text-info fw-bold">{{ usuario.remesas_count }}</span>
+                                    <small class="text-success">${{ usuario.total_remesas_usd|floatformat:2 }} USD</small>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="d-flex flex-column">
+                                    <span class="text-warning fw-bold">{{ usuario.pagos_count }}</span>
+                                    <small class="text-danger">-${{ usuario.total_pagos_usd|floatformat:2 }} USD</small>
+                                </div>
+                            </td>
+                            <td>
+                                <button onclick="toggleEstadoUsuario('{{ usuario.id }}', this)" 
+                                        class="btn btn-sm {% if usuario.is_active %}btn-success{% else %}btn-danger{% endif %} w-100">
+                                    <span class="estado-texto">
+                                        {% if usuario.is_active %}
+                                            <i class="fas fa-check-circle me-1"></i>Activo
+                                        {% else %}
+                                            <i class="fas fa-times-circle me-1"></i>Inactivo
+                                        {% endif %}
+                                    </span>
+                                    <span class="spinner-border spinner-border-sm d-none" role="status"></span>
+                                </button>
+                            </td>
+                            <td>{{ usuario.date_joined|date:"d/m/Y" }}</td>
+                            <td>{{ usuario.last_login|date:"d/m/Y H:i" }}</td>
+                            <td class="text-end">
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{% url 'login:historial_usuario' usuario.id %}" class="btn btn-info" title="Ver historial">
+                                        <i class="fas fa-history"></i>
+                                    </a>
+                                    <button class="btn btn-primary" 
+                                            type="button"
+                                            onclick="abrirModalEditar('{{ usuario.id }}', '{{ usuario.username }}')" 
+                                            title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn btn-danger" onclick="abrirModalEliminar('{{ usuario.id }}')" title="Eliminar">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Vista Móvil -->
+        <div class="d-lg-none">
+            {% for usuario in usuarios %}
+            <div class="card bg-dark mb-3 border-secondary">
+                <div class="card-body p-3">
+                    <!-- Encabezado con nombre y estado -->
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h5 class="mb-0 text-white">{{ usuario.username }}</h5>
+                            <small class="text-muted">{{ usuario.first_name }} {{ usuario.last_name }}</small>
+                        </div>
+                        <button onclick="toggleEstadoUsuario('{{ usuario.id }}', this)" 
+                                class="btn btn-sm {% if usuario.is_active %}btn-success{% else %}btn-danger{% endif %}">
+                            <span class="estado-texto">
+                                {% if usuario.is_active %}
+                                    <i class="fas fa-check-circle me-1"></i>Activo
+                                {% else %}
+                                    <i class="fas fa-times-circle me-1"></i>Inactivo
+                                {% endif %}
+                            </span>
+                            <span class="spinner-border spinner-border-sm d-none" role="status"></span>
+                        </button>
+                    </div>
+
+                    <!-- Información principal -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-4">
+                            <div class="p-2 bg-dark rounded border border-secondary">
+                                <small class="d-block text-muted">Balance</small>
+                                <span class="{% if usuario.balance_display >= 0 %}text-success{% else %}text-danger{% endif %} fw-bold">
+                                    ${{ usuario.balance_display|floatformat:2 }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-2 bg-dark rounded border border-secondary">
+                                <small class="d-block text-muted">Remesas</small>
+                                <div class="d-flex flex-column">
+                                    <span class="text-info fw-bold">{{ usuario.remesas_count }}</span>
+                                    <small class="text-success">${{ usuario.total_remesas_usd|floatformat:2 }} USD</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-2 bg-dark rounded border border-secondary">
+                                <small class="d-block text-muted">Pagos</small>
+                                <div class="d-flex flex-column">
+                                    <span class="text-warning fw-bold">{{ usuario.pagos_count }}</span>
+                                    <small class="text-danger">-${{ usuario.total_pagos_usd|floatformat:2 }} USD</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Acciones -->
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'login:historial_usuario' usuario.id %}" class="btn btn-info btn-sm flex-grow-1">
+                            <i class="fas fa-history me-1"></i>Historial
+                        </a>
+                        <button class="btn btn-primary btn-sm flex-grow-1" 
+                                onclick="abrirModalEditar('{{ usuario.id }}', '{{ usuario.username }}')">
+                            <i class="fas fa-edit me-1"></i>Editar
+                        </button>
+                        <button class="btn btn-danger btn-sm flex-grow-1" 
+                                onclick="abrirModalEliminar('{{ usuario.id }}')">
+                            <i class="fas fa-trash me-1"></i>Eliminar
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <nav aria-label="Paginación" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if usuarios.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1">&laquo; Primera</a>
+                </li>
+            {% endif %}
+            
+            {% for num in usuarios.paginator.page_range %}
+                <li class="page-item {% if usuarios.number == num %}active{% endif %}">
+                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                </li>
+            {% endfor %}
+            
+            {% if usuarios.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ usuarios.paginator.num_pages }}">Última &raquo;</a>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+</div>
+
+<!-- Modal Agregar Usuario -->
+<div class="modal fade" id="agregarUsuarioModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header">
+                <h5 class="modal-title">Agregar Nuevo Usuario</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formAgregarGestor" method="post" action="{% url 'login:crear_usuario' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nombre de Usuario</label>
+                        <input type="text" name="username" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Contraseña</label>
+                        <input type="password" name="password1" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Confirmar Contraseña</label>
+                        <input type="password" name="password2" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nombre</label>
+                        <input type="text" name="first_name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Apellidos</label>
+                        <input type="text" name="last_name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de Usuario</label>
+                        <select name="tipo_usuario" class="form-select" required>
+                            <option value="gestor" selected>Gestor</option>
+                            <option value="admin">Administrador</option>
+                            <option value="contable">Contable</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">
+                        <span class="spinner-border spinner-border-sm d-none" role="status"></span>
+                        <i class="fas fa-user-plus me-2"></i>
+                        <span class="btn-text">Crear Usuario</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar Usuario -->
+<div class="modal fade" id="editarUsuarioModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header">
+                <h5 class="modal-title">Editar Usuario</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formEditarUsuario" method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <input type="hidden" name="user_id" id="editUserId">
+                    <div class="mb-3">
+                        <label class="form-label">Usuario</label>
+                        <input type="text" name="username" id="editUsername" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nombre</label>
+                        <input type="text" name="first_name" id="editFirstName" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Apellidos</label>
+                        <input type="text" name="last_name" id="editLastName" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Nueva Contraseña</label>
+                        <input type="password" name="password" id="editPassword" class="form-control">
+                        <small class="text-muted">Dejar en blanco para mantener la contraseña actual</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Eliminar Usuario -->
+<div class="modal fade" id="eliminarUsuarioModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header">
+                <h5 class="modal-title">Eliminar Usuario</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formEliminarUsuario" method="post">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <p>¿Está seguro que desea eliminar este usuario?</p>
+                    <div id="warningAdmin" class="alert alert-warning" style="display: none;">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        ¡Atención! Este usuario es administrador.
+                    </div>
+                    <input type="hidden" name="user_id" id="deleteUserId">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">Eliminar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.table {
+    background-color: rgba(33, 37, 41, 0.95);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.btn-group .btn {
+    margin: 0 2px;
+    transition: all 0.2s;
+}
+
+.btn-group .btn:hover {
+    transform: translateY(-2px);
+}
+
+.pagination .page-link {
+    background-color: rgba(33, 37, 41, 0.95);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.pagination .active .page-link {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+/* Agregar a los estilos existentes */
+.btn-group .btn.active {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.btn-outline-secondary.active {
+    background-color: #6c757d;
+    color: white;
+}
+
+.btn-outline-success.active {
+    background-color: #198754;
+    color: white;
+}
+
+.btn-outline-warning.active {
+    background-color: #ffc107;
+    color: black;
+}
+
+.btn-outline-info.active {
+    background-color: #0dcaf0;
+    color: white;
+}
+
+.card {
+    transition: transform 0.2s;
+    height: 100%;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+.card-body {
+    padding: 1.25rem;
+}
+
+.card h5 {
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.card h3 {
+    font-size: 1.5rem;
+    margin-bottom: 0;
+}
+
+@media (max-width: 576px) {
+    .card {
+        margin-bottom: 1rem;
+    }
+    
+    .card-body {
+        padding: 1rem;
+    }
+    
+    .card h5 {
+        font-size: 0.9rem;
+    }
+    
+    .card h3 {
+        font-size: 1.25rem;
+    }
+}
+
+.row.g-3 {
+    --bs-gutter-y: 1rem;
+}
+
+.badge .fa-crown {
+    font-size: 0.8em;
+    margin-right: 3px;
+}
+
+.badge.bg-warning {
+    font-weight: 600;
+    padding: 0.35em 0.65em;
+}
+
+.text-dark {
+    color: #212529 !important;
+}
+
+/* Estilos para balances negativos */
+.text-danger {
+    color: #dc3545 !important;
+}
+
+.text-success {
+    color: #28a745 !important;
+}
+
+.balance-negative {
+    animation: pulse-red 2s infinite;
+}
+
+@keyframes pulse-red {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+.card.bg-danger {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%) !important;
+}
+
+.card.bg-warning {
+    background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%) !important;
+}
+
+/* Mejoras para la tabla */
+.table-dark td {
+    vertical-align: middle;
+}
+
+.fw-bold {
+    font-weight: 600 !important;
+}
+
+/* Indicadores de estado mejorados */
+.text-info {
+    color: #17a2b8 !important;
+}
+
+.text-warning {
+    color: #ffc107 !important;
+}
+
+@media (max-width: 991px) {
+    .card-body {
+        padding: 0.5rem;
+    }
+    
+    .btn-sm {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.875rem;
+    }
+    
+    .card h5 {
+        font-size: 1.1rem;
+    }
+    
+    .text-muted {
+        font-size: 0.85rem;
+    }
+    
+    .fw-bold {
+        font-size: 1rem;
+    }
+}
+</style>
+
+<script src="{% static 'autenticacion/js/scripts.js' %}"></script>
+<script>
+function abrirModalEliminar(userId) {
+    Swal.fire({
+        title: '¿Eliminar usuario?',
+        text: "Esta acción no se puede deshacer",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'No, cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            fetch(`/login/admin/usuarios/eliminar/${userId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error en la respuesta del servidor');
+                }
+                // Verificar el tipo de contenido
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json();
+                } else {
+                    throw new Error('Respuesta del servidor no válida');
+                }
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    Swal.fire({
+                        title: '¡Eliminado!',
+                        text: 'El usuario ha sido eliminado correctamente',
+                        icon: 'success',
+                        timer: 1500,
+                        showConfirmButton: false
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    throw new Error(data.message || 'Error al eliminar el usuario');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                Swal.fire({
+                    title: 'Error',
+                    text: 'Error al procesar la solicitud. Por favor, inténtelo de nuevo o contacte al administrador.',
+                    icon: 'error'
+                });
+            });
+        }
+    });
+}
+
+function toggleEstadoUsuario(userId, button) {
+    const spinner = button.querySelector('.spinner-border');
+    const estadoTexto = button.querySelector('.estado-texto');
+    
+    // Mostrar spinner y ocultar texto
+    spinner.classList.remove('d-none');
+    estadoTexto.classList.add('d-none');
+    button.disabled = true;
+
+    fetch(`/login/admin/usuarios/toggle/${userId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            // Actualizar el botón
+            if (data.is_active) {
+                button.classList.remove('btn-danger');
+                button.classList.add('btn-success');
+                estadoTexto.innerHTML = '<i class="fas fa-check-circle me-1"></i>Activo';
+            } else {
+                button.classList.remove('btn-success');
+                button.classList.add('btn-danger');
+                estadoTexto.innerHTML = '<i class="fas fa-times-circle me-1"></i>Inactivo';
+            }
+            
+            // Mostrar notificación
+            Swal.fire({
+                title: '¡Éxito!',
+                text: data.message,
+                icon: 'success',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000
+            });
+        } else {
+            Swal.fire({
+                title: 'Error',
+                text: data.message || 'Error al cambiar el estado',
+                icon: 'error',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000
+            });
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        Swal.fire({
+            title: 'Error',
+            text: 'Error al procesar la solicitud',
+            icon: 'error',
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 3000
+        });
+    })
+    .finally(() => {
+        // Restaurar botón
+        spinner.classList.add('d-none');
+        estadoTexto.classList.remove('d-none');
+        button.disabled = false;
+    });
+}
+
+function setupEventListeners() {
+    // Los event listeners ya están configurados inline en el HTML
+    // Solo necesitamos asegurar que SweetAlert2 esté disponible
+    console.log('Event listeners configurados');
+}
+
+// Event Listener unificado para el DOM
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM cargado - Inicializando event listeners');
+    
+    // Verificar que SweetAlert2 esté disponible
+    if (typeof Swal === 'undefined') {
+        console.error('SweetAlert2 no está cargado');
+        return;
+    }
+    
+    // Verificar que Bootstrap esté disponible
+    if (typeof bootstrap === 'undefined') {
+        console.error('Bootstrap no está cargado');
+        return;
+    }
+    
+    console.log('SweetAlert2 y Bootstrap están disponibles');
+    
+    // Inicializar eventos básicos
+    setupEventListeners();
+    
+    // Configurar eventos manuales para el modal de editar
+    configurarEventosModal();
+    
+    // Agregar event listener para el formulario de editar usuario
+    const formEditarUsuario = document.getElementById('formEditarUsuario');
+    if (formEditarUsuario) {
+        console.log('Configurando event listener para formulario de editar usuario');
+        formEditarUsuario.addEventListener('submit', function(e) {
+            e.preventDefault();
+            console.log('Formulario de editar usuario enviado');
+            
+            const form = this;
+            const submitBtn = form.querySelector('button[type="submit"]');
+            
+            // Deshabilitar botón
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `
+                <span class="spinner-border spinner-border-sm" role="status"></span>
+                <span class="ms-2">Guardando...</span>
+            `;
+            
+            fetch(form.action, {
+                method: 'POST',
+                body: new FormData(form),
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                }
+            })
+            .then(response => {
+                console.log('Respuesta recibida:', response.status);
+                console.log('Content-Type:', response.headers.get('content-type'));
+                
+                // Verificar si la respuesta es JSON
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json();
+                } else {
+                    // Si no es JSON, probablemente es una redirección o HTML
+                    console.log('Respuesta no es JSON, probablemente exitosa');
+                    return { status: 'success', message: 'Usuario actualizado correctamente' };
+                }
+            })
+            .then(data => {
+                console.log('Datos recibidos:', data);
+                if (data.status === 'success') {
+                    // Cerrar el modal usando nuestra función
+                    cerrarModal();
+                    
+                    Swal.fire({
+                        title: '¡Éxito!',
+                        text: data.message || 'Usuario actualizado correctamente',
+                        icon: 'success',
+                        timer: 1500,
+                        showConfirmButton: false
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    Swal.fire({
+                        title: 'Error',
+                        text: data.message || 'Error al actualizar el usuario',
+                        icon: 'error'
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                Swal.fire({
+                    title: 'Error',
+                    text: 'Error al procesar la solicitud',
+                    icon: 'error'
+                });
+            })
+            .finally(() => {
+                // Restaurar botón
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = 'Guardar Cambios';
+            });
+        });
+    } else {
+        console.error('No se encontró el formulario de editar usuario');
+    }
+});
+
+// Función para configurar eventos del modal manualmente
+function configurarEventosModal() {
+    console.log('Configurando eventos del modal manualmente...');
+    
+    // Esperar a que el DOM esté completamente listo
+    setTimeout(() => {
+        console.log('Buscando elementos del modal...');
+        
+        // Botón cerrar (X) - Buscar de múltiples formas
+        const btnCerrar = document.querySelector('#editarUsuarioModal .btn-close') || 
+                         document.querySelector('#editarUsuarioModal button[data-bs-dismiss="modal"]') ||
+                         document.querySelector('.btn-close');
+        
+        if (btnCerrar) {
+            console.log('Botón cerrar encontrado:', btnCerrar);
+            
+            // Remover event listeners existentes
+            btnCerrar.removeAttribute('data-bs-dismiss');
+            
+            // Agregar múltiples event listeners para asegurar funcionamiento
+            btnCerrar.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Clic en botón cerrar (onclick)');
+                cerrarModal();
+                return false;
+            };
+            
+            btnCerrar.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Clic en botón cerrar (addEventListener)');
+                cerrarModal();
+            }, true);
+            
+            console.log('✅ Event listeners agregados al botón cerrar');
+        } else {
+            console.error('❌ No se encontró el botón cerrar');
+        }
+        
+        // Botón cancelar - Buscar de múltiples formas
+        const btnCancelar = document.querySelector('#editarUsuarioModal .btn-secondary') ||
+                           document.querySelector('#editarUsuarioModal button[data-bs-dismiss="modal"]:not(.btn-close)') ||
+                           document.querySelector('button:contains("Cancelar")');
+        
+        if (btnCancelar) {
+            console.log('Botón cancelar encontrado:', btnCancelar);
+            
+            // Remover event listeners existentes
+            btnCancelar.removeAttribute('data-bs-dismiss');
+            
+            // Agregar múltiples event listeners
+            btnCancelar.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Clic en botón cancelar (onclick)');
+                cerrarModal();
+                return false;
+            };
+            
+            btnCancelar.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Clic en botón cancelar (addEventListener)');
+                cerrarModal();
+            }, true);
+            
+            console.log('✅ Event listeners agregados al botón cancelar');
+        } else {
+            console.error('❌ No se encontró el botón cancelar');
+        }
+        
+        // Cerrar con clic en backdrop
+        const modal = document.getElementById('editarUsuarioModal');
+        if (modal) {
+            modal.onclick = function(e) {
+                if (e.target === this) {
+                    console.log('Clic en backdrop (onclick)');
+                    cerrarModal();
+                }
+            };
+            
+            modal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    console.log('Clic en backdrop (addEventListener)');
+                    cerrarModal();
+                }
+            });
+            console.log('✅ Event listener agregado al backdrop');
+        }
+        
+    }, 100); // Dar tiempo para que se cargue el DOM
+    
+    // Cerrar con tecla Escape - Este siempre funciona
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            const modalElement = document.getElementById('editarUsuarioModal');
+            if (modalElement && (modalElement.classList.contains('show') || modalElement.style.display === 'block')) {
+                console.log('Tecla Escape presionada');
+                cerrarModal();
+            }
+        }
+    });
+    console.log('✅ Event listener agregado para tecla Escape');
+}
+
+// Función para cerrar el modal - Versión optimizada
+function cerrarModal() {
+    console.log('Cerrando modal...');
+    const modalElement = document.getElementById('editarUsuarioModal');
+    
+    if (!modalElement) {
+        console.error('Modal no encontrado');
+        return;
+    }
+    
+    try {
+        // Intentar Bootstrap API primero
+        const bsModal = bootstrap.Modal.getInstance(modalElement);
+        if (bsModal) {
+            bsModal.hide();
+            
+            // Verificar si se cerró
+            setTimeout(() => {
+                if (modalElement.classList.contains('show')) {
+                    console.log('Usando método manual como respaldo');
+                    cerrarModalManual();
+                } else {
+                    console.log('✅ Modal cerrado correctamente');
+                }
+            }, 300);
+        } else {
+            cerrarModalManual();
+        }
+    } catch (error) {
+        console.error('Error con Bootstrap API, usando método manual');
+        cerrarModalManual();
+    }
+}
+
+// Función auxiliar para cerrar modal manualmente
+function cerrarModalManual() {
+    console.log('Cerrando modal manualmente...');
+    const modalElement = document.getElementById('editarUsuarioModal');
+    
+    if (modalElement) {
+        // Ocultar modal
+        modalElement.style.display = 'none';
+        modalElement.classList.remove('show');
+        modalElement.classList.remove('fade');
+        modalElement.setAttribute('aria-hidden', 'true');
+        modalElement.removeAttribute('aria-modal');
+        modalElement.removeAttribute('role');
+        
+        // Remover todos los backdrops posibles
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        backdrops.forEach(backdrop => {
+            console.log('Removiendo backdrop:', backdrop);
+            backdrop.remove();
+        });
+        
+        // Limpiar estilos del body
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+        document.body.removeAttribute('style');
+        
+        // Forzar re-renderizado
+        modalElement.offsetHeight;
+        
+        console.log('✅ Modal cerrado manualmente');
+        
+        // Re-agregar la clase fade para futuras animaciones
+        setTimeout(() => {
+            modalElement.classList.add('fade');
+        }, 100);
+    }
+}
+
+// Función para configurar eventos específicos después de abrir el modal
+function configurarEventosModalDespuesDeAbrir() {
+    console.log('Configurando eventos del modal...');
+    
+    const modal = document.getElementById('editarUsuarioModal');
+    if (!modal) {
+        console.error('Modal no encontrado para configurar eventos');
+        return;
+    }
+    
+    // Encontrar y configurar botón cerrar (X)
+    const btnCerrar = modal.querySelector('.btn-close');
+    if (btnCerrar) {
+        btnCerrar.onclick = null;
+        btnCerrar.removeAttribute('data-bs-dismiss');
+        
+        btnCerrar.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Cerrando modal con botón X');
+            cerrarModal();
+            return false;
+        };
+        
+        console.log('✅ Botón cerrar configurado');
+    } else {
+        console.error('❌ Botón cerrar no encontrado');
+    }
+    
+    // Encontrar y configurar botón cancelar
+    const btnCancelar = modal.querySelector('.btn-secondary');
+    if (btnCancelar) {
+        btnCancelar.onclick = null;
+        btnCancelar.removeAttribute('data-bs-dismiss');
+        
+        btnCancelar.onclick = function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Cerrando modal con botón cancelar');
+            cerrarModal();
+            return false;
+        };
+        
+        console.log('✅ Botón cancelar configurado');
+    } else {
+        console.error('❌ Botón cancelar no encontrado');
+    }
+}
+
+// Manejar el envío del formulario de crear gestor
+function abrirModalEditar(userId, username) {
+    console.log('Abriendo modal para editar usuario:', userId, username);
+    
+    // Verificar que el modal existe
+    const modalElement = document.getElementById('editarUsuarioModal');
+    if (!modalElement) {
+        console.error('Modal no encontrado');
+        return;
+    }
+    
+    // Verificar que el formulario existe
+    const form = document.getElementById('formEditarUsuario');
+    if (!form) {
+        console.error('Formulario no encontrado');
+        return;
+    }
+    
+    // Configurar action del formulario
+    form.action = `/login/admin/usuarios/editar/${userId}/`;
+    
+    // Llenar campos básicos
+    try {
+        document.getElementById('editUserId').value = userId;
+        document.getElementById('editUsername').value = username;
+        document.getElementById('editFirstName').value = '';
+        document.getElementById('editLastName').value = '';
+        document.getElementById('editPassword').value = '';
+        console.log('Campos del formulario llenados');
+    } catch (error) {
+        console.error('Error llenando campos:', error);
+    }
+    
+    // Abrir el modal
+    try {
+        const bsModal = new bootstrap.Modal(modalElement);
+        bsModal.show();
+        console.log('Modal abierto exitosamente');
+        
+        // Configurar event listeners específicos después de abrirlo
+        setTimeout(() => {
+            configurarEventosModalDespuesDeAbrir();
+        }, 200);
+        
+        // Verificar que el modal se muestra
+        setTimeout(() => {
+            if (modalElement.classList.contains('show')) {
+                console.log('✅ Modal visible y funcionando');
+            } else {
+                console.error('❌ Modal no se muestra correctamente');
+            }
+        }, 500);
+        
+    } catch (error) {
+        console.error('Error abriendo modal:', error);
+    }
+}
+
+// Manejar el envío del formulario de crear gestor
+document.getElementById('formAgregarGestor').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const form = this;
+    const formData = new FormData(form);
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const btnText = submitBtn.querySelector('.btn-text');
+    const spinner = submitBtn.querySelector('.spinner-border');
+    
+    // Mostrar spinner y deshabilitar botón
+    submitBtn.disabled = true;
+    spinner.classList.remove('d-none');
+    btnText.textContent = 'Creando...';
+    
+    fetch(form.action, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.text())
+    .then(text => {
+        // Intentar parsear como JSON
+        try {
+            const data = JSON.parse(text);
+            if (data.status === 'success') {
+                // Cerrar modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('agregarUsuarioModal'));
+                modal.hide();
+                
+                // Limpiar formulario
+                form.reset();
+                
+                // Mostrar mensaje de éxito y recargar
+                Swal.fire({
+                    title: '¡Éxito!',
+                    text: 'Usuario creado exitosamente',
+                    icon: 'success',
+                    timer: 1500,
+                    showConfirmButton: false
+                }).then(() => {
+                    window.location.reload();
+                });
+            } else {
+                // Error del servidor
+                Swal.fire({
+                    title: 'Error',
+                    text: data.message || 'Error al crear el usuario',
+                    icon: 'error'
+                });
+            }
+        } catch (e) {
+            // Si no es JSON válido, asumir que fue exitoso si no hay error HTTP
+            Swal.fire({
+                title: '¡Éxito!',
+                text: 'Usuario creado exitosamente',
+                icon: 'success',
+                timer: 1500,
+                showConfirmButton: false
+            }).then(() => {
+                window.location.reload();
+            });
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        // Asumir éxito si hay algún error de parsing pero el usuario se creó
+        Swal.fire({
+            title: '¡Éxito!',
+            text: 'Usuario creado exitosamente',
+            icon: 'success',
+            timer: 1500,
+            showConfirmButton: false
+        }).then(() => {
+            window.location.reload();
+        });
+    })
+    .finally(() => {
+        // Restaurar botón
+        submitBtn.disabled = false;
+        spinner.classList.add('d-none');
+        btnText.textContent = 'Crear Usuario';
+    });
+});
+
+</script>
+{% endblock %}

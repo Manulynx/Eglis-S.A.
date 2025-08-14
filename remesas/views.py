@@ -1,0 +1,1200 @@
+from django.shortcuts import render, get_object_or_404, redirect
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+from . import models
+from .models import Pago
+from .forms import PagoForm
+from django.core.paginator import Paginator
+from django.contrib import messages
+import logging
+import json
+from urllib.parse import quote
+from django.db.models import Sum
+from decimal import Decimal
+
+logger = logging.getLogger(__name__)
+
+@login_required
+def registro_transacciones(request):
+    """Vista para el registro de transacciones"""
+    # Calcular estadísticas
+    remesas = models.Remesa.objects.all()
+    pagos = models.Pago.objects.all()
+    
+    # Conteos
+    remesas_count = remesas.count()
+    pagos_count = pagos.count()
+    
+    # Totales en USD
+    total_remesas = sum(remesa.calcular_monto_en_usd() for remesa in remesas)
+    total_pagos = sum(pago.calcular_monto_en_usd() for pago in pagos)
+    
+    # Obtener monedas para filtros
+    monedas = models.Moneda.objects.filter(activa=True)
+    
+    context = {
+        'remesas': remesas.order_by('-fecha'),
+        'pagos': pagos.order_by('-fecha_creacion'),
+        'remesas_count': remesas_count,
+        'pagos_count': pagos_count,
+        'total_remesas': total_remesas,
+        'total_pagos': total_pagos,
+        'monedas': monedas,
+    }
+    
+    return render(request, 'remesas/registro_transacciones.html', context)
+
+@login_required
+def remesas_admin(request):
+    logger.info(f"Request method: {request.method}")
+    logger.info(f"Headers: {dict(request.headers)}")
+    logger.info(f"POST data: {dict(request.POST)}")
+    
+    if request.method == 'POST' and request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        # Moneda
+        if 'nombre_moneda' in request.POST:
+            nombre = request.POST.get('nombre_moneda')
+            valor_actual = request.POST.get('valor_actual')
+            if nombre:
+                try:
+                    # Si no se proporciona valor_actual, usar el valor por defecto del modelo
+                    if valor_actual:
+                        models.Moneda.objects.create(
+                            nombre=nombre,
+                            valor_actual=valor_actual
+                        )
+                    else:
+                        models.Moneda.objects.create(nombre=nombre)
+                    return JsonResponse({'success': True, 'message': 'Moneda guardada correctamente.'})
+                except Exception as e:
+                    return JsonResponse({'success': False, 'message': f'Error: {str(e)}'})
+            return JsonResponse({'success': False, 'message': 'Nombre de moneda es requerido.'})
+        # Método de pago
+        elif 'nombre_pago' in request.POST:
+            logger.info("Processing método de pago")
+            nombre = request.POST.get('nombre_pago')
+            logger.info(f"Nombre pago: {nombre}")
+            if nombre:
+                try:
+                    pago = models.TipodePago.objects.create(nombre=nombre)
+                    logger.info(f"Método de pago creado: {pago}")
+                    return JsonResponse({'success': True, 'message': 'Método de pago guardado correctamente.'})
+                except Exception as e:
+                    logger.error(f"Error creating TipodePago: {e}")
+                    return JsonResponse({'success': False, 'message': f'Error: {str(e)}'})
+            return JsonResponse({'success': False, 'message': 'Datos incompletos para método de pago.'})
+        return JsonResponse({'success': False, 'message': 'Formulario no reconocido.'})
+
+    # GET: Renderizar template normalmente
+    monedas = models.Moneda.objects.filter(activa=True)
+    metodos_pago = models.TipodePago.objects.all()
+    return render(request, 'remesas/remesas_Admin.html', {
+        'monedas': monedas,
+        'metodos_pago': metodos_pago,
+    })
+
+@login_required
+def remesas(request):
+    if request.method == 'POST':
+        # Debug: verificar que llegue el POST
+        print("=== DEBUG POST ===")
+        print("Headers:", dict(request.headers))
+        print("POST data completo:", dict(request.POST))
+        print("FILES:", dict(request.FILES))
+        
+        # Verificar específicamente los campos de clientes
+        print("\n=== CAMPOS DE CLIENTES ===")
+        for key in request.POST:
+            if 'receptor' in key or 'destinatario' in key:
+                print(f"{key}: '{request.POST.get(key)}'")
+        
+        # Verificar si es AJAX
+        is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+        print(f"Es AJAX: {is_ajax}")
+        
+        if is_ajax:
+            from django.db import transaction
+            
+            try:
+                with transaction.atomic():
+                    print("\n=== INICIANDO PROCESAMIENTO ===")
+                    
+                    # Obtener datos básicos del formulario simplificado
+                    receptor_nombre = request.POST.get('receptor_nombre', '').strip()
+                    importe = request.POST.get('importe', '').strip()
+                    tipo_pago = request.POST.get('tipo_pago', '').strip()
+                    moneda_id = request.POST.get('moneda', '').strip()
+                    observaciones = request.POST.get('observaciones', '').strip()
+                    comprobante = request.FILES.get('comprobante')
+                    
+                    print(f"\n=== DATOS EXTRAÍDOS ===")
+                    print(f"receptor_nombre: '{receptor_nombre}'")
+                    print(f"importe: '{importe}'")
+                    print(f"tipo_pago: '{tipo_pago}'")
+                    print(f"moneda_id: '{moneda_id}'")
+                    print(f"observaciones: '{observaciones}'")
+                    print(f"comprobante: {comprobante}")
+                    
+                    # Validación de campos obligatorios
+                    if not receptor_nombre or not importe or not tipo_pago or not moneda_id:
+                        print("=== ERROR: FALTAN CAMPOS OBLIGATORIOS ===")
+                        print(f"receptor_nombre válido: {bool(receptor_nombre)}")
+                        print(f"importe válido: {bool(importe)}")
+                        print(f"tipo_pago válido: {bool(tipo_pago)}")
+                        print(f"moneda_id válido: {bool(moneda_id)}")
+                        return JsonResponse({
+                            'success': False, 
+                            'message': 'Faltan campos obligatorios: nombre del remitente, importe, tipo de pago y moneda son requeridos'
+                        })
+                    
+                    # Validar importe
+                    try:
+                        importe_decimal = float(importe)
+                        if importe_decimal <= 0:
+                            return JsonResponse({'success': False, 'message': 'El importe debe ser mayor a 0'})
+                        print(f"Importe convertido: {importe_decimal}")
+                    except (ValueError, TypeError) as e:
+                        print(f"Error convirtiendo importe: {e}")
+                        return JsonResponse({'success': False, 'message': 'El importe debe ser un número válido'})
+                    
+                    # Obtener moneda
+                    try:
+                        moneda = models.Moneda.objects.get(id=moneda_id)
+                        print(f"Moneda encontrada: {moneda}")
+                    except models.Moneda.DoesNotExist:
+                        return JsonResponse({'success': False, 'message': 'La moneda seleccionada no existe'})
+                    
+                    # Crear remesa con el modelo simplificado
+                    print(f"\n=== CREANDO REMESA ===")
+                    
+                    remesa_data = {
+                        'receptor_nombre': receptor_nombre,
+                        'importe': importe_decimal,
+                        'tipo_pago': tipo_pago,
+                        'moneda': moneda,
+                        'gestor': request.user if request.user.is_authenticated else None,
+                    }
+                    
+                    # Agregar campos opcionales
+                    if observaciones:
+                        remesa_data['observaciones'] = observaciones
+                    
+                    if comprobante:
+                        remesa_data['comprobante'] = comprobante
+                    
+                    remesa = models.Remesa.objects.create(**remesa_data)
+                    
+                    print(f"Remesa creada:")
+                    print(f"  ID: {remesa.id}")
+                    print(f"  RemesaID: '{remesa.remesa_id}'")
+                    print(f"  Importe: {remesa.importe}")
+                    print(f"  Receptor: '{remesa.receptor_nombre}'")
+                    print(f"  Tipo de pago: '{remesa.tipo_pago}'")
+                    print(f"  Moneda: {remesa.moneda}")
+                    
+                    # Actualizar balance del usuario (agregar el monto en USD)
+                    if request.user.is_authenticated:
+                        try:
+                            # Calcular monto en USD
+                            if moneda.codigo == 'USD':
+                                monto_usd = float(importe_decimal)
+                            else:
+                                monto_usd = float(importe_decimal) / float(moneda.valor_actual)
+                            
+                            # Actualizar balance
+                            if hasattr(request.user, 'perfil'):
+                                perfil = request.user.perfil
+                                perfil.balance += monto_usd
+                                perfil.save()
+                                print(f"Balance actualizado: +${monto_usd:.2f} USD")
+                        except Exception as e:
+                            print(f"Error actualizando balance: {e}")
+                    
+                    # Enviar notificación
+                    try:
+                        from notificaciones.services import WhatsAppService
+                        from notificaciones.models import LogNotificacion
+                        from django.utils import timezone
+                        
+                        # Crear registro de notificación interna
+                        LogNotificacion.objects.create(
+                            tipo='remesa_creada',
+                            mensaje=f"Se ha creado exitosamente la remesa {remesa.remesa_id} por un monto de {remesa.importe} {remesa.moneda.codigo}.",
+                            usuario=request.user,
+                            fecha_envio=timezone.now(),
+                            exitoso=True
+                        )
+                        
+                        # También intentar enviar por WhatsApp si está configurado
+                        whatsapp_service = WhatsAppService()
+                        whatsapp_service.enviar_notificacion('remesa_creada', remesa=remesa)
+                        
+                        print(f"Notificación registrada para remesa {remesa.remesa_id}")
+                    except Exception as e:
+                        print(f"Error enviando notificación: {e}")
+                    
+                    print("\n=== ÉXITO ===")
+                    from django.urls import reverse
+                    detalle_url = reverse('remesas:detalle_remesa', kwargs={'remesa_id': remesa.id})
+                    
+                    return JsonResponse({
+                        'success': True, 
+                        'message': f'Remesa {remesa.remesa_id} guardada correctamente.',
+                        'remesa_id': remesa.remesa_id,
+                        'remesa_pk': remesa.id,
+                        'detalle_url': detalle_url
+                    })
+                    
+            except Exception as e:
+                import traceback
+                error_detail = traceback.format_exc()
+                print(f"\n=== ERROR COMPLETO ===")
+                print(error_detail)
+                return JsonResponse({'success': False, 'message': f'Error: {str(e)}'})
+        
+        else:
+            print("No es una petición AJAX")
+            return JsonResponse({'success': False, 'message': 'Petición no válida'})
+    
+    # GET request: renderizar template
+    print("GET request - renderizando template")
+    from django.contrib.auth.models import User
+    import json
+    
+    # Obtener monedas para cálculos
+    monedas = models.Moneda.objects.filter(activa=True)
+    monedas_data = []
+    for moneda in monedas:
+        monedas_data.append({
+            'id': moneda.id,
+            'codigo': moneda.codigo,
+            'nombre': moneda.nombre,
+            'valor_actual': float(moneda.valor_actual)
+        })
+    
+    # Obtener balance del usuario
+    user_balance = 0
+    if request.user.is_authenticated:
+        try:
+            # Intentar obtener el perfil del usuario
+            if hasattr(request.user, 'perfil'):
+                user_balance = float(request.user.perfil.balance)
+            else:
+                # Si no hay perfil, buscar en el modelo Balance
+                from login.models import PerfilUsuario
+                perfil, created = PerfilUsuario.objects.get_or_create(
+                    user=request.user,
+                    defaults={'balance': 0.0}
+                )
+                user_balance = float(perfil.balance)
+        except Exception as e:
+            print(f"Error obteniendo balance del usuario: {e}")
+            user_balance = 0
+    
+    context = {
+        'gestores': User.objects.filter(is_active=True),
+        'monedas_json': json.dumps(monedas_data),
+        'user_balance': user_balance
+    }
+    return render(request, 'remesas/remesas.html', context)
+
+# API endpoints para formularios dinámicos
+@login_required
+def api_monedas(request):
+    monedas = models.Moneda.objects.filter(activa=True).values('id', 'nombre', 'codigo', 'valor_actual')
+    monedas_list = [
+        {
+            'id': m['id'], 
+            'nombre': f"{m['nombre']} - {m['valor_actual']}", 
+            'codigo': m['codigo'],
+            'valor_actual': float(m['valor_actual']) if m['valor_actual'] else 1.0
+        }
+        for m in monedas
+    ]
+    return JsonResponse(monedas_list, safe=False)
+
+@login_required
+def api_gestores(request):
+    # Importar aquí para evitar problemas de importación circular
+    from django.contrib.auth.models import User
+    
+    # Obtener usuarios activos que pueden ser gestores
+    usuarios = User.objects.filter(is_active=True).values('id', 'first_name', 'last_name', 'username')
+    usuarios_list = [
+        {
+            'id': u['id'], 
+            'nombre': f"{u['first_name']} {u['last_name']}" if u['first_name'] and u['last_name'] else u['username']
+        }
+        for u in usuarios
+    ]
+    return JsonResponse(usuarios_list, safe=False)
+
+@login_required
+def api_metodos_pago(request):
+    metodos = models.TipodePago.objects.all().values('id', 'nombre')
+    return JsonResponse(list(metodos), safe=False)
+
+def registrar_estado_remesa(remesa, tipo, request, detalles=None):
+    """Función auxiliar para registrar cambios de estado en remesas"""
+    models.RegistroRemesas.objects.create(
+        remesa=remesa,
+        tipo=tipo,
+        usuario_registro=request.user,
+        monto=remesa.importe,
+        detalles=detalles
+    )
+
+@login_required
+def confirmar_remesa(request, remesa_id):
+    if request.method == 'POST':
+        try:
+            remesa = get_object_or_404(models.Remesa, id=remesa_id)
+            
+            if not remesa.puede_confirmar():
+                return JsonResponse({
+                    'success': False, 
+                    'message': f'La remesa {remesa.remesa_id} no puede ser confirmada porque está en estado: {remesa.get_estado_display()}'
+                })
+            
+            # Usar el método del modelo para confirmar
+            if remesa.confirmar():
+                # Registrar el cambio
+                models.RegistroRemesas.objects.create(
+                    remesa=remesa,
+                    tipo='procesada',  # Puedes cambiar esto si quieres un tipo específico para confirmación
+                    usuario_registro=request.user if request.user.is_authenticated else None,
+                    detalles=f'Remesa {remesa.remesa_id} confirmada exitosamente',
+                    monto=remesa.importe or 0
+                )
+                
+                return JsonResponse({
+                    'success': True, 
+                    'message': f'Remesa {remesa.remesa_id} confirmada exitosamente'
+                })
+            else:
+                return JsonResponse({
+                    'success': False, 
+                    'message': f'No se pudo confirmar la remesa {remesa.remesa_id}'
+                })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False, 
+                'message': f'Error al confirmar la remesa: {str(e)}'
+            })
+    
+    return JsonResponse({'success': False, 'message': 'Método no permitido'})
+
+# Modificar la vista existente donde se procesa la remesa
+@login_required
+def procesar_remesa(request, remesa_id):
+    if request.method == 'POST':
+        try:
+            remesa = get_object_or_404(models.Remesa, id=remesa_id)
+            
+            if not remesa.puede_completar():
+                return JsonResponse({
+                    'success': False, 
+                    'message': f'La remesa {remesa.remesa_id} no puede ser procesada porque está en estado: {remesa.get_estado_display()}. Debe estar confirmada para poder procesarla.'
+                })
+            
+            # Usar el método del modelo para completar
+            if remesa.completar():
+                # Registrar el cambio
+                models.RegistroRemesas.objects.create(
+                    remesa=remesa,
+                    tipo='procesada',
+                    usuario_registro=request.user if request.user.is_authenticated else None,
+                    detalles=f'Remesa {remesa.remesa_id} procesada exitosamente',
+                    monto=remesa.importe or 0
+                )
+                
+                return JsonResponse({
+                    'success': True, 
+                    'message': f'Remesa {remesa.remesa_id} procesada exitosamente'
+                })
+            else:
+                return JsonResponse({
+                    'success': False, 
+                    'message': f'No se pudo procesar la remesa {remesa.remesa_id}'
+                })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False, 
+                'message': f'Error al procesar la remesa: {str(e)}'
+            })
+    
+    return JsonResponse({'success': False, 'message': 'Método no permitido'})
+
+# FUNCIÓN ELIMINADA - Reemplazada por registro_transacciones en views_transacciones.py
+# @login_required
+# def lista_remesas(request):
+#     from django.db.models import Q, Sum
+#     from django.contrib.auth.models import User
+#     
+#     # Obtener todos los filtros
+#     estado = request.GET.get('estado')
+#     fecha_desde = request.GET.get('fecha_desde')
+#     fecha_hasta = request.GET.get('fecha_hasta')
+#     busqueda = request.GET.get('busqueda')
+#     receptor_nombre = request.GET.get('receptor_nombre')
+#     monto_min = request.GET.get('monto_min')
+#     monto_max = request.GET.get('monto_max')
+#     moneda = request.GET.get('moneda')
+#     gestor = request.GET.get('gestor')
+#     remesa_id = request.GET.get('remesa_id')
+#     
+#     # Query base
+#     remesas = models.Remesa.objects.select_related('moneda', 'gestor').all().order_by('-fecha')
+#     
+#     # Aplicar filtros
+#     if estado:
+#         remesas = remesas.filter(estado=estado)
+#         
+#     if fecha_desde:
+#         remesas = remesas.filter(fecha__date__gte=fecha_desde)
+#         
+#     if fecha_hasta:
+#         remesas = remesas.filter(fecha__date__lte=fecha_hasta)
+#         
+#     if busqueda:
+#         remesas = remesas.filter(
+#             Q(remesa_id__icontains=busqueda) |
+#             Q(receptor_nombre__icontains=busqueda)
+#         )
+#         
+#     if receptor_nombre:
+#         remesas = remesas.filter(receptor_nombre__icontains=receptor_nombre)
+#         
+#     if monto_min:
+#         try:
+#             remesas = remesas.filter(importe__gte=float(monto_min))
+#         except ValueError:
+#             pass
+#             
+#     if monto_max:
+#         try:
+#             remesas = remesas.filter(importe__lte=float(monto_max))
+#         except ValueError:
+#             pass
+#             
+#     if moneda:
+#         try:
+#             remesas = remesas.filter(moneda_id=int(moneda))
+#         except ValueError:
+#             pass
+#             
+#     if gestor:
+#         try:
+#             remesas = remesas.filter(gestor_id=int(gestor))
+#         except ValueError:
+#             pass
+#             
+#     if remesa_id:
+#         remesas = remesas.filter(remesa_id__icontains=remesa_id)
+#         
+#     # Estadísticas generales (sin filtros aplicados) - deben mostrar el total general
+#     todas_remesas = models.Remesa.objects.all()
+#     total_pendientes = todas_remesas.filter(estado='pendiente').count()
+#     total_confirmadas = todas_remesas.filter(estado='confirmada').count()
+#     total_completadas = todas_remesas.filter(estado='completada').count()
+#     total_canceladas = todas_remesas.filter(estado='cancelada').count()
+#     
+#     # Datos adicionales para los filtros
+#     monedas = models.Moneda.objects.all().order_by('nombre')
+#     gestores = User.objects.filter(
+#         id__in=models.Remesa.objects.values_list('gestor_id', flat=True).distinct()
+#     ).order_by('first_name', 'last_name', 'username')
+#     
+#     context = {
+#         'remesas': remesas,
+#         'total_pendientes': total_pendientes,
+#         'total_confirmadas': total_confirmadas,
+#         'total_completadas': total_completadas,
+#         'total_canceladas': total_canceladas,
+#         'monedas': monedas,
+#         'gestores': gestores,
+#     }
+#     
+#     # Paginación
+#     paginator = Paginator(remesas, 15)  # Aumenté a 15 elementos por página
+#     page = request.GET.get('page')
+#     context['remesas'] = paginator.get_page(page)
+#     
+#     return render(request, 'remesas/lista_remesas.html', context)
+
+@login_required
+def cancelar_remesa(request, remesa_id):
+    """
+    Vista para cancelar una remesa
+    """
+    if request.method == 'POST':
+        try:
+            remesa = get_object_or_404(models.Remesa, id=remesa_id)
+            
+            if not remesa.puede_cancelar():
+                return JsonResponse({
+                    'success': False, 
+                    'message': f'La remesa {remesa.remesa_id} no puede ser cancelada porque está en estado: {remesa.get_estado_display()}'
+                })
+            
+            # Usar el método del modelo para cancelar
+            if remesa.cancelar():
+                # Registrar el cambio de estado en el historial
+                models.RegistroRemesas.objects.create(
+                    remesa=remesa,
+                    tipo='cancelada',
+                    usuario_registro=request.user if request.user.is_authenticated else None,
+                    monto=remesa.importe or 0,
+                    detalles=f'Remesa {remesa.remesa_id} cancelada por el usuario'
+                )
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Remesa {remesa.remesa_id} cancelada exitosamente'
+                })
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'message': f'No se pudo cancelar la remesa {remesa.remesa_id}'
+                })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': f'Error al cancelar la remesa: {str(e)}'
+            })
+    
+    return JsonResponse({
+        'success': False,
+        'message': 'Método no permitido'
+    }, status=405)
+
+@login_required
+def detalle_remesa(request, remesa_id):
+    """
+    Vista para mostrar los detalles de una remesa específica
+    """
+    try:
+        # Obtener la remesa y sus registros relacionados
+        remesa = get_object_or_404(models.Remesa, id=remesa_id)
+        registros = models.RegistroRemesas.objects.filter(remesa=remesa).order_by('-fecha_registro')
+
+        context = {
+            'remesa': remesa,
+            'registros': registros,
+        }
+        
+        return render(request, 'remesas/detalle_remesa.html', context)
+        
+    except Exception as e:
+        # En caso de error, redirigir a la lista con un mensaje de error
+        messages.error(request, f'Error al obtener los detalles de la remesa: {str(e)}')
+        return redirect('remesas:registro_transacciones')
+
+@login_required
+def editar_remesa(request, remesa_id):
+    """
+    Vista para editar una remesa existente
+    """
+    try:
+        remesa = get_object_or_404(models.Remesa, id=remesa_id)
+        
+        # Solo permitir editar remesas en estado pendiente
+        if remesa.estado != 'pendiente':
+            messages.error(request, f'No se puede editar la remesa {remesa.remesa_id} porque está en estado: {remesa.get_estado_display()}')
+            return redirect('remesas:detalle_remesa', remesa_id=remesa.id)
+        
+        if request.method == 'POST':
+            # Verificar si es AJAX
+            is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+            
+            try:
+                # Obtener datos del formulario simplificado
+                receptor_nombre = request.POST.get('receptor_nombre', '').strip()
+                importe = request.POST.get('importe', '').strip()
+                moneda_id = request.POST.get('moneda', '').strip()
+                tipo_pago = request.POST.get('tipo_pago', '').strip()
+                observaciones = request.POST.get('observaciones', '').strip()
+                comprobante = request.FILES.get('comprobante')
+                
+                # Validaciones básicas
+                if not receptor_nombre or not importe or not moneda_id or not tipo_pago:
+                    error_msg = 'Todos los campos obligatorios deben ser completados'
+                    if is_ajax:
+                        return JsonResponse({'success': False, 'message': error_msg})
+                    else:
+                        messages.error(request, error_msg)
+                        return redirect(request.path)
+                
+                # Validar importe
+                try:
+                    importe_decimal = float(importe)
+                    if importe_decimal <= 0:
+                        raise ValueError("El importe debe ser mayor a 0")
+                except ValueError:
+                    error_msg = 'El importe debe ser un número válido mayor que 0'
+                    if is_ajax:
+                        return JsonResponse({'success': False, 'message': error_msg})
+                    else:
+                        messages.error(request, error_msg)
+                        return redirect(request.path)
+                
+                # Obtener la moneda
+                try:
+                    moneda = models.Moneda.objects.get(id=moneda_id)
+                except models.Moneda.DoesNotExist:
+                    error_msg = 'Moneda seleccionada no válida'
+                    if is_ajax:
+                        return JsonResponse({'success': False, 'message': error_msg})
+                    else:
+                        messages.error(request, error_msg)
+                        return redirect(request.path)
+                
+                # Actualizar remesa
+                remesa.receptor_nombre = receptor_nombre
+                remesa.importe = importe_decimal
+                remesa.moneda = moneda
+                remesa.tipo_pago = tipo_pago
+                remesa.observaciones = observaciones or None
+                
+                # Actualizar comprobante si se proporciona uno nuevo
+                if comprobante:
+                    remesa.comprobante = comprobante
+                
+                remesa.save()
+                
+                success_msg = f'Remesa {remesa.remesa_id} actualizada exitosamente'
+                if is_ajax:
+                    return JsonResponse({'success': True, 'message': success_msg})
+                else:
+                    messages.success(request, success_msg)
+                    return redirect('remesas:registro_transacciones')
+                    
+            except Exception as e:
+                error_msg = f'Error al actualizar la remesa: {str(e)}'
+                if is_ajax:
+                    return JsonResponse({'success': False, 'message': error_msg})
+                else:
+                    messages.error(request, error_msg)
+                    return redirect('remesas:registro_transacciones')
+        
+        # GET request - mostrar formulario
+        monedas = models.Moneda.objects.filter(activa=True).order_by('nombre')
+        
+        context = {
+            'remesa': remesa,
+            'monedas': monedas,
+            'title': f'Editar Remesa {remesa.remesa_id}'
+        }
+        return render(request, 'remesas/editar_remesa.html', context)
+        
+    except Exception as e:
+        # En caso de error, redirigir a la lista con un mensaje de error
+        messages.error(request, f'Error al obtener los detalles de la remesa: {str(e)}')
+        return redirect('remesas:registro_transacciones')
+
+
+# ==================== VISTAS PARA MONEDAS ====================
+
+@login_required
+def lista_monedas(request):
+    """
+    Vista para listar todas las monedas
+    """
+    monedas = models.Moneda.objects.all().order_by('codigo')
+    
+    context = {
+        'monedas': monedas,
+        'total_monedas': monedas.count(),
+    }
+    
+    return render(request, 'Monedas/lista_monedas.html', context)
+
+
+@login_required
+def crear_moneda(request):
+    """
+    Vista para crear una nueva moneda
+    """
+    if request.method == 'POST':
+        try:
+            codigo = request.POST.get('codigo', '').upper()
+            nombre = request.POST.get('nombre', '')
+            valor_actual = request.POST.get('valor_actual')
+            valor_comercial = request.POST.get('valor_comercial')
+            activa = request.POST.get('activa') == 'on'
+            
+            if not codigo or not nombre or not valor_actual or not valor_comercial:
+                return redirect(f'/remesas/monedas/?error=create&message={quote("Todos los campos obligatorios deben ser completados")}')
+            
+            # Verificar si el código ya existe
+            if models.Moneda.objects.filter(codigo=codigo).exists():
+                return redirect(f'/remesas/monedas/?error=create&message={quote(f"Ya existe una moneda con el código {codigo}")}')
+            
+            moneda = models.Moneda.objects.create(
+                codigo=codigo,
+                nombre=nombre,
+                valor_actual=valor_actual,
+                valor_comercial=valor_comercial,
+                activa=activa
+            )
+            
+            return redirect(f'/remesas/monedas/?success=create&codigo={quote(codigo)}&nombre={quote(nombre)}')
+            
+        except Exception as e:
+            return redirect(f'/remesas/monedas/?error=create&message={quote(str(e))}')
+    
+    return render(request, 'Monedas/moneda_form.html', {'is_edit': False})
+
+
+@login_required
+def editar_moneda(request, moneda_id):
+    """
+    Vista para editar una moneda existente
+    """
+    moneda = get_object_or_404(models.Moneda, id=moneda_id)
+    
+    if request.method == 'POST':
+        try:
+            # Obtener el código original antes de cualquier cambio
+            codigo_original = moneda.codigo
+            
+            # Permitir editar código solo si no es USD y no tiene registros asociados
+            if moneda.codigo != 'USD':
+                nuevo_codigo = request.POST.get('codigo', '').strip().upper()
+                if nuevo_codigo and nuevo_codigo != moneda.codigo:
+                    # Verificar que el nuevo código no esté en uso
+                    if models.Moneda.objects.filter(codigo=nuevo_codigo).exclude(id=moneda.id).exists():
+                        return redirect(f'/remesas/monedas/?error=edit&message={quote(f"El código {nuevo_codigo} ya está en uso")}')
+                    
+                    # Verificar si cambiar el código afectaría registros existentes
+                    remesas_count = models.Remesa.objects.filter(moneda=moneda).count()
+                    if remesas_count > 0:
+                        messages.warning(request, f'⚠️ Esta moneda está siendo utilizada en {remesas_count} remesa(s). El cambio de código no afectará los registros históricos, pero se recomienda precaución.')
+                    
+                    balances_count = models.Balance.objects.filter(moneda=moneda).count()
+                    if balances_count > 0:
+                        messages.warning(request, f'⚠️ Esta moneda está siendo utilizada en {balances_count} balance(s) de usuario. El cambio no afectará los registros existentes.')
+                    
+                    moneda.codigo = nuevo_codigo
+            
+            moneda.nombre = request.POST.get('nombre', '')
+            moneda.valor_actual = request.POST.get('valor_actual')
+            moneda.valor_comercial = request.POST.get('valor_comercial')
+            moneda.activa = request.POST.get('activa') == 'on'
+            
+            if not moneda.codigo or not moneda.nombre or not moneda.valor_actual or not moneda.valor_comercial:
+                return redirect(f'/remesas/monedas/?error=edit&message={quote("Todos los campos obligatorios deben ser completados")}')
+            
+            moneda.save()
+            
+            # Redireccionar con parámetro de éxito para mostrar SweetAlert2
+            return redirect(f'/remesas/monedas/?success=edit&codigo={quote(moneda.codigo)}&nombre={quote(moneda.nombre)}')
+            
+        except Exception as e:
+            # Redireccionar con parámetro de error
+            return redirect(f'/remesas/monedas/?error=edit&message={quote(str(e))}')
+            return redirect('remesas:editar_moneda', moneda_id=moneda_id)
+    
+    # Obtener información sobre el uso de la moneda para mostrar advertencias
+    remesas_count = models.Remesa.objects.filter(moneda=moneda).count()
+    balances_count = models.Balance.objects.filter(moneda=moneda).count()
+    
+    # Verificar pagos si el modelo existe
+    pagos_count = 0
+    try:
+        pagos_count = models.Pago.objects.filter(tipo_moneda=moneda).count()
+    except AttributeError:
+        pass
+    
+    context = {
+        'moneda': moneda,
+        'is_edit': True,
+        'remesas_count': remesas_count,
+        'balances_count': balances_count,
+        'pagos_count': pagos_count,
+        'tiene_registros': remesas_count > 0 or balances_count > 0 or pagos_count > 0
+    }
+    
+    return render(request, 'Monedas/moneda_form.html', context)
+
+
+@login_required
+def eliminar_moneda(request, moneda_id):
+    """
+    Vista para eliminar una moneda (AJAX)
+    Los registros asociados se preservan con referencia NULL
+    """
+    if request.method == 'POST':
+        try:
+            moneda = get_object_or_404(models.Moneda, id=moneda_id)
+            
+            # Proteger la moneda USD
+            if moneda.codigo == 'USD':
+                return JsonResponse({
+                    'success': False,
+                    'message': 'No se puede eliminar la moneda USD ya que es la moneda base del sistema.'
+                })
+            
+            # Contar registros asociados para mostrar información al usuario
+            remesas_count = models.Remesa.objects.filter(moneda=moneda).count()
+            balances_count = models.Balance.objects.filter(moneda=moneda).count()
+            
+            # Verificar pagos si el modelo existe
+            pagos_count = 0
+            try:
+                pagos_count = models.Pago.objects.filter(tipo_moneda=moneda).count()
+            except AttributeError:
+                pass
+            
+            codigo = moneda.codigo
+            nombre = moneda.nombre
+            total_registros = remesas_count + balances_count + pagos_count
+            
+            # Eliminar la moneda (los registros se preservan con SET_NULL)
+            moneda.delete()
+            
+            if total_registros > 0:
+                mensaje = f'Moneda {codigo} - {nombre} eliminada exitosamente. Se preservaron {total_registros} registros históricos:'
+                detalles = []
+                if remesas_count > 0:
+                    detalles.append(f'{remesas_count} remesa(s)')
+                if balances_count > 0:
+                    detalles.append(f'{balances_count} balance(s)')
+                if pagos_count > 0:
+                    detalles.append(f'{pagos_count} pago(s)')
+                mensaje += ' ' + ', '.join(detalles) + '.'
+            else:
+                mensaje = f'Moneda {codigo} - {nombre} eliminada exitosamente.'
+            
+            return JsonResponse({
+                'success': True,
+                'message': mensaje
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': f'Error al eliminar la moneda: {str(e)}'
+            })
+    
+    return JsonResponse({'success': False, 'message': 'Método no permitido'})
+
+
+@login_required
+def toggle_estado_moneda(request, moneda_id):
+    """
+    Vista para cambiar el estado (activa/inactiva) de una moneda (AJAX)
+    """
+    if request.method == 'POST':
+        try:
+            moneda = get_object_or_404(models.Moneda, id=moneda_id)
+            
+            # Proteger la moneda USD
+            if moneda.codigo == 'USD':
+                return JsonResponse({
+                    'success': False,
+                    'message': 'No se puede cambiar el estado de la moneda USD ya que es la moneda base del sistema.'
+                })
+            
+            # Cambiar el estado
+            moneda.activa = not moneda.activa
+            moneda.save()
+            
+            estado_texto = 'activada' if moneda.activa else 'desactivada'
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Moneda {moneda.codigo} {estado_texto} correctamente.',
+                'nuevo_estado': moneda.activa
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': f'Error al cambiar el estado de la moneda: {str(e)}'
+            })
+    
+    return JsonResponse({'success': False, 'message': 'Método no permitido'})
+
+
+# ================================
+# VISTAS PARA PAGOS
+# ================================
+
+from .forms import PagoForm
+from .models import Pago
+
+# FUNCIÓN ELIMINADA - Reemplazada por registro_transacciones en views_transacciones.py
+# @login_required
+# def lista_pagos(request):
+#     """Vista para mostrar la lista de pagos"""
+#     pagos = Pago.objects.all().order_by('-fecha_creacion')
+#     
+#     # Paginación
+#     paginator = Paginator(pagos, 10)  # 10 pagos por página
+#     page_number = request.GET.get('page')
+#     page_obj = paginator.get_page(page_number)
+#     
+#     context = {
+#         'pagos': page_obj,
+#         'title': 'Lista de Pagos'
+#     }
+#     return render(request, 'remesas/pagos/lista_pagos.html', context)
+
+@login_required
+def crear_pago(request):
+    """Vista para crear un nuevo pago"""
+    if request.method == 'POST':
+        # Procesar datos del formulario dual (transferencia/efectivo)
+        form_data = request.POST.copy()
+        
+        # Determinar el tipo de pago seleccionado
+        tipo_pago = form_data.get('tipo_pago')
+        
+        if tipo_pago == 'efectivo':
+            # Para efectivo, usar los campos con sufijo _efectivo
+            if 'tipo_moneda_efectivo' in form_data:
+                form_data['tipo_moneda'] = form_data['tipo_moneda_efectivo']
+            if 'cantidad_efectivo' in form_data:
+                form_data['cantidad'] = form_data['cantidad_efectivo']
+            if 'destinatario_efectivo' in form_data:
+                form_data['destinatario'] = form_data['destinatario_efectivo']
+            if 'telefono_efectivo' in form_data:
+                form_data['telefono'] = form_data['telefono_efectivo']
+            if 'direccion_efectivo' in form_data:
+                form_data['direccion'] = form_data['direccion_efectivo']
+            if 'carnet_identidad_efectivo' in form_data:
+                form_data['carnet_identidad'] = form_data['carnet_identidad_efectivo']
+        
+        form = PagoForm(form_data, request.FILES)
+        if form.is_valid():
+            pago = form.save(commit=False)
+            pago.usuario = request.user  # Asignar el usuario actual
+            
+            # Calcular el monto para mostrar en el mensaje
+            monto_usd = pago.calcular_monto_en_usd()
+            
+            # Guardar el pago (permite balance negativo)
+            pago.save()  # Al guardar, el signal se encargará de descontar el saldo
+            
+            # Obtener el balance final para el mensaje
+            try:
+                perfil = request.user.perfil
+                balance_final = perfil.balance
+                if balance_final < 0:
+                    messages.warning(request, f'Pago creado exitosamente. ID: {pago.pago_id}. Se descontaron ${monto_usd:.2f} USD. Tu balance ahora es ${balance_final:.2f} USD (negativo).')
+                else:
+                    messages.success(request, f'Pago creado exitosamente. ID: {pago.pago_id}. Se descontaron ${monto_usd:.2f} USD de tu balance.')
+            except:
+                messages.success(request, f'Pago creado exitosamente. ID: {pago.pago_id}. Se descontaron ${monto_usd:.2f} USD de tu balance.')
+            
+            return redirect('remesas:registro_transacciones')
+        else:
+            messages.error(request, 'Por favor corrige los errores en el formulario.')
+    else:
+        form = PagoForm()
+    
+    # Obtener datos de monedas para JavaScript
+    monedas_data = {}
+    for moneda in form.fields['tipo_moneda'].queryset:
+        monedas_data[moneda.id] = {
+            'codigo': moneda.codigo,
+            'valor_actual': float(moneda.valor_actual)
+        }
+    
+    context = {
+        'form': form,
+        'title': 'Crear Nuevo Pago',
+        'action': 'Crear',
+        'monedas_data_json': json.dumps(monedas_data)
+    }
+    return render(request, 'remesas/pagos/pago_form.html', context)
+
+@login_required
+def editar_pago(request, pago_id):
+    """Vista para editar un pago existente"""
+    pago = get_object_or_404(Pago, id=pago_id)
+    
+    # Guardar valores originales para revertir cambios en el balance si es necesario
+    cantidad_original = pago.cantidad
+    moneda_original = pago.tipo_moneda
+    
+    if request.method == 'POST':
+        # Verificar si es una petición AJAX
+        is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+        
+        try:
+            # Procesar datos del formulario
+            destinatario = request.POST.get('destinatario')
+            cantidad = request.POST.get('cantidad')
+            tipo_moneda_id = request.POST.get('tipo_moneda')
+            tipo_pago = request.POST.get('tipo_pago')
+            telefono = request.POST.get('telefono', '')
+            carnet_identidad = request.POST.get('carnet_identidad', '')
+            tarjeta = request.POST.get('tarjeta', '')
+            direccion = request.POST.get('direccion', '')
+            observaciones = request.POST.get('observaciones', '')
+            comprobante_pago = request.FILES.get('comprobante_pago')
+            
+            # Validaciones básicas
+            if not destinatario or not cantidad or not tipo_moneda_id or not tipo_pago:
+                error_msg = 'Todos los campos obligatorios deben ser completados'
+                if is_ajax:
+                    return JsonResponse({'success': False, 'message': error_msg})
+                else:
+                    messages.error(request, error_msg)
+                    return redirect(request.path)
+            
+            # Obtener la moneda
+            try:
+                tipo_moneda = models.Moneda.objects.get(id=tipo_moneda_id)
+            except models.Moneda.DoesNotExist:
+                error_msg = 'Moneda seleccionada no válida'
+                if is_ajax:
+                    return JsonResponse({'success': False, 'message': error_msg})
+                else:
+                    messages.error(request, error_msg)
+                    return redirect(request.path)
+            
+            # Validar cantidad
+            try:
+                cantidad = Decimal(str(cantidad))
+                if cantidad <= 0:
+                    raise ValueError("La cantidad debe ser positiva")
+            except (ValueError, TypeError):
+                error_msg = 'La cantidad debe ser un número válido mayor que 0'
+                if is_ajax:
+                    return JsonResponse({'success': False, 'message': error_msg})
+                else:
+                    messages.error(request, error_msg)
+                    return redirect(request.path)
+            
+            # Validar tarjeta si es transferencia
+            if tipo_pago == 'transferencia' and not tarjeta:
+                error_msg = 'El número de tarjeta es requerido para transferencias'
+                if is_ajax:
+                    return JsonResponse({'success': False, 'message': error_msg})
+                else:
+                    messages.error(request, error_msg)
+                    return redirect(request.path)
+            
+            # Calcular diferencia de monto en USD
+            monto_original_usd = Decimal('0')
+            if cantidad_original and moneda_original:
+                if moneda_original.codigo == 'USD':
+                    monto_original_usd = cantidad_original
+                else:
+                    monto_original_usd = cantidad_original / moneda_original.valor_actual
+            
+            # Calcular nuevo monto en USD
+            if tipo_moneda.codigo == 'USD':
+                monto_nuevo_usd = cantidad
+            else:
+                monto_nuevo_usd = cantidad / tipo_moneda.valor_actual
+            
+            # Calcular diferencia
+            diferencia_usd = monto_nuevo_usd - monto_original_usd
+            
+            # Actualizar balance manualmente
+            perfil = request.user.perfil
+            perfil.balance -= diferencia_usd  # Restar la diferencia
+            perfil.save()
+            
+            # Actualizar el pago
+            pago.destinatario = destinatario
+            pago.cantidad = cantidad
+            pago.tipo_moneda = tipo_moneda
+            pago.tipo_pago = tipo_pago
+            pago.telefono = telefono
+            pago.carnet_identidad = carnet_identidad
+            pago.tarjeta = tarjeta if tipo_pago == 'transferencia' else ''
+            pago.direccion = direccion
+            pago.observaciones = observaciones
+            
+            # Actualizar comprobante si se proporciona uno nuevo
+            if comprobante_pago:
+                pago.comprobante_pago = comprobante_pago
+            
+            pago.save()
+            
+            # Mensaje de éxito
+            balance_final = perfil.balance
+            if diferencia_usd > 0:
+                if balance_final < 0:
+                    success_msg = f'Pago actualizado exitosamente. Se descontaron ${diferencia_usd:.2f} USD adicionales. Tu balance ahora es ${balance_final:.2f} USD (negativo).'
+                else:
+                    success_msg = f'Pago actualizado exitosamente. Se descontaron ${diferencia_usd:.2f} USD adicionales de tu balance.'
+            elif diferencia_usd < 0:
+                success_msg = f'Pago actualizado exitosamente. Se reembolsaron ${abs(diferencia_usd):.2f} USD a tu balance.'
+            else:
+                success_msg = 'Pago actualizado exitosamente.'
+            
+            if is_ajax:
+                return JsonResponse({'success': True, 'message': success_msg})
+            else:
+                messages.success(request, success_msg)
+                return redirect('remesas:registro_transacciones')
+                
+        except Exception as e:
+            error_msg = f'Error al actualizar el pago: {str(e)}'
+            if is_ajax:
+                return JsonResponse({'success': False, 'message': error_msg})
+            else:
+                messages.error(request, error_msg)
+                return redirect('remesas:registro_transacciones')
+    
+    # GET request - mostrar formulario
+    monedas = models.Moneda.objects.filter(activa=True).order_by('nombre')
+    
+    context = {
+        'pago': pago,
+        'monedas': monedas,
+        'title': f'Editar Pago {pago.pago_id}'
+    }
+    return render(request, 'remesas/pagos/editar_pago.html', context)
+
+@login_required
+def detalle_pago(request, pago_id):
+    """Vista para ver los detalles de un pago"""
+    pago = get_object_or_404(Pago, id=pago_id)
+    
+    context = {
+        'pago': pago,
+        'title': f'Detalle del Pago #{pago.id}'
+    }
+    return render(request, 'remesas/pagos/detalle_pago.html', context)
+
+@login_required
+def eliminar_pago(request, pago_id):
+    """Vista para eliminar un pago"""
+    if request.method == 'POST':
+        try:
+            pago = get_object_or_404(Pago, id=pago_id)
+            pago_info = f"#{pago.id} - {pago.destinatario}"
+            monto_usd = pago.calcular_monto_en_usd()
+            
+            pago.delete()  # Al eliminar, el signal se encargará de reembolsar el saldo
+            
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Pago {pago_info} eliminado exitosamente. Se reembolsaron ${monto_usd:.2f} USD a tu balance.'
+                })
+            else:
+                messages.success(request, f'Pago {pago_info} eliminado exitosamente. Se reembolsaron ${monto_usd:.2f} USD a tu balance.')
+                return redirect('remesas:registro_transacciones')
+                
+        except Exception as e:
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                return JsonResponse({
+                    'success': False,
+                    'message': f'Error al eliminar el pago: {str(e)}'
+                })
+            else:
+                messages.error(request, f'Error al eliminar el pago: {str(e)}')
+                return redirect('remesas:registro_transacciones')
+    
+    return JsonResponse({'success': False, 'message': 'Método no permitido'})

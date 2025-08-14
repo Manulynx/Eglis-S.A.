@@ -1,0 +1,1377 @@
+{% extends "eglisapp/base.html" %}
+
+{% block content %}
+<!-- SweetAlert2 CDN -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<style>
+    /* CSS para cuadros responsive en móvil */
+    @media (max-width: 576px) {
+        .row.g-4.mb-4 {
+            display: flex !important;
+            flex-direction: row !important;
+            justify-content: center !important;
+            overflow-x: auto;
+            gap: 0.5rem !important;
+            margin-bottom: 0.5rem !important;
+            padding-bottom: 0.5rem !important;
+        }
+        .row.g-4.mb-4 > [class^='col-'] {
+            flex: 0 0 auto !important;
+            width: 160px !important;
+            min-width: 140px !important;
+            max-width: 180px !important;
+            padding: 0 !important;
+        }
+        .card-body.text-center {
+            padding: 0.3rem !important;
+        }
+        .card-body .fa-2x {
+            font-size: 1rem !important;
+            margin-bottom: 0.15rem !important;
+        }
+        .card-body h6.card-title {
+            font-size: 0.7rem !important;
+            margin-bottom: 0.1rem !important;
+        }
+        .card-body h3 {
+            font-size: 0.85rem !important;
+            margin-top: 0.1rem !important;
+        }
+        .card-body h6:not(.card-title) {
+            font-size: 0.75rem !important;
+            margin-top: 0.1rem !important;
+        }
+    }
+
+    /* Asegurar que el texto de las pestañas siempre sea visible */
+    #contentTabs .nav-link {
+        color: #dee2e6 !important;
+    }
+    
+    #contentTabs .nav-link.active {
+        color: #ffffff !important;
+        background-color: #0d6efd !important;
+        border-color: #0d6efd !important;
+    }
+    
+    #contentTabs .nav-link:hover {
+        color: #ffffff !important;
+        background-color: rgba(13, 110, 253, 0.7) !important;
+    }
+    
+    .tab-text {
+        display: inline !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+    }
+</style>
+
+<div class="container-fluid p-4">
+    <!-- Título -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="h4 mb-0 text-white">
+                    <i class="fas fa-history me-2"></i>
+                    Historial de {{ usuario.username }}
+                    <br>
+                    <small class="text-muted" style="font-size: 0.9rem;">
+                        {{ usuario.first_name }} {{ usuario.last_name }}
+                        {% if usuario.is_superuser %}
+                            <span class="badge bg-warning text-dark ms-2">
+                                <i class="fas fa-crown"></i> Admin
+                            </span>
+                        {% endif %}
+                    </small>
+                </h2>
+                <div class="d-flex gap-2">
+                    <span class="badge {% if usuario.is_active %}bg-success{% else %}bg-danger{% endif %} fs-6">
+                        {% if usuario.is_active %}
+                            <i class="fas fa-check-circle me-1"></i>Activo
+                        {% else %}
+                            <i class="fas fa-times-circle me-1"></i>Inactivo
+                        {% endif %}
+                    </span>
+                    <a href="{% url 'login:administrar_usuarios' %}" class="btn btn-outline-light">
+                        <i class="fas fa-arrow-left me-1"></i>Volver
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tarjetas de Estadísticas -->
+    <div class="row g-4 mb-4">
+        <div class="col-12 col-sm-6 col-lg-2">
+            <div class="card bg-primary text-white h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-paper-plane fa-2x mb-2"></i>
+                    <h6 class="card-title">Remesas Enviadas</h6>
+                    <h3 class="mt-2 mb-0">{{ remesas_count }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-2">
+            <div class="card bg-success text-white h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-dollar-sign fa-2x mb-2"></i>
+                    <h6 class="card-title">Total en Remesas</h6>
+                    <h3 class="mt-2 mb-0">${{ total_remesas|floatformat:2 }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-2">
+            <div class="card bg-info text-white h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-credit-card fa-2x mb-2"></i>
+                    <h6 class="card-title">Pagos Recibidos</h6>
+                    <h3 class="mt-2 mb-0">{{ pagos_count }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-2">
+            <div class="card bg-warning text-dark h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-money-bill-wave fa-2x mb-2"></i>
+                    <h6 class="card-title">Total en Pagos</h6>
+                    <h3 class="mt-2 mb-0">${{ total_pagos|floatformat:2 }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-2">
+            <div class="card {% if balance >= 0 %}bg-success{% else %}bg-danger{% endif %} text-white h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-wallet fa-2x mb-2"></i>
+                    <h6 class="card-title">Balance Actual</h6>
+                    <h3 class="mt-2 mb-0">
+                        {% if balance < 0 %}
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                        {% endif %}
+                        ${{ balance|floatformat:2 }}
+                    </h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-2">
+            <div class="card bg-secondary text-white h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-calendar-check fa-2x mb-2"></i>
+                    <h6 class="card-title">Último Acceso</h6>
+                    <h6 class="mt-2 mb-0">{{ usuario.last_login|date:"d/m/Y" }}</h6>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card bg-dark border-0 shadow-sm mb-4">
+        <div class="card-header bg-transparent border-0">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 text-white">
+                    <i class="fas fa-filter me-2"></i>Filtros
+                </h5>
+                <button class="btn btn-sm btn-outline-light" type="button" id="toggleFilters">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body" id="filtersContent" style="display: none;">
+
+            <!-- Filtros para Remesas -->
+            <form method="GET" id="filterFormRemesas" class="filter-form" data-target="remesas" {% if vista != 'remesas' %}style="display: none;"{% endif %}>
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Buscar Remesa</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary" 
+                               name="search_remesas" placeholder="ID, receptor..." 
+                               value="{{ request.GET.search_remesas }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Estado</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="estado_remesas">
+                            <option value="">Todos los estados</option>
+                            <option value="pendiente" {% if request.GET.estado_remesas == 'pendiente' %}selected{% endif %}>Pendiente</option>
+                            <option value="confirmada" {% if request.GET.estado_remesas == 'confirmada' %}selected{% endif %}>Confirmada</option>
+                            <option value="completada" {% if request.GET.estado_remesas == 'completada' %}selected{% endif %}>Completada</option>
+                            <option value="cancelada" {% if request.GET.estado_remesas == 'cancelada' %}selected{% endif %}>Cancelada</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Moneda</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="moneda_remesas">
+                            <option value="">Todas las monedas</option>
+                            {% for moneda in monedas %}
+                                <option value="{{ moneda.id }}" {% if request.GET.moneda_remesas == moneda.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ moneda.nombre }} ({{ moneda.codigo }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Tipo de Pago</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="tipo_pago_remesas">
+                            <option value="">Todos los tipos</option>
+                            <option value="transferencia" {% if request.GET.tipo_pago_remesas == 'transferencia' %}selected{% endif %}>Transferencia</option>
+                            <option value="efectivo" {% if request.GET.tipo_pago_remesas == 'efectivo' %}selected{% endif %}>Efectivo</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Rango de Fechas</label>
+                        <div class="row g-2">
+                            <div class="col">
+                                <input type="date" class="form-control bg-dark text-white border-secondary" 
+                                       name="fecha_desde_remesas" value="{{ request.GET.fecha_desde_remesas }}">
+                            </div>
+                            <div class="col">
+                                <input type="date" class="form-control bg-dark text-white border-secondary" 
+                                       name="fecha_hasta_remesas" value="{{ request.GET.fecha_hasta_remesas }}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Rango de Importe</label>
+                        <div class="row g-2">
+                            <div class="col">
+                                <input type="number" step="0.01" class="form-control bg-dark text-white border-secondary" 
+                                       name="importe_min_remesas" placeholder="Mín" value="{{ request.GET.importe_min_remesas }}">
+                            </div>
+                            <div class="col">
+                                <input type="number" step="0.01" class="form-control bg-dark text-white border-secondary" 
+                                       name="importe_max_remesas" placeholder="Máx" value="{{ request.GET.importe_max_remesas }}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 d-flex justify-content-between align-items-center">
+                        <div>
+                            <button type="button" class="btn btn-primary" onclick="aplicarFiltros('remesas')">
+                                <i class="fas fa-search me-2"></i>Aplicar
+                            </button>
+                            <button type="button" class="btn btn-outline-light" onclick="limpiarFiltros('remesas')">
+                                <i class="fas fa-eraser me-2"></i>Limpiar
+                            </button>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-success" onclick="exportarExcel('remesas')">
+                                <i class="fas fa-file-excel me-2"></i>Exportar a Excel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Filtros para Pagos -->
+            <form method="GET" id="filterFormPagos" class="filter-form" data-target="pagos" {% if vista != 'pagos' %}style="display: none;"{% endif %}>
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Buscar Pago</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary" 
+                               name="search_pagos" placeholder="ID, destinatario..." 
+                               value="{{ request.GET.search_pagos }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Estado</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="estado_pagos">
+                            <option value="">Todos los estados</option>
+                            <option value="pendiente" {% if request.GET.estado_pagos == 'pendiente' %}selected{% endif %}>Pendiente</option>
+                            <option value="completado" {% if request.GET.estado_pagos == 'completado' %}selected{% endif %}>Completado</option>
+                            <option value="cancelado" {% if request.GET.estado_pagos == 'cancelado' %}selected{% endif %}>Cancelado</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Moneda</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="moneda_pagos">
+                            <option value="">Todas las monedas</option>
+                            {% for moneda in monedas %}
+                                <option value="{{ moneda.id }}" {% if request.GET.moneda_pagos == moneda.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ moneda.nombre }} ({{ moneda.codigo }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Destinatario</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary" 
+                               name="destinatario_pagos" placeholder="Nombre destinatario..." 
+                               value="{{ request.GET.destinatario_pagos }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Rango de Fechas</label>
+                        <div class="row g-2">
+                            <div class="col">
+                                <input type="date" class="form-control bg-dark text-white border-secondary" 
+                                       name="fecha_desde_pagos" value="{{ request.GET.fecha_desde_pagos }}">
+                            </div>
+                            <div class="col">
+                                <input type="date" class="form-control bg-dark text-white border-secondary" 
+                                       name="fecha_hasta_pagos" value="{{ request.GET.fecha_hasta_pagos }}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Rango de Cantidad</label>
+                        <div class="row g-2">
+                            <div class="col">
+                                <input type="number" step="0.01" class="form-control bg-dark text-white border-secondary" 
+                                       name="cantidad_min_pagos" placeholder="Mín" value="{{ request.GET.cantidad_min_pagos }}">
+                            </div>
+                            <div class="col">
+                                <input type="number" step="0.01" class="form-control bg-dark text-white border-secondary" 
+                                       name="cantidad_max_pagos" placeholder="Máx" value="{{ request.GET.cantidad_max_pagos }}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 d-flex justify-content-between align-items-center">
+                        <div>
+                            <button type="button" class="btn btn-primary" onclick="aplicarFiltros('pagos')">
+                                <i class="fas fa-search me-2"></i>Aplicar
+                            </button>
+                            <button type="button" class="btn btn-outline-light" onclick="limpiarFiltros('pagos')">
+                                <i class="fas fa-eraser me-2"></i>Limpiar
+                            </button>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-success" onclick="exportarExcel('pagos')">
+                                <i class="fas fa-file-excel me-2"></i>Exportar a Excel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Filtros para Total -->
+            <form method="GET" id="filterFormTotal" class="filter-form" data-target="total" {% if vista != 'total' %}style="display: none;"{% endif %}>
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Buscar Operación</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary" 
+                               name="search_total" placeholder="ID, destinatario, receptor..." 
+                               value="{{ request.GET.search_total }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Tipo de Operación</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="tipo_operacion">
+                            <option value="">Todos los tipos</option>
+                            <option value="remesa" {% if request.GET.tipo_operacion == 'remesa' %}selected{% endif %}>Remesas</option>
+                            <option value="pago" {% if request.GET.tipo_operacion == 'pago' %}selected{% endif %}>Pagos</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Moneda</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="moneda_total">
+                            <option value="">Todas las monedas</option>
+                            {% for moneda in monedas %}
+                                <option value="{{ moneda.id }}" {% if request.GET.moneda_total == moneda.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ moneda.nombre }} ({{ moneda.codigo }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Rango USD</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="rango_usd">
+                            <option value="">Todos los rangos</option>
+                            <option value="0-100" {% if request.GET.rango_usd == '0-100' %}selected{% endif %}>$0 - $100</option>
+                            <option value="100-500" {% if request.GET.rango_usd == '100-500' %}selected{% endif %}>$100 - $500</option>
+                            <option value="500-1000" {% if request.GET.rango_usd == '500-1000' %}selected{% endif %}>$500 - $1,000</option>
+                            <option value="1000-5000" {% if request.GET.rango_usd == '1000-5000' %}selected{% endif %}>$1,000 - $5,000</option>
+                            <option value="5000+" {% if request.GET.rango_usd == '5000+' %}selected{% endif %}>$5,000+</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Rango de Fechas</label>
+                        <div class="row g-2">
+                            <div class="col">
+                                <input type="date" class="form-control bg-dark text-white border-secondary" 
+                                       name="fecha_desde_total" value="{{ request.GET.fecha_desde_total }}">
+                            </div>
+                            <div class="col">
+                                <input type="date" class="form-control bg-dark text-white border-secondary" 
+                                       name="fecha_hasta_total" value="{{ request.GET.fecha_hasta_total }}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Rango de Importe</label>
+                        <div class="row g-2">
+                            <div class="col">
+                                <input type="number" step="0.01" class="form-control bg-dark text-white border-secondary" 
+                                       name="importe_min_total" placeholder="Mín" value="{{ request.GET.importe_min_total }}">
+                            </div>
+                            <div class="col">
+                                <input type="number" step="0.01" class="form-control bg-dark text-white border-secondary" 
+                                       name="importe_max_total" placeholder="Máx" value="{{ request.GET.importe_max_total }}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 d-flex justify-content-between align-items-center">
+                        <div>
+                            <button type="button" class="btn btn-primary" onclick="aplicarFiltros('total')">
+                                <i class="fas fa-search me-2"></i>Aplicar
+                            </button>
+                            <button type="button" class="btn btn-outline-light" onclick="limpiarFiltros('total')">
+                                <i class="fas fa-eraser me-2"></i>Limpiar
+                            </button>
+                        </div>
+                        <div>
+                            <button type="button" class="btn btn-success" onclick="exportarExcel('total')">
+                                <i class="fas fa-file-excel me-2"></i>Exportar a Excel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Pestañas de contenido -->
+    <div class="nav nav-tabs nav-fill mb-3" id="contentTabs">
+        <a class="nav-link {% if vista == 'remesas' %}active{% endif %}" href="#" data-content="remesas" id="tabRemesas">
+            <i class="fas fa-paper-plane me-1"></i>
+            <span class="tab-text">Remesas ({{ remesas_count }}{% if remesas_count != total_remesas_count %}/{{ total_remesas_count }}{% endif %})</span>
+        </a>
+        <a class="nav-link {% if vista == 'pagos' %}active{% endif %}" href="#" data-content="pagos" id="tabPagos">
+            <i class="fas fa-credit-card me-1"></i>
+            <span class="tab-text">Pagos ({{ pagos_count }}{% if pagos_count != total_pagos_count %}/{{ total_pagos_count }}{% endif %})</span>
+        </a>
+        <a class="nav-link {% if vista == 'total' %}active{% endif %}" href="#" data-content="total" id="tabTotal">
+            <i class="fas fa-list me-1"></i>
+            <span class="tab-text">Todas las Transacciones ({{ remesas_count|add:pagos_count }})</span>
+        </a>
+    </div>
+
+    <!-- Tabla de Remesas -->
+    <div id="contenidoRemesas" class="contenido-tab" {% if vista != 'remesas' %}style="display: none;"{% endif %}>
+        <div class="card bg-dark border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 text-white">
+                        <i class="fas fa-paper-plane me-2"></i>Remesas del Usuario
+                    </h5>
+                    <div class="d-flex gap-2">
+                        <span class="badge bg-primary">{{ remesas_count }} de {{ total_remesas_count }} resultados</span>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <!-- Vista Desktop -->
+                <div class="d-none d-lg-block">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover mb-0">
+                            <thead class="bg-primary text-white">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Receptor</th>
+                                    <th>Estado</th>
+                                    <th>Importe</th>
+                                    <th>USD</th>
+                                    <th>Fecha</th>
+                                    <th class="text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for remesa in remesas %}
+                                <tr>
+                                    <td>
+                                        <span class="text-info">{{ remesa.remesa_id }}</span>
+                                    </td>
+                                    <td>
+                                        {% if remesa.receptor_nombre %}
+                                            <div class="text-truncate" style="max-width: 150px;" title="{{ remesa.receptor_nombre }}">
+                                                {{ remesa.receptor_nombre }}
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted">No especificado</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if remesa.estado == 'completada' %}
+                                            <span class="badge bg-success">Completada</span>
+                                        {% elif remesa.estado == 'confirmada' %}
+                                            <span class="badge bg-info">Confirmada</span>
+                                        {% elif remesa.estado == 'pendiente' %}
+                                            <span class="badge bg-warning text-dark">Pendiente</span>
+                                        {% elif remesa.estado == 'cancelada' %}
+                                            <span class="badge bg-danger">Cancelada</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ remesa.estado|title }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="text-success">${{ remesa.importe|floatformat:2 }} 
+                                        {% if remesa.moneda %}{{ remesa.moneda.codigo }}{% else %}USD{% endif %}</span>
+                                    </td>
+                                    <td>
+                                        <span class="text-success">${{ remesa.importe_usd|floatformat:2 }}</span>
+                                    </td>
+                                    <td>{{ remesa.fecha|date:"d/m/Y H:i" }}</td>
+                                    <td class="text-center">
+                                        {% if remesa.pk %}
+                                        <a href="{% url 'remesas:detalle_remesa' remesa.pk %}" 
+                                           class="btn btn-outline-info btn-sm" 
+                                           title="Ver detalles">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        {% else %}
+                                        <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-4">
+                                        <i class="fas fa-inbox fa-2x mb-2"></i><br>
+                                        No hay remesas para mostrar
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Vista Móvil -->
+                <div class="d-lg-none p-3">
+                    {% for remesa in remesas %}
+                    <div class="card bg-secondary mb-3 border-0">
+                        <div class="card-body p-3">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="text-info mb-0">{{ remesa.remesa_id }}</h6>
+                                {% if remesa.estado == 'completada' %}
+                                    <span class="badge bg-success">Completada</span>
+                                {% elif remesa.estado == 'confirmada' %}
+                                    <span class="badge bg-info">Confirmada</span>
+                                {% elif remesa.estado == 'pendiente' %}
+                                    <span class="badge bg-warning text-dark">Pendiente</span>
+                                {% elif remesa.estado == 'cancelada' %}
+                                    <span class="badge bg-danger">Cancelada</span>
+                                {% endif %}
+                            </div>
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <small class="text-muted">Receptor:</small><br>
+                                    <span class="text-white">{{ remesa.receptor_nombre|default:"No especificado" }}</span>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted">Importe:</small><br>
+                                    <span class="text-success">
+                                        ${{ remesa.importe|floatformat:2 }} 
+                                        {% if remesa.moneda %}{{ remesa.moneda.codigo }}{% else %}USD{% endif %}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted">{{ remesa.fecha|date:"d/m/Y H:i" }}</small>
+                                {% if remesa.pk %}
+                                <a href="{% url 'remesas:detalle_remesa' remesa.pk %}" 
+                                   class="btn btn-outline-info btn-sm">
+                                    <i class="fas fa-eye"></i> Ver
+                                </a>
+                                {% else %}
+                                <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-inbox fa-3x mb-3"></i><br>
+                        <h5>No hay remesas para mostrar</h5>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de Pagos -->
+    <div id="contenidoPagos" class="contenido-tab" {% if vista != 'pagos' %}style="display: none;"{% endif %}>
+        <div class="card bg-dark border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 text-white">
+                        <i class="fas fa-credit-card me-2"></i>Pagos del Usuario
+                    </h5>
+                    <div class="d-flex gap-2">
+                        <span class="badge bg-info">{{ pagos_count }} de {{ total_pagos_count }} resultados</span>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <!-- Vista Desktop -->
+                <div class="d-none d-lg-block">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover mb-0">
+                            <thead class="bg-info text-white">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Destinatario</th>
+                                    <th>Estado</th>
+                                    <th>Cantidad</th>
+                                    <th>USD</th>
+                                    <th>Fecha</th>
+                                    <th class="text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for pago in pagos %}
+                                <tr>
+                                    <td>
+                                        <span class="text-warning">{{ pago.numero_pago }}</span>
+                                    </td>
+                                    <td>
+                                        {% if pago.destinatario_nombre %}
+                                            <div class="text-truncate" style="max-width: 150px;" title="{{ pago.destinatario_nombre }}">
+                                                {{ pago.destinatario_nombre }}
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted">No especificado</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if pago.estado == 'completado' %}
+                                            <span class="badge bg-success">Completado</span>
+                                        {% elif pago.estado == 'pendiente' %}
+                                            <span class="badge bg-warning text-dark">Pendiente</span>
+                                        {% elif pago.estado == 'cancelado' %}
+                                            <span class="badge bg-danger">Cancelado</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ pago.estado|title }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="text-danger">-${{ pago.cantidad|floatformat:2 }} 
+                                        {% if pago.moneda %}{{ pago.moneda.codigo }}{% else %}USD{% endif %}</span>
+                                    </td>
+                                    <td>
+                                        <span class="text-danger">-${{ pago.cantidad_usd|floatformat:2 }}</span>
+                                    </td>
+                                    <td>{{ pago.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                                    <td class="text-center">
+                                        {% if pago.pk %}
+                                        <a href="{% url 'remesas:detalle_pago' pago.pk %}" 
+                                           class="btn btn-outline-warning btn-sm" 
+                                           title="Ver detalles">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        {% else %}
+                                        <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-4">
+                                        <i class="fas fa-inbox fa-2x mb-2"></i><br>
+                                        No hay pagos para mostrar
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Vista Móvil -->
+                <div class="d-lg-none p-3">
+                    {% for pago in pagos %}
+                    <div class="card bg-secondary mb-3 border-0">
+                        <div class="card-body p-3">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="text-warning mb-0">{{ pago.numero_pago }}</h6>
+                                {% if pago.estado == 'completado' %}
+                                    <span class="badge bg-success">Completado</span>
+                                {% elif pago.estado == 'pendiente' %}
+                                    <span class="badge bg-warning text-dark">Pendiente</span>
+                                {% elif pago.estado == 'cancelado' %}
+                                    <span class="badge bg-danger">Cancelado</span>
+                                {% endif %}
+                            </div>
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <small class="text-muted">Destinatario:</small><br>
+                                    <span class="text-white">{{ pago.destinatario_nombre|default:"No especificado" }}</span>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted">Cantidad:</small><br>
+                                    <span class="text-danger">
+                                        -${{ pago.cantidad|floatformat:2 }} 
+                                        {% if pago.moneda %}{{ pago.moneda.codigo }}{% else %}USD{% endif %}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted">{{ pago.fecha_creacion|date:"d/m/Y H:i" }}</small>
+                                {% if pago.pk %}
+                                <a href="{% url 'remesas:detalle_pago' pago.pk %}" 
+                                   class="btn btn-outline-warning btn-sm">
+                                    <i class="fas fa-eye"></i> Ver
+                                </a>
+                                {% else %}
+                                <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-inbox fa-3x mb-3"></i><br>
+                        <h5>No hay pagos para mostrar</h5>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de Todas las Transacciones -->
+        <!-- Tabla Total -->
+    <div id="contenidoTotal" class="contenido-tab" {% if vista != 'total' %}style="display: none;"{% endif %}>
+        <div class="card bg-dark border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 text-white">
+                        <i class="fas fa-list me-2"></i>Todas las Transacciones del Usuario
+                    </h5>
+                    <div class="d-flex gap-2">
+                        <span class="badge bg-secondary">{{ total_transacciones|length }} resultados</span>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <!-- Vista Desktop -->
+                <div class="d-none d-lg-block">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover mb-0">
+                            <thead class="bg-secondary text-white">
+                                <tr>
+                                    <th>Tipo</th>
+                                    <th>ID</th>
+                                    <th>Persona</th>
+                                    <th>Estado</th>
+                                    <th>Cantidad</th>
+                                    <th>USD</th>
+                                    <th>Fecha</th>
+                                    <th class="text-center">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for transaccion in total_transacciones %}
+                                <tr>
+                                    <td>
+                                        {% if transaccion.tipo == 'remesa' %}
+                                            <span class="badge bg-primary">
+                                                <i class="fas fa-paper-plane me-1"></i>Remesa
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-info">
+                                                <i class="fas fa-credit-card me-1"></i>Pago
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if transaccion.tipo == 'remesa' %}
+                                            <span class="text-info">{{ transaccion.remesa_id }}</span>
+                                        {% else %}
+                                            <span class="text-warning">{{ transaccion.numero_pago }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if transaccion.tipo == 'remesa' %}
+                                            {{ transaccion.receptor_nombre|default:"No especificado" }}
+                                        {% else %}
+                                            {{ transaccion.destinatario_nombre|default:"No especificado" }}
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if transaccion.estado == 'completada' or transaccion.estado == 'completado' %}
+                                            <span class="badge bg-success">Completado</span>
+                                        {% elif transaccion.estado == 'confirmada' %}
+                                            <span class="badge bg-info">Confirmado</span>
+                                        {% elif transaccion.estado == 'pendiente' %}
+                                            <span class="badge bg-warning text-dark">Pendiente</span>
+                                        {% elif transaccion.estado == 'cancelada' or transaccion.estado == 'cancelado' %}
+                                            <span class="badge bg-danger">Cancelado</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ transaccion.estado|title }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if transaccion.tipo == 'remesa' %}
+                                            <span class="text-success">
+                                                ${{ transaccion.importe|floatformat:2 }} 
+                                                {% if transaccion.moneda %}{{ transaccion.moneda.codigo }}{% else %}USD{% endif %}
+                                            </span>
+                                        {% else %}
+                                            <span class="text-danger">
+                                                -${{ transaccion.cantidad|floatformat:2 }} 
+                                                {% if transaccion.moneda %}{{ transaccion.moneda.codigo }}{% else %}USD{% endif %}
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if transaccion.tipo == 'remesa' %}
+                                            <span class="text-success">${{ transaccion.importe_usd|floatformat:2 }}</span>
+                                        {% else %}
+                                            <span class="text-danger">-${{ transaccion.cantidad_usd|floatformat:2 }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ transaccion.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                                    <td class="text-center">
+                                        {% if transaccion.tipo == 'remesa' and transaccion.pk %}
+                                            <a href="{% url 'remesas:detalle_remesa' transaccion.pk %}" 
+                                               class="btn btn-outline-info btn-sm" 
+                                               title="Ver detalles">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        {% elif transaccion.tipo == 'pago' and transaccion.pk %}
+                                            <a href="{% url 'remesas:detalle_pago' transaccion.pk %}" 
+                                               class="btn btn-outline-warning btn-sm" 
+                                               title="Ver detalles">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted py-4">
+                                        <i class="fas fa-inbox fa-2x mb-2"></i><br>
+                                        No hay transacciones para mostrar
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Vista Móvil -->
+                <div class="d-lg-none p-3">
+                    {% for transaccion in total_transacciones %}
+                    <div class="card bg-secondary mb-3 border-0">
+                        <div class="card-body p-3">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    {% if transaccion.tipo == 'remesa' %}
+                                        <span class="badge bg-primary mb-1">
+                                            <i class="fas fa-paper-plane me-1"></i>Remesa
+                                        </span><br>
+                                        <h6 class="text-info mb-0">{{ transaccion.remesa_id }}</h6>
+                                    {% else %}
+                                        <span class="badge bg-info mb-1">
+                                            <i class="fas fa-credit-card me-1"></i>Pago
+                                        </span><br>
+                                        <h6 class="text-warning mb-0">{{ transaccion.numero_pago }}</h6>
+                                    {% endif %}
+                                </div>
+                                {% if transaccion.estado == 'completada' or transaccion.estado == 'completado' %}
+                                    <span class="badge bg-success">Completado</span>
+                                {% elif transaccion.estado == 'confirmada' %}
+                                    <span class="badge bg-info">Confirmado</span>
+                                {% elif transaccion.estado == 'pendiente' %}
+                                    <span class="badge bg-warning text-dark">Pendiente</span>
+                                {% elif transaccion.estado == 'cancelada' or transaccion.estado == 'cancelado' %}
+                                    <span class="badge bg-danger">Cancelado</span>
+                                {% endif %}
+                            </div>
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <small class="text-muted">
+                                        {% if transaccion.tipo == 'remesa' %}Receptor:{% else %}Destinatario:{% endif %}
+                                    </small><br>
+                                    <span class="text-white">
+                                        {% if transaccion.tipo == 'remesa' %}
+                                            {{ transaccion.receptor_nombre|default:"No especificado" }}
+                                        {% else %}
+                                            {{ transaccion.destinatario_nombre|default:"No especificado" }}
+                                        {% endif %}
+                                    </span>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted">Cantidad:</small><br>
+                                    {% if transaccion.tipo == 'remesa' %}
+                                        <span class="text-success">
+                                            ${{ transaccion.importe|floatformat:2 }} 
+                                            {% if transaccion.moneda %}{{ transaccion.moneda.codigo }}{% else %}USD{% endif %}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-danger">
+                                            -${{ transaccion.cantidad|floatformat:2 }} 
+                                            {% if transaccion.moneda %}{{ transaccion.moneda.codigo }}{% else %}USD{% endif %}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted">{{ transaccion.fecha_creacion|date:"d/m/Y H:i" }}</small>
+                                {% if transaccion.tipo == 'remesa' and transaccion.pk %}
+                                    <a href="{% url 'remesas:detalle_remesa' transaccion.pk %}" 
+                                       class="btn btn-outline-info btn-sm">
+                                        <i class="fas fa-eye"></i> Ver
+                                    </a>
+                                {% elif transaccion.tipo == 'pago' and transaccion.pk %}
+                                    <a href="{% url 'remesas:detalle_pago' transaccion.pk %}" 
+                                       class="btn btn-outline-warning btn-sm">
+                                        <i class="fas fa-eye"></i> Ver
+                                    </a>
+                                {% else %}
+                                    <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-inbox fa-3x mb-3"></i><br>
+                        <h5>No hay transacciones para mostrar</h5>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Variables globales
+let currentView = 'remesas';
+
+// Función para mostrar/ocultar indicador de carga
+function mostrarCargando(mostrar) {
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (mostrar) {
+        if (!loadingOverlay) {
+            // Crear overlay de carga si no existe
+            const overlay = document.createElement('div');
+            overlay.id = 'loadingOverlay';
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 9999;
+            `;
+            overlay.innerHTML = `
+                <div style="background: white; padding: 20px; border-radius: 10px; text-align: center;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                    <p class="mt-2 mb-0">Aplicando filtros...</p>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+        } else {
+            loadingOverlay.style.display = 'flex';
+        }
+    } else {
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'none';
+        }
+    }
+}
+
+// Función para actualizar el contenido de las tablas
+function actualizarContenidoTablas(doc, tipo) {
+    // Actualizar pestañas de contenido con nuevos contadores
+    const contentTabs = doc.querySelector('#contentTabs');
+    if (contentTabs) {
+        const currentTabs = document.getElementById('contentTabs');
+        currentTabs.innerHTML = contentTabs.innerHTML;
+        
+        // Reagregar event listeners a las nuevas pestañas
+        document.querySelectorAll('#contentTabs .nav-link').forEach(tab => {
+            tab.addEventListener('click', function(e) {
+                e.preventDefault();
+                const contentType = this.getAttribute('data-content');
+                showContentTab(contentType);
+            });
+        });
+        
+        // Asegurar que la pestaña correcta esté marcada como activa
+        const activeTab = currentTabs.querySelector(`[data-content="${tipo}"]`);
+        if (activeTab) {
+            // Quitar active de todas
+            currentTabs.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            // Agregar active a la correcta
+            activeTab.classList.add('active');
+        }
+    }
+    
+    // Actualizar contenido específico según el tipo
+    const contenidoId = `contenido${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`;
+    const nuevoContenido = doc.querySelector(`#${contenidoId}`);
+    
+    if (nuevoContenido) {
+        const contenidoActual = document.getElementById(contenidoId);
+        if (contenidoActual) {
+            contenidoActual.innerHTML = nuevoContenido.innerHTML;
+        }
+    }
+    
+    // Actualizar formularios de filtros (limpios)
+    const formularioId = `filterForm${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`;
+    const nuevoFormulario = doc.querySelector(`#${formularioId}`);
+    
+    if (nuevoFormulario) {
+        const formularioActual = document.getElementById(formularioId);
+        if (formularioActual) {
+            // Reemplazar con formulario limpio
+            formularioActual.innerHTML = nuevoFormulario.innerHTML;
+        }
+    }
+    
+    // Mostrar solo el contenido y formulario correspondientes
+    document.querySelectorAll('.contenido-tab').forEach(content => {
+        content.style.display = 'none';
+    });
+    
+    document.querySelectorAll('.filter-form').forEach(form => {
+        form.style.display = 'none';
+    });
+    
+    // Mostrar los elementos correctos
+    const contenidoMostrar = document.getElementById(contenidoId);
+    const formularioMostrar = document.getElementById(formularioId);
+    
+    if (contenidoMostrar) {
+        contenidoMostrar.style.display = 'block';
+    }
+    
+    if (formularioMostrar) {
+        formularioMostrar.style.display = 'block';
+    }
+}
+
+// Función para alternar la visibilidad de los filtros
+document.getElementById('toggleFilters').addEventListener('click', function() {
+    const filtersContent = document.getElementById('filtersContent');
+    const toggleIcon = this.querySelector('i');
+    
+    if (filtersContent.style.display === 'none' || !filtersContent.style.display) {
+        filtersContent.style.display = 'block';
+        toggleIcon.classList.remove('fa-chevron-down');
+        toggleIcon.classList.add('fa-chevron-up');
+    } else {
+        filtersContent.style.display = 'none';
+        toggleIcon.classList.remove('fa-chevron-up');
+        toggleIcon.classList.add('fa-chevron-down');
+    }
+});
+
+// Función para limpiar filtros al cambiar de pestaña
+function limpiarFiltrosAlCambiarTab(nuevoTab) {
+    // Limpiar todos los formularios de filtros
+    document.querySelectorAll('.filter-form').forEach(form => {
+        form.reset();
+    });
+    
+    // Mostrar indicador de carga
+    mostrarCargando(true);
+    
+    // Hacer petición AJAX para cargar datos sin filtros
+    fetch(`${window.location.pathname}?vista=${nuevoTab}`, {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+        }
+    })
+    .then(response => response.text())
+    .then(html => {
+        // Crear un parser temporal para extraer el contenido
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        
+        // Actualizar el contenido de las tablas
+        actualizarContenidoTablas(doc, nuevoTab);
+        
+        mostrarCargando(false);
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarCargando(false);
+        
+        // En caso de error, proceder sin AJAX
+        console.log('Fallback: cambiando sin AJAX');
+    });
+}
+
+// Función para mostrar diferentes formularios de filtro
+function showFilterTab(tab) {
+    // Mostrar solo el formulario correspondiente a la vista activa
+    document.querySelectorAll('.filter-form').forEach(form => {
+        form.style.display = 'none';
+    });
+    
+    const formElement = document.getElementById(`filterForm${tab.charAt(0).toUpperCase() + tab.slice(1)}`);
+    if (formElement) {
+        formElement.style.display = 'block';
+    }
+    
+    currentView = tab;
+}
+
+// Función para mostrar diferentes pestañas de contenido
+function showContentTab(tab) {
+    // Si estamos cambiando a una pestaña diferente, limpiar filtros automáticamente
+    if (currentView !== tab) {
+        limpiarFiltrosAlCambiarTab(tab);
+    }
+    
+    // Actualizar pestañas activas de contenido
+    document.querySelectorAll('#contentTabs .nav-link').forEach(link => {
+        link.classList.remove('active');
+    });
+    
+    const contentTabElement = document.querySelector(`#contentTabs [data-content="${tab}"]`);
+    if (contentTabElement) {
+        contentTabElement.classList.add('active');
+    }
+    
+    // Mostrar contenido correspondiente
+    document.querySelectorAll('.contenido-tab').forEach(content => {
+        content.style.display = 'none';
+    });
+    
+    const contentElement = document.getElementById(`contenido${tab.charAt(0).toUpperCase() + tab.slice(1)}`);
+    if (contentElement) {
+        contentElement.style.display = 'block';
+    }
+    
+    // Sincronizar con filtros
+    showFilterTab(tab);
+    
+    // Actualizar URL sin recargar la página
+    const url = new URL(window.location);
+    url.searchParams.clear(); // Limpiar todos los parámetros anteriores
+    url.searchParams.set('vista', tab);
+    window.history.replaceState({}, '', url);
+    
+    // Actualizar variable global
+    currentView = tab;
+}
+
+// Función para aplicar filtros con AJAX
+function aplicarFiltros(tipo) {
+    const form = document.getElementById(`filterForm${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`);
+    const formData = new FormData(form);
+    const params = new URLSearchParams();
+    
+    // Agregar parámetros del formulario
+    for (let [key, value] of formData.entries()) {
+        if (value.trim() !== '') {
+            params.append(key, value);
+        }
+    }
+    
+    // Agregar parámetro de vista
+    params.append('vista', tipo);
+    
+    // Mostrar indicador de carga
+    mostrarCargando(true);
+    
+    // Hacer petición AJAX
+    fetch(`${window.location.pathname}?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+        }
+    })
+    .then(response => response.text())
+    .then(html => {
+        // Crear un parser temporal para extraer el contenido
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        
+        // Actualizar el contenido de las tablas
+        actualizarContenidoTablas(doc, tipo);
+        
+        // Actualizar URL sin recargar
+        const url = new URL(window.location);
+        url.search = params.toString();
+        window.history.replaceState({}, '', url);
+        
+        mostrarCargando(false);
+        
+        // Mostrar mensaje de éxito
+        Swal.fire({
+            icon: 'success',
+            title: 'Filtros aplicados',
+            text: 'Los filtros se han aplicado correctamente',
+            timer: 2000,
+            showConfirmButton: false,
+            toast: true,
+            position: 'top-end'
+        });
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarCargando(false);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Hubo un error al aplicar los filtros',
+            timer: 3000,
+            showConfirmButton: false,
+            toast: true,
+            position: 'top-end'
+        });
+    });
+}
+
+// Función para limpiar filtros con AJAX
+function limpiarFiltros(tipo) {
+    const form = document.getElementById(`filterForm${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`);
+    form.reset();
+    
+    // Mostrar indicador de carga
+    mostrarCargando(true);
+    
+    // Hacer petición AJAX sin filtros
+    fetch(`${window.location.pathname}?vista=${tipo}`, {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+        }
+    })
+    .then(response => response.text())
+    .then(html => {
+        // Crear un parser temporal para extraer el contenido
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        
+        // Actualizar el contenido de las tablas
+        actualizarContenidoTablas(doc, tipo);
+        
+        // Actualizar URL sin filtros
+        const url = new URL(window.location);
+        url.search = `vista=${tipo}`;
+        window.history.replaceState({}, '', url);
+        
+        mostrarCargando(false);
+        
+        // Mostrar mensaje de éxito
+        Swal.fire({
+            icon: 'info',
+            title: 'Filtros limpiados',
+            text: 'Se han eliminado todos los filtros',
+            timer: 2000,
+            showConfirmButton: false,
+            toast: true,
+            position: 'top-end'
+        });
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarCargando(false);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Hubo un error al limpiar los filtros',
+            timer: 3000,
+            showConfirmButton: false,
+            toast: true,
+            position: 'top-end'
+        });
+    });
+}
+
+// Función para exportar a Excel con AJAX
+function exportarExcel(tipo) {
+    const form = document.getElementById(`filterForm${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`);
+    const formData = new FormData(form);
+    const params = new URLSearchParams();
+    
+    // Agregar parámetros del formulario
+    for (let [key, value] of formData.entries()) {
+        if (value.trim() !== '') {
+            params.append(key, value);
+        }
+    }
+    
+    // Agregar parámetros especiales para exportación
+    params.append('vista', tipo);
+    params.append('export', 'excel');
+    
+    // Mostrar indicador de carga
+    Swal.fire({
+        title: 'Generando Excel...',
+        text: 'Por favor espere mientras se genera el archivo',
+        icon: 'info',
+        allowOutsideClick: false,
+        showConfirmButton: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+    
+    // Crear enlace para descarga
+    const enlaceDescarga = document.createElement('a');
+    enlaceDescarga.href = `${window.location.pathname}?${params.toString()}`;
+    enlaceDescarga.download = `${tipo}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    enlaceDescarga.style.display = 'none';
+    
+    document.body.appendChild(enlaceDescarga);
+    enlaceDescarga.click();
+    document.body.removeChild(enlaceDescarga);
+    
+    // Cerrar el indicador de carga después de un breve tiempo
+    setTimeout(() => {
+        Swal.close();
+        Swal.fire({
+            icon: 'success',
+            title: 'Excel generado',
+            text: 'El archivo se ha descargado correctamente',
+            timer: 2000,
+            showConfirmButton: false,
+            toast: true,
+            position: 'top-end'
+        });
+    }, 1500);
+}
+
+// Inicializar la vista al cargar la página
+document.addEventListener('DOMContentLoaded', function() {
+    // Agregar event listeners a las pestañas de contenido
+    document.querySelectorAll('#contentTabs .nav-link').forEach(tab => {
+        tab.addEventListener('click', function(e) {
+            e.preventDefault();
+            const contentType = this.getAttribute('data-content');
+            showContentTab(contentType);
+        });
+    });
+    
+    // Verificar si hay parámetro de vista en la URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const vista = urlParams.get('vista') || 'remesas';
+    
+    // Mostrar la pestaña correcta
+    showContentTab(vista);
+    
+    // Si hay filtros aplicados, expandir la sección de filtros
+    const hasFilters = Array.from(urlParams.keys()).some(key => 
+        key.includes('search_') || key.includes('estado_') || key.includes('moneda_') || 
+        key.includes('fecha_') || key.includes('importe_') || key.includes('cantidad_') || 
+        key.includes('destinatario_')
+    );
+    
+    if (hasFilters) {
+        const filtersContent = document.getElementById('filtersContent');
+        const toggleIcon = document.querySelector('#toggleFilters i');
+        filtersContent.style.display = 'block';
+        toggleIcon.classList.remove('fa-chevron-down');
+        toggleIcon.classList.add('fa-chevron-up');
+    }
+});
+</script>
+
+{% endblock %}

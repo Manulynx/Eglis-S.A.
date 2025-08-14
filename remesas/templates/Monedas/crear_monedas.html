@@ -1,0 +1,54 @@
+{% extends 'eglisapp/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="card bg-dark text-white">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h3 class="mb-0">
+                <i class="fas fa-coins me-2"></i>Gestión de Monedas
+            </h3>
+            <a href="{% url 'monedas:crear_moneda' %}" class="btn btn-success">
+                <i class="fas fa-plus me-2"></i>Nueva Moneda
+            </a>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-dark table-hover">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Nombre</th>
+                            <th>Tasa USD</th>
+                            <th>Estado</th>
+                            <th>Última Actualización</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for moneda in monedas %}
+                        <tr>
+                            <td>{{ moneda.codigo }}</td>
+                            <td>{{ moneda.nombre }}</td>
+                            <td>1 USD = {{ moneda.tasa_usd }} {{ moneda.codigo }}</td>
+                            <td>
+                                <span class="badge {% if moneda.activa %}bg-success{% else %}bg-danger{% endif %}">
+                                    {% if moneda.activa %}Activa{% else %}Inactiva{% endif %}
+                                </span>
+                            </td>
+                            <td>{{ moneda.fecha_actualizacion|date:"d/m/Y H:i" }}</td>
+                            <td>
+                                <a href="{% url 'monedas:editar_moneda' moneda.pk %}" 
+                                   class="btn btn-sm btn-primary">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

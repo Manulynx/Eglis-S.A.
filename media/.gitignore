@@ -1,0 +1,3 @@
+# Ignorar todos los archivos en media/ excepto este .gitignore
+*
+!.gitignore

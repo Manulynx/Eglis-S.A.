@@ -1,0 +1,936 @@
+{% extends "eglisapp/base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-12">
+            <!-- Encabezado -->
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4">
+                <h2 class="text-white mb-3 mb-md-0">
+                    <i class="fas fa-users me-2 text-primary"></i>
+                    Gestión de Destinatarios
+                </h2>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-success" id="btnAgregarDestinatario">
+                        <i class="fas fa-plus me-2"></i>Agregar Destinatario
+                    </button>
+                   
+                </div>
+            </div>
+
+            <!-- Alertas -->
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <!-- Lista de Destinatarios -->
+            <div class="card bg-dark border-secondary">
+                <div class="card-header">
+                    <h5 class="mb-0 text-white">
+                        <i class="fas fa-address-book me-2"></i>Destinatarios Configurados
+                        <span class="badge bg-primary ms-2">{{ destinatarios.count }}</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if destinatarios %}
+                        <!-- Vista Desktop -->
+                        <div class="d-none d-lg-block">
+                            <div class="table-responsive">
+                                <table class="table table-dark table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Nombre</th>
+                                            <th>Teléfono</th>
+                                            <th>CallMeBot API</th>
+                                            <th>Estado</th>
+                                            <th>Notificaciones</th>
+                                            <th>Fecha Registro</th>
+                                            <th class="text-end">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for destinatario in destinatarios %}
+                                        <tr>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <i class="fas fa-user me-2 text-muted"></i>
+                                                    {{ destinatario.nombre }}
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <i class="fab fa-whatsapp me-2 text-success"></i>
+                                                    {{ destinatario.telefono }}
+                                                </div>
+                                            </td>
+                                            <td>
+                                                {% if destinatario.callmebot_api_key %}
+                                                    <span class="badge bg-success" title="API Key configurada">
+                                                        <i class="fas fa-key me-1"></i>Configurada
+                                                    </span>
+                                                {% else %}
+                                                    <span class="badge bg-warning" title="API Key no configurada">
+                                                        <i class="fas fa-exclamation-triangle me-1"></i>No configurada
+                                                    </span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <button type="button" 
+                                                        class="btn btn-sm {% if destinatario.activo %}btn-success{% else %}btn-outline-danger{% endif %} toggle-estado-btn"
+                                                        data-destinatario-id="{{ destinatario.pk }}"
+                                                        data-estado-actual="{% if destinatario.activo %}true{% else %}false{% endif %}"
+                                                        title="{% if destinatario.activo %}Desactivar destinatario{% else %}Activar destinatario{% endif %}">
+                                                    <i class="fas {% if destinatario.activo %}fa-toggle-on{% else %}fa-toggle-off{% endif %} me-1"></i>
+                                                    {% if destinatario.activo %}Activo{% else %}Inactivo{% endif %}
+                                                </button>
+                                            </td>
+                                            <td>
+                                                <div class="d-flex gap-1">
+                                                    {% if destinatario.recibir_remesas %}
+                                                        <span class="badge bg-info" title="Recibe notificaciones de remesas">R</span>
+                                                    {% endif %}
+                                                    {% if destinatario.recibir_pagos %}
+                                                        <span class="badge bg-warning" title="Recibe notificaciones de pagos">P</span>
+                                                    {% endif %}
+                                                    {% if destinatario.recibir_cambios_estado %}
+                                                        <span class="badge bg-secondary" title="Recibe notificaciones de cambios de estado">E</span>
+                                                    {% endif %}
+                                                </div>
+                                            </td>
+                                            <td>{{ destinatario.fecha_creacion|date:"d/m/Y" }}</td>
+                                            <td class="text-end">
+                                                <div class="btn-group btn-group-sm">
+                                                    <button type="button" 
+                                                            class="btn btn-primary editar-destinatario-btn" 
+                                                            data-destinatario-id="{{ destinatario.pk }}"
+                                                            data-nombre="{{ destinatario.nombre }}"
+                                                            data-telefono="{{ destinatario.telefono }}"
+                                                            data-callmebot-api-key="{{ destinatario.callmebot_api_key|default:'' }}"
+                                                            data-activo="{% if destinatario.activo %}true{% else %}false{% endif %}"
+                                                            data-recibir-remesas="{% if destinatario.recibir_remesas %}true{% else %}false{% endif %}"
+                                                            data-recibir-pagos="{% if destinatario.recibir_pagos %}true{% else %}false{% endif %}"
+                                                            data-recibir-cambios-estado="{% if destinatario.recibir_cambios_estado %}true{% else %}false{% endif %}"
+                                                            title="Editar">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <button type="button" 
+                                                            class="btn btn-warning enviar-test-btn" 
+                                                            data-destinatario-id="{{ destinatario.pk }}"
+                                                            data-telefono="{{ destinatario.telefono }}"
+                                                            title="Enviar mensaje de prueba">
+                                                        <i class="fas fa-paper-plane"></i>
+                                                    </button>
+                                                    <button type="button" 
+                                                            class="btn btn-danger eliminar-destinatario-btn" 
+                                                            data-destinatario-id="{{ destinatario.pk }}"
+                                                            data-nombre="{{ destinatario.nombre }}"
+                                                            title="Eliminar destinatario">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Vista Móvil -->
+                        <div class="d-lg-none">
+                            {% for destinatario in destinatarios %}
+                            <div class="card bg-dark border-secondary mb-3">
+                                <div class="card-body">
+                                    <!-- Encabezado con nombre y estado -->
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="text-primary mb-0">
+                                            <i class="fas fa-user me-2"></i>{{ destinatario.nombre }}
+                                        </h6>
+                                        <button type="button" 
+                                                class="btn btn-sm {% if destinatario.activo %}btn-success{% else %}btn-outline-danger{% endif %} toggle-estado-btn"
+                                                data-destinatario-id="{{ destinatario.pk }}"
+                                                data-estado-actual="{% if destinatario.activo %}true{% else %}false{% endif %}">
+                                            <i class="fas {% if destinatario.activo %}fa-toggle-on{% else %}fa-toggle-off{% endif %} me-1"></i>
+                                            {% if destinatario.activo %}Activo{% else %}Inactivo{% endif %}
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- Información -->
+                                    <div class="mb-3">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="fab fa-whatsapp me-2 text-success"></i>
+                                            <span class="text-white">{{ destinatario.telefono }}</span>
+                                        </div>
+                                        
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="fas fa-key me-2 {% if destinatario.callmebot_api_key %}text-success{% else %}text-warning{% endif %}"></i>
+                                            {% if destinatario.callmebot_api_key %}
+                                                <span class="badge bg-success">API Key configurada</span>
+                                            {% else %}
+                                                <span class="badge bg-warning">API Key pendiente</span>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <div class="d-flex gap-1 mb-2">
+                                            {% if destinatario.recibir_remesas %}
+                                                <span class="badge bg-info" title="Recibe notificaciones de remesas">Remesas</span>
+                                            {% endif %}
+                                            {% if destinatario.recibir_pagos %}
+                                                <span class="badge bg-warning" title="Recibe notificaciones de pagos">Pagos</span>
+                                            {% endif %}
+                                            {% if destinatario.recibir_cambios_estado %}
+                                                <span class="badge bg-secondary" title="Recibe notificaciones de cambios de estado">Estados</span>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <small class="text-muted">
+                                            Registrado: {{ destinatario.fecha_creacion|date:"d/m/Y" }}
+                                        </small>
+                                    </div>
+
+                                    <!-- Botones de acción -->
+                                    <div class="d-flex gap-2">
+                                        <button type="button" 
+                                                class="btn btn-primary btn-sm flex-grow-1 editar-destinatario-btn"
+                                                data-destinatario-id="{{ destinatario.pk }}"
+                                                data-nombre="{{ destinatario.nombre }}"
+                                                data-telefono="{{ destinatario.telefono }}"
+                                                data-callmebot-api-key="{{ destinatario.callmebot_api_key|default:'' }}"
+                                                data-activo="{% if destinatario.activo %}true{% else %}false{% endif %}"
+                                                data-recibir-remesas="{% if destinatario.recibir_remesas %}true{% else %}false{% endif %}"
+                                                data-recibir-pagos="{% if destinatario.recibir_pagos %}true{% else %}false{% endif %}"
+                                                data-recibir-cambios-estado="{% if destinatario.recibir_cambios_estado %}true{% else %}false{% endif %}">
+                                            <i class="fas fa-edit me-1"></i>Editar
+                                        </button>
+                                        <button type="button" 
+                                                class="btn btn-warning btn-sm enviar-test-btn"
+                                                data-destinatario-id="{{ destinatario.pk }}"
+                                                data-telefono="{{ destinatario.telefono }}"
+                                                title="Enviar prueba">
+                                            <i class="fas fa-paper-plane"></i>
+                                        </button>
+                                        <button type="button" 
+                                                class="btn btn-danger btn-sm eliminar-destinatario-btn"
+                                                data-destinatario-id="{{ destinatario.pk }}"
+                                                data-nombre="{{ destinatario.nombre }}"
+                                                title="Eliminar">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">No hay destinatarios configurados</h5>
+                            <p class="text-muted">Agrega destinatarios para comenzar a enviar notificaciones</p>
+                            <button type="button" class="btn btn-success" id="btnAgregarPrimerDestinatario">
+                                <i class="fas fa-plus me-2"></i>Agregar Primer Destinatario
+                            </button>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Información de ayuda -->
+            <div class="card bg-dark border-secondary mt-4">
+                <div class="card-header">
+                    <h6 class="mb-0 text-white">
+                        <i class="fas fa-info-circle me-2"></i>Información de Notificaciones
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="text-center p-3">
+                                <span class="badge bg-info fs-6 mb-2">R</span>
+                                <p class="text-white mb-0">Remesas</p>
+                                <small class="text-muted">Nuevas remesas creadas</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center p-3">
+                                <span class="badge bg-warning fs-6 mb-2">P</span>
+                                <p class="text-white mb-0">Pagos</p>
+                                <small class="text-muted">Pagos realizados</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center p-3">
+                                <span class="badge bg-secondary fs-6 mb-2">E</span>
+                                <p class="text-white mb-0">Estados</p>
+                                <small class="text-muted">Cambios de estado</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Agregar/Editar Destinatario -->
+<div class="modal fade" id="addDestinatarioModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-white" id="destinatarioModalTitle">
+                    <i class="fas fa-plus me-2"></i>Agregar Destinatario
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="destinatarioForm" method="post">
+                    {% csrf_token %}
+                    <input type="hidden" id="destinatario_id" name="destinatario_id">
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-white">Nombre *</label>
+                            <input type="text" class="form-control" name="nombre" id="nombre" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label text-white">Teléfono WhatsApp *</label>
+                            <input type="tel" class="form-control" name="telefono" id="telefono" placeholder="+1234567890" required>
+                            <small class="form-text text-muted">Incluye el código de país</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <label class="form-label text-white">CallMeBot API Key</label>
+                            <input type="text" class="form-control" name="callmebot_api_key" id="callmebot_api_key" placeholder="Ingresa tu API Key de CallMeBot">
+                            <small class="form-text text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Opcional. Se usa para enviar mensajes vía CallMeBot API. 
+                                <a href="https://api.callmebot.com/start.php" target="_blank" class="text-info">Obtener API Key</a>
+                            </small>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <h6 class="text-white">Configuración de Notificaciones</h6>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="activo" id="activo" checked>
+                                <label class="form-check-label text-white">
+                                    Destinatario Activo
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="recibir_remesas" id="recibir_remesas" checked>
+                                <label class="form-check-label text-white">
+                                    Notificar Remesas
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="recibir_pagos" id="recibir_pagos" checked>
+                                <label class="form-check-label text-white">
+                                    Notificar Pagos
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="recibir_cambios_estado" id="recibir_cambios_estado" checked>
+                                <label class="form-check-label text-white">
+                                    Cambios de Estado
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="guardarDestinatario">
+                    <i class="fas fa-save me-2"></i>Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* CSS para cuadros de información responsive en móvil */
+@media (max-width: 576px) {
+    .card-body .row {
+        display: flex !important;
+        flex-direction: row !important;
+        justify-content: center !important;
+        overflow-x: auto;
+        gap: 0.5rem !important;
+        margin-bottom: 0.5rem !important;
+        padding-bottom: 0.5rem !important;
+    }
+    .card-body .row > [class^='col-'] {
+        flex: 0 0 auto !important;
+        width: 160px !important;
+        min-width: 140px !important;
+        max-width: 180px !important;
+        padding: 0 !important;
+    }
+    .card-body .text-center.p-3 {
+        padding: 0.5rem !important;
+    }
+    .card-body .badge.fs-6 {
+        font-size: 1rem !important;
+        margin-bottom: 0.25rem !important;
+    }
+    .card-body p {
+        font-size: 0.85rem !important;
+        margin-bottom: 0.1rem !important;
+    }
+    .card-body small {
+        font-size: 0.7rem !important;
+    }
+}
+
+/* Estilos similares a lista_monedas.html */
+@media (max-width: 991px) {
+    .card-body {
+        padding: 1rem;
+    }
+    
+    .btn-sm {
+        padding: 0.5rem;
+        font-size: 0.9rem;
+    }
+    
+    h5, h6 {
+        font-size: 1.1rem;
+    }
+    
+    .text-muted {
+        font-size: 0.85rem;
+    }
+    
+    .badge {
+        font-size: 0.8rem;
+        padding: 0.5em 0.7em;
+    }
+}
+
+/* Estilos para los botones de acción */
+.btn-group .btn {
+    transition: all 0.3s ease;
+}
+
+.btn-group .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Estilos personalizados para SweetAlert2 */
+.swal-dark {
+    border: 1px solid #495057 !important;
+}
+
+/* Animación de pulso para botones de estado */
+@keyframes pulse-success {
+    0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+}
+
+@keyframes pulse-danger {
+    0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+}
+
+.btn-success:not(:disabled):hover {
+    animation: pulse-success 1.5s infinite;
+}
+
+.btn-outline-danger:not(:disabled):hover {
+    animation: pulse-danger 1.5s infinite;
+}
+
+/* Estilos para modal fallback */
+.modal.show {
+    display: block !important;
+}
+
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1040;
+    width: 100vw;
+    height: 100vh;
+    background-color: #000;
+    opacity: 0.5;
+}
+
+/* Asegurar que el modal sea visible */
+#addDestinatarioModal {
+    z-index: 1050;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Verificar que JavaScript está funcionando
+console.log('✅ JavaScript de destinatarios cargado correctamente');
+
+// Función para obtener el token CSRF
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Función para guardar destinatario (crear o editar)
+document.getElementById('guardarDestinatario').addEventListener('click', function() {
+    const form = document.getElementById('destinatarioForm');
+    const formData = new FormData(form);
+    const destinatarioId = document.getElementById('destinatario_id').value;
+    
+    // Convertir checkboxes a valores
+    formData.set('activo', document.getElementById('activo').checked);
+    formData.set('recibir_remesas', document.getElementById('recibir_remesas').checked);
+    formData.set('recibir_pagos', document.getElementById('recibir_pagos').checked);
+    formData.set('recibir_cambios_estado', document.getElementById('recibir_cambios_estado').checked);
+    
+    const url = destinatarioId ? 
+        `{% url "notificaciones:destinatarios" %}${destinatarioId}/editar/` : 
+        '{% url "notificaciones:destinatarios" %}';
+    
+    // Mostrar loading
+    Swal.fire({
+        title: destinatarioId ? 'Actualizando...' : 'Guardando...',
+        text: 'Por favor espere',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        background: '#212529',
+        color: '#fff',
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+    
+    fetch(url, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            Swal.fire({
+                title: '¡Éxito!',
+                text: data.message,
+                icon: 'success',
+                background: '#212529',
+                color: '#fff'
+            }).then(() => {
+                window.location.reload();
+            });
+        } else {
+            Swal.fire({
+                title: 'Error',
+                text: data.message,
+                icon: 'error',
+                background: '#212529',
+                color: '#fff'
+            });
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        Swal.fire({
+            title: 'Error',
+            text: 'Error de conexión con el servidor',
+            icon: 'error',
+            background: '#212529',
+            color: '#fff'
+        });
+    });
+});
+
+// Función para editar destinatario
+function editarDestinatario(id, nombre, telefono, callmebotApiKey, activo, recibir_remesas, recibir_pagos, recibir_cambios_estado) {
+    // Cambiar título del modal
+    document.getElementById('destinatarioModalTitle').innerHTML = '<i class="fas fa-edit me-2"></i>Editar Destinatario';
+    
+    // Llenar formulario
+    document.getElementById('destinatario_id').value = id;
+    document.getElementById('nombre').value = nombre;
+    document.getElementById('telefono').value = telefono;
+    document.getElementById('callmebot_api_key').value = callmebotApiKey || '';
+    document.getElementById('activo').checked = activo;
+    document.getElementById('recibir_remesas').checked = recibir_remesas;
+    document.getElementById('recibir_pagos').checked = recibir_pagos;
+    document.getElementById('recibir_cambios_estado').checked = recibir_cambios_estado;
+    
+    // Mostrar modal
+    new bootstrap.Modal(document.getElementById('addDestinatarioModal')).show();
+}
+
+// Función para toggle estado del destinatario
+function toggleEstadoDestinatario(destinatarioId, estadoActual) {
+    const accion = estadoActual ? 'desactivar' : 'activar';
+    const estadoTexto = estadoActual ? 'desactivado' : 'activado';
+    const iconoColor = estadoActual ? '#dc3545' : '#28a745';
+
+    Swal.fire({
+        title: `¿${accion.charAt(0).toUpperCase() + accion.slice(1)} destinatario?`,
+        html: `
+            <div class="text-center">
+                <i class="fas ${estadoActual ? 'fa-toggle-off' : 'fa-toggle-on'} fa-3x mb-3" style="color: ${iconoColor}"></i>
+                <p>¿Está seguro que desea <strong>${accion}</strong> este destinatario?</p>
+                ${!estadoActual ? '<small class="text-warning">El destinatario recibirá notificaciones según su configuración</small>' : 
+                  '<small class="text-info">El destinatario no recibirá notificaciones</small>'}
+            </div>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: iconoColor,
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: `Sí, ${accion}`,
+        cancelButtonText: 'Cancelar',
+        background: '#212529',
+        color: '#fff'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            fetch(`{% url "notificaciones:destinatarios" %}${destinatarioId}/toggle-estado/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        title: '¡Estado actualizado!',
+                        text: `Destinatario ${estadoTexto} correctamente`,
+                        icon: 'success',
+                        background: '#212529',
+                        color: '#fff'
+                    }).then(() => {
+                        window.location.reload();
+                    });
+                } else {
+                    Swal.fire({
+                        title: 'Error',
+                        text: data.message,
+                        icon: 'error',
+                        background: '#212529',
+                        color: '#fff'
+                    });
+                }
+            });
+        }
+    });
+}
+
+// Función para enviar test a destinatario
+function enviarTestDestinatario(destinatarioId, telefono) {
+    Swal.fire({
+        title: 'Enviar mensaje de prueba',
+        html: `
+            <div class="text-center">
+                <i class="fab fa-whatsapp fa-3x mb-3 text-success"></i>
+                <p>¿Enviar mensaje de prueba a <strong>${telefono}</strong>?</p>
+            </div>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#25d366',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Sí, enviar',
+        cancelButtonText: 'Cancelar',
+        background: '#212529',
+        color: '#fff'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({
+                title: 'Enviando mensaje...',
+                text: 'Por favor espere',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                background: '#212529',
+                color: '#fff',
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+            
+            fetch(`{% url "notificaciones:destinatarios" %}${destinatarioId}/enviar-test/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        title: '¡Mensaje enviado!',
+                        text: data.message,
+                        icon: 'success',
+                        background: '#212529',
+                        color: '#fff'
+                    });
+                } else {
+                    Swal.fire({
+                        title: 'Error al enviar',
+                        text: data.message,
+                        icon: 'error',
+                        background: '#212529',
+                        color: '#fff'
+                    });
+                }
+            });
+        }
+    });
+}
+
+// Función para eliminar destinatario
+function eliminarDestinatario(destinatarioId, nombre) {
+    Swal.fire({
+        title: '¿Eliminar destinatario?',
+        html: `
+            <div class="text-center">
+                <i class="fas fa-trash-alt fa-3x mb-3" style="color: #dc3545"></i>
+                <p>¿Está seguro que desea eliminar a <strong>${nombre}</strong>?</p>
+                <div class="text-warning mt-3">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Esta acción no se puede deshacer</strong>
+                </div>
+            </div>
+        `,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar',
+        background: '#212529',
+        color: '#fff'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            fetch(`{% url "notificaciones:destinatarios" %}${destinatarioId}/eliminar/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        title: '¡Eliminado!',
+                        text: data.message,
+                        icon: 'success',
+                        background: '#212529',
+                        color: '#fff'
+                    }).then(() => {
+                        window.location.reload();
+                    });
+                } else {
+                    Swal.fire({
+                        title: 'Error',
+                        text: data.message,
+                        icon: 'error',
+                        background: '#212529',
+                        color: '#fff'
+                    });
+                }
+            });
+        }
+    });
+}
+
+// Limpiar formulario al cerrar modal
+document.getElementById('addDestinatarioModal').addEventListener('hidden.bs.modal', function() {
+    // Resetear título
+    document.getElementById('destinatarioModalTitle').innerHTML = '<i class="fas fa-plus me-2"></i>Agregar Destinatario';
+    
+    // Limpiar formulario
+    document.getElementById('destinatarioForm').reset();
+    document.getElementById('destinatario_id').value = '';
+    
+    // Marcar checkboxes por defecto
+    document.getElementById('activo').checked = true;
+    document.getElementById('recibir_remesas').checked = true;
+    document.getElementById('recibir_pagos').checked = true;
+    document.getElementById('recibir_cambios_estado').checked = true;
+    
+    // Limpiar campo API Key
+    document.getElementById('callmebot_api_key').value = '';
+});
+
+// Event listeners para botones
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Configurando event listeners...');
+    
+    // Botones para abrir modal de agregar destinatario
+    const btnAgregar = document.getElementById('btnAgregarDestinatario');
+    const btnAgregarPrimer = document.getElementById('btnAgregarPrimerDestinatario');
+    
+    if (btnAgregar) {
+        btnAgregar.addEventListener('click', function() {
+            console.log('🔘 Clic en botón Agregar Destinatario');
+            abrirModalAgregar();
+        });
+        console.log('✅ Event listener agregado al botón Agregar');
+    } else {
+        console.log('⚠️ No se encontró el botón Agregar Destinatario');
+    }
+    
+    if (btnAgregarPrimer) {
+        btnAgregarPrimer.addEventListener('click', function() {
+            console.log('🔘 Clic en botón Agregar Primer Destinatario');
+            abrirModalAgregar();
+        });
+        console.log('✅ Event listener agregado al botón Agregar Primer');
+    }
+
+    // Toggle estado destinatarios
+    document.querySelectorAll('.toggle-estado-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const destinatarioId = this.dataset.destinatarioId;
+            const estadoActual = this.dataset.estadoActual === 'true';
+            toggleEstadoDestinatario(destinatarioId, estadoActual);
+        });
+    });
+
+    // Editar destinatarios
+    document.querySelectorAll('.editar-destinatario-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const destinatarioId = this.dataset.destinatarioId;
+            const nombre = this.dataset.nombre;
+            const telefono = this.dataset.telefono;
+            const callmebotApiKey = this.dataset.callmebotApiKey;
+            const activo = this.dataset.activo === 'true';
+            const recibirRemesas = this.dataset.recibirRemesas === 'true';
+            const recibirPagos = this.dataset.recibirPagos === 'true';
+            const recibirCambiosEstado = this.dataset.recibirCambiosEstado === 'true';
+            
+            editarDestinatario(destinatarioId, nombre, telefono, callmebotApiKey, activo, recibirRemesas, recibirPagos, recibirCambiosEstado);
+        });
+    });
+
+    // Enviar test
+    document.querySelectorAll('.enviar-test-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const destinatarioId = this.dataset.destinatarioId;
+            const telefono = this.dataset.telefono;
+            enviarTestDestinatario(destinatarioId, telefono);
+        });
+    });
+
+    // Eliminar destinatarios
+    document.querySelectorAll('.eliminar-destinatario-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const destinatarioId = this.dataset.destinatarioId;
+            const nombre = this.dataset.nombre;
+            eliminarDestinatario(destinatarioId, nombre);
+        });
+    });
+});
+
+// Función para abrir modal de agregar
+function abrirModalAgregar() {
+    console.log('🔄 Intentando abrir modal de agregar destinatario');
+    
+    // Resetear título a "Agregar"
+    document.getElementById('destinatarioModalTitle').innerHTML = '<i class="fas fa-plus me-2"></i>Agregar Destinatario';
+    
+    // Limpiar formulario
+    document.getElementById('destinatarioForm').reset();
+    document.getElementById('destinatario_id').value = '';
+    
+    // Marcar checkboxes por defecto
+    document.getElementById('activo').checked = true;
+    document.getElementById('recibir_remesas').checked = true;
+    document.getElementById('recibir_pagos').checked = true;
+    document.getElementById('recibir_cambios_estado').checked = true;
+    
+    // Limpiar campo API Key
+    document.getElementById('callmebot_api_key').value = '';
+    
+    // Intentar abrir modal con Bootstrap
+    try {
+        const modalElement = document.getElementById('addDestinatarioModal');
+        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            const modal = new bootstrap.Modal(modalElement);
+            modal.show();
+            console.log('✅ Modal abierto con Bootstrap');
+        } else {
+            // Fallback: mostrar modal manualmente
+            modalElement.style.display = 'block';
+            modalElement.classList.add('show');
+            document.body.classList.add('modal-open');
+            
+            // Agregar backdrop si no existe
+            if (!document.querySelector('.modal-backdrop')) {
+                const backdrop = document.createElement('div');
+                backdrop.className = 'modal-backdrop show';
+                document.body.appendChild(backdrop);
+                
+                // Cerrar modal al hacer clic en backdrop
+                backdrop.addEventListener('click', function() {
+                    cerrarModalFallback();
+                });
+            }
+            
+            console.log('⚠️ Modal abierto con fallback (Bootstrap no disponible)');
+        }
+    } catch (error) {
+        console.error('❌ Error al abrir modal:', error);
+        alert('Error al abrir el formulario. Por favor, recarga la página.');
+    }
+}
+
+// Función para cerrar modal manualmente (fallback)
+function cerrarModalFallback() {
+    const modalElement = document.getElementById('addDestinatarioModal');
+    const backdrop = document.querySelector('.modal-backdrop');
+    
+    modalElement.style.display = 'none';
+    modalElement.classList.remove('show');
+    document.body.classList.remove('modal-open');
+    
+    if (backdrop) {
+        backdrop.remove();
+    }
+}
+</script>
+{% endblock %}

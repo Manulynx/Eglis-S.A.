@@ -1,0 +1,194 @@
+{% extends 'eglisapp/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card bg-dark text-white">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="mb-0">
+                        <i class="fas fa-file-invoice me-2"></i>
+                        Detalles de Remesa
+                    </h3>
+                    <a href="{% url 'remesas:registro_transacciones' %}" class="btn btn-outline-light">
+                        <i class="fas fa-arrow-left me-2"></i>Volver
+                    </a>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Información principal de la remesa -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h5 class="text-info border-bottom pb-2">Información General</h5>
+                            <dl class="row">
+                                <dt class="col-sm-4">ID Remesa:</dt>
+                                <dd class="col-sm-8">{{ remesa.remesa_id }}</dd>
+                                
+                                <dt class="col-sm-4">Fecha:</dt>
+                                <dd class="col-sm-8">{{ remesa.fecha|date:"d/m/Y" }}</dd>
+                                
+                                <dt class="col-sm-4">Estado:</dt>
+                                <dd class="col-sm-8">
+                                    <span class="badge bg-{{ remesa.get_estado_badge }}">
+                                        {{ remesa.get_estado_display }}
+                                    </span>
+                                </dd>
+                                
+                                <dt class="col-sm-4">Importe:</dt>
+                                <dd class="col-sm-8">{{ remesa.importe|floatformat:2 }} {{ remesa.moneda.codigo|default:"N/A" }}</dd>
+                            </dl>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h5 class="text-success border-bottom pb-2">Detalles de Envío</h5>
+                            <dl class="row">
+                                <dt class="col-sm-4">Tipo de Pago:</dt>
+                                <dd class="col-sm-8">{{ remesa.get_tipo_pago_display|default:remesa.tipo_pago }}</dd>
+                                
+                                <dt class="col-sm-4">Gestor:</dt>
+                                <dd class="col-sm-8">{{ remesa.gestor.get_full_name|default:remesa.gestor.username }}</dd>
+                                
+                                {% if remesa.comprobante %}
+                                <dt class="col-sm-4">Comprobante:</dt>
+                                <dd class="col-sm-8">
+                                    <a href="{{ remesa.comprobante.url }}" target="_blank" class="btn btn-sm btn-outline-info">
+                                        <i class="fas fa-image me-2"></i>Ver Comprobante
+                                    </a>
+                                </dd>
+                                {% endif %}
+                                
+                                {% if remesa.observaciones %}
+                                <dt class="col-sm-4">Observaciones:</dt>
+                                <dd class="col-sm-8">{{ remesa.observaciones }}</dd>
+                                {% endif %}
+                            </dl>
+                        </div>
+                    </div>
+
+                    <!-- Información de clientes -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h5 class="text-warning border-bottom pb-2">Remitente</h5>
+                            <dl class="row">
+                                <dt class="col-sm-4">Nombre:</dt>
+                                <dd class="col-sm-8">{{ remesa.receptor_nombre }}</dd>
+                                
+                                <dt class="col-sm-4">Tipo de Pago:</dt>
+                                <dd class="col-sm-8">{{ remesa.get_tipo_pago_display|default:remesa.tipo_pago }}</dd>
+                            </dl>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h5 class="text-info border-bottom pb-2">Información de la Transacción</h5>
+                            <dl class="row">
+                                <dt class="col-sm-4">Importe:</dt>
+                                <dd class="col-sm-8">{{ remesa.importe|floatformat:2 }} {{ remesa.moneda.codigo|default:"N/A" }}</dd>
+                                
+                                <dt class="col-sm-4">Estado:</dt>
+                                <dd class="col-sm-8">
+                                    <span class="badge bg-{{ remesa.get_estado_badge }}">{{ remesa.get_estado_display }}</span>
+                                </dd>
+                                
+                                {% if remesa.observaciones %}
+                                <dt class="col-sm-4">Observaciones:</dt>
+                                <dd class="col-sm-8">{{ remesa.observaciones }}</dd>
+                                {% endif %}
+                                
+                                {% if remesa.gestor %}
+                                <dt class="col-sm-4">Gestor:</dt>
+                                <dd class="col-sm-8">{{ remesa.gestor.get_full_name|default:remesa.gestor.username }}</dd>
+                                {% endif %}
+                            </dl>
+                        </div>
+                    </div>
+
+                    <!-- Historial de la remesa -->
+                    {% if registros %}
+                    <div class="row">
+                        <div class="col-12">
+                            <h5 class="text-info border-bottom pb-2">Historial de la Remesa</h5>
+                            <div class="table-responsive">
+                                <table class="table table-dark table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Fecha</th>
+                                            <th>Tipo</th>
+                                            <th>Usuario</th>
+                                            <th>Detalles</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for registro in registros %}
+                                        <tr>
+                                            <td>{{ registro.fecha_registro|date:"d/m/Y H:i" }}</td>
+                                            <td>
+                                                <span class="badge bg-{{ registro.get_tipo_badge }}">
+                                                    {{ registro.get_tipo_display }}
+                                                </span>
+                                            </td>
+                                            <td>{{ registro.usuario_registro }}</td>
+                                            <td>{{ registro.detalles }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Comprobante de pago -->
+                    {% if remesa.comprobante %}
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <h5 class="text-info border-bottom pb-2">Comprobante de Pago</h5>
+                            <div class="text-center">
+                                <img src="{{ remesa.comprobante.url }}" 
+                                     alt="Comprobante de la remesa {{ remesa.remesa_id }}" 
+                                     class="img-fluid rounded border border-secondary"
+                                     style="max-height: 500px; cursor: pointer;"
+                                     onclick="openImageModal('{{ remesa.comprobante.url }}')">
+                                <p class="text-muted mt-2">
+                                    <small>Click en la imagen para ver en tamaño completo</small>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para ver imagen en tamaño completo -->
+<div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content bg-dark">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-white" id="imageModalLabel">Comprobante de Pago</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="modalImage" src="" alt="Comprobante" class="img-fluid rounded">
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <a id="downloadLink" href="" download class="btn btn-primary">
+                    <i class="fas fa-download me-2"></i>Descargar
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function openImageModal(imageUrl) {
+    document.getElementById('modalImage').src = imageUrl;
+    document.getElementById('downloadLink').href = imageUrl;
+    new bootstrap.Modal(document.getElementById('imageModal')).show();
+}
+</script>
+
+{% endblock %}

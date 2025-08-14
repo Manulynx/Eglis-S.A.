@@ -1,0 +1,547 @@
+{% extends "eglisapp/base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-12">
+            <!-- Encabezado -->
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4">
+                <h2 class="text-white mb-3 mb-md-0">
+                    <i class="fab fa-whatsapp me-2 text-success"></i>
+                    Configuración de Notificaciones WhatsApp
+                </h2>
+                <div class="btn-group w-100 w-md-auto">
+                    <button type="button" class="btn btn-info" id="testConexion">
+                        <i class="fas fa-wifi me-2"></i>Probar Conexión
+                    </button>
+                    <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#testModal">
+                        <i class="fas fa-paper-plane me-2"></i>Enviar Prueba
+                    </button>
+                </div>
+            </div>
+
+            <!-- Alertas -->
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <!-- Formulario de Configuración -->
+            <div class="card bg-dark border-secondary">
+                <div class="card-header">
+                    <h5 class="mb-0 text-white">
+                        <i class="fas fa-cogs me-2"></i>Configuración de API
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <!-- Configuración CallMeBot -->
+                        <div class="mb-4">
+                            <h6 class="text-success mb-3">
+                                <i class="fas fa-robot me-2"></i>Configuración CallMeBot (SÚPER FÁCIL y GRATIS)
+                            </h6>
+                            <div class="alert alert-info">
+                                <h6><i class="fas fa-info-circle me-2"></i>Pasos para obtener tu API Key:</h6>
+                                <ol class="mb-0">
+                                    <li>Envía el mensaje: <strong>"I allow callmebot to send me messages"</strong></li>
+                                    <li>Al número de WhatsApp: <strong>+34 644 84 44 84</strong></li>
+                                    <li>Recibirás tu API Key personalizada</li>
+                                    <li>Pega tu API Key aquí abajo</li>
+                                </ol>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label text-white">CallMeBot API Key</label>
+                                    {{ form.callmebot_api_key }}
+                                    <small class="form-text text-muted">Pega aquí la API Key que recibiste por WhatsApp</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="border-secondary">
+
+                        <!-- Configuración Twilio -->
+                        <div class="mb-4 collapse" id="twilioConfig">
+                            <h6 class="text-info mb-3">
+                                <i class="fas fa-cloud me-2"></i>Configuración Twilio (Alternativo)
+                            </h6>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label text-white">Account SID</label>
+                                    {{ form.twilio_account_sid }}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label text-white">Auth Token</label>
+                                    {{ form.twilio_auth_token }}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label text-white">Número WhatsApp</label>
+                                    {{ form.twilio_phone_number }}
+                                    <small class="form-text text-muted">Formato: +1234567890</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="text-center mb-3">
+                            <button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="collapse" data-bs-target="#twilioConfig">
+                                <i class="fas fa-cog me-2"></i>Mostrar Opciones Avanzadas (Twilio/WhatsApp Business)
+                            </button>
+                        </div>
+
+                        <!-- Configuración WhatsApp Business API -->
+                        <div class="mb-4 collapse" id="whatsappConfig">
+                            <h6 class="text-warning mb-3">
+                                <i class="fab fa-meta me-2"></i>WhatsApp Business API (Alternativo)
+                            </h6>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label text-white">Business Token</label>
+                                    {{ form.whatsapp_business_token }}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label text-white">Phone ID</label>
+                                    {{ form.whatsapp_business_phone_id }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="border-secondary">
+
+                        <!-- Configuración General -->
+                        <div class="mb-4">
+                            <h6 class="text-success mb-3">
+                                <i class="fas fa-bell me-2"></i>Configuración de Notificaciones
+                            </h6>
+                            <div class="row">
+                                <div class="col-md-3 mb-3">
+                                    <div class="form-check">
+                                        {{ form.activo }}
+                                        <label class="form-check-label text-white">
+                                            Sistema Activo
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <div class="form-check">
+                                        {{ form.notificar_remesas }}
+                                        <label class="form-check-label text-white">
+                                            Notificar Remesas
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <div class="form-check">
+                                        {{ form.notificar_pagos }}
+                                        <label class="form-check-label text-white">
+                                            Notificar Pagos
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <div class="form-check">
+                                        {{ form.notificar_cambios_estado }}
+                                        <label class="form-check-label text-white">
+                                            Cambios de Estado
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end">
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="fas fa-save me-2"></i>Guardar Configuración
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Panel de Estado -->
+            <div class="card bg-dark border-secondary mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0 text-white">
+                        <i class="fas fa-info-circle me-2"></i>Estado del Sistema
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row row-cols-2 row-cols-md-4 g-3">
+                        <div class="col">
+                            <div class="status-card p-3 text-center rounded border border-secondary">
+                                <div class="mb-2">
+                                    {% if config.activo %}
+                                        <i class="fas fa-check-circle fa-2x text-success"></i>
+                                    {% else %}
+                                        <i class="fas fa-times-circle fa-2x text-danger"></i>
+                                    {% endif %}
+                                </div>
+                                <small class="text-muted d-block">Sistema</small>
+                                <div class="text-white">{{ config.activo|yesno:"Activo,Inactivo" }}</div>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="status-card p-3 text-center rounded border border-secondary">
+                                <div class="mb-2">
+                                    {% if config.twilio_account_sid %}
+                                        <i class="fas fa-cloud fa-2x text-info"></i>
+                                    {% else %}
+                                        <i class="fas fa-cloud-slash fa-2x text-muted"></i>
+                                    {% endif %}
+                                </div>
+                                <small class="text-muted d-block">Twilio</small>
+                                <div class="text-white">{{ config.twilio_account_sid|yesno:"Configurado,No configurado" }}</div>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="status-card p-3 text-center rounded border border-secondary">
+                                <div class="mb-2">
+                                    {% if config.whatsapp_business_token %}
+                                        <i class="fab fa-meta fa-2x text-warning"></i>
+                                    {% else %}
+                                        <i class="fab fa-meta fa-2x text-muted"></i>
+                                    {% endif %}
+                                </div>
+                                <small class="text-muted d-block">WhatsApp API</small>
+                                <div class="text-white">{{ config.whatsapp_business_token|yesno:"Configurado,No configurado" }}</div>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="status-card p-3 text-center rounded border border-secondary">
+                                <div class="mb-2">
+                                    <i class="fas fa-users fa-2x text-primary"></i>
+                                </div>
+                                <small class="text-muted d-block">Destinatarios</small>
+                                <div class="text-white">
+                                    <a href="{% url 'notificaciones:destinatarios' %}" class="text-decoration-none">
+                                        Ver Lista
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Enlaces Rápidos -->
+            <div class="row g-3 mt-4">
+                <div class="col-12 col-md-4">
+                    <a href="{% url 'notificaciones:destinatarios' %}" 
+                       class="btn btn-outline-primary w-100 py-3">
+                        <i class="fas fa-users me-2"></i>Gestionar Destinatarios
+                    </a>
+                </div>
+                <div class="col-12 col-md-4">
+                    <a href="{% url 'notificaciones:logs' %}" 
+                       class="btn btn-outline-info w-100 py-3">
+                        <i class="fas fa-history me-2"></i>Ver Historial
+                    </a>
+                </div>
+                <div class="col-12 col-md-4">
+                    <a href="/admin/notificaciones/" 
+                       class="btn btn-outline-secondary w-100 py-3" 
+                       target="_blank">
+                        <i class="fas fa-cog me-2"></i>Panel Admin
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Prueba -->
+<div class="modal fade" id="testModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title text-white">Enviar Mensaje de Prueba</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="testForm">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label text-white">Número de WhatsApp</label>
+                        <input type="tel" class="form-control" name="telefono" placeholder="+1234567890" required>
+                        <small class="form-text text-muted">Incluye el código de país</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-warning" id="enviarTest">
+                    <i class="fas fa-paper-plane me-2"></i>Enviar Prueba
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Estilos base */
+.card {
+    transition: all 0.3s ease;
+}
+
+.btn {
+    transition: all 0.2s ease;
+}
+
+.alert {
+    border-radius: 8px;
+    border: none;
+}
+
+/* Vista móvil */
+@media (max-width: 768px) {
+    .container {
+        padding: 1rem;
+    }
+
+    h2 {
+        font-size: 1.5rem;
+    }
+
+    h5 {
+        font-size: 1.1rem;
+    }
+
+    h6 {
+        font-size: 1rem;
+    }
+
+    .btn-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        width: 100%;
+    }
+
+    .btn-group .btn {
+        width: 100%;
+        margin: 0;
+    }
+
+    .card {
+        margin-bottom: 1rem;
+    }
+
+    .card-body {
+        padding: 1rem;
+    }
+
+    /* Ajustes para los checkboxes */
+    .form-check {
+        margin-bottom: 1rem;
+        padding: 0.5rem;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+    }
+
+    .form-check-label {
+        font-size: 0.9rem;
+    }
+
+    /* Ajustes para los inputs */
+    .form-control {
+        font-size: 0.9rem;
+        padding: 0.5rem;
+    }
+
+    /* Panel de estado */
+    .col-md-3 {
+        margin-bottom: 1.5rem;
+    }
+
+    /* Enlaces rápidos */
+    .col-md-4 {
+        margin-bottom: 0.5rem;
+    }
+
+    .btn-outline-primary,
+    .btn-outline-info,
+    .btn-outline-secondary {
+        width: 100%;
+        margin-bottom: 0.5rem;
+        padding: 0.75rem;
+    }
+
+    /* Modal */
+    .modal-dialog {
+        margin: 1rem;
+    }
+
+    .modal-body {
+        padding: 1rem;
+    }
+}
+
+/* Vista tablet */
+@media (min-width: 769px) and (max-width: 992px) {
+    .container {
+        padding: 1.5rem;
+    }
+
+    h2 {
+        font-size: 1.8rem;
+    }
+
+    .card-body {
+        padding: 1.25rem;
+    }
+}
+
+/* Mejoras visuales generales */
+.form-control:focus {
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+}
+
+/* Animaciones suaves */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.card {
+    animation: fadeIn 0.5s ease-out;
+}
+
+/* Scroll personalizado */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Probar conexión
+    document.getElementById('testConexion').addEventListener('click', function() {
+        const btn = this;
+        const originalText = btn.innerHTML;
+        
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Probando...';
+        btn.disabled = true;
+        
+        fetch('{% url "notificaciones:test_conexion" %}')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        title: '¡Conexión Exitosa!',
+                        text: data.message,
+                        icon: 'success'
+                    });
+                } else {
+                    Swal.fire({
+                        title: 'Error de Conexión',
+                        text: data.message,
+                        icon: 'error'
+                    });
+                }
+            })
+            .catch(error => {
+                Swal.fire({
+                    title: 'Error',
+                    text: 'Error al probar la conexión',
+                    icon: 'error'
+                });
+            })
+            .finally(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            });
+    });
+    
+    // Enviar mensaje de prueba
+    document.getElementById('enviarTest').addEventListener('click', function() {
+        const btn = this;
+        const form = document.getElementById('testForm');
+        const formData = new FormData(form);
+        const originalText = btn.innerHTML;
+        
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Enviando...';
+        btn.disabled = true;
+        
+        fetch('{% url "notificaciones:enviar_test" %}', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        title: '¡Mensaje Enviado!',
+                        text: data.message,
+                        icon: 'success'
+                    });
+                    bootstrap.Modal.getInstance(document.getElementById('testModal')).hide();
+                } else {
+                    Swal.fire({
+                        title: 'Error al Enviar',
+                        text: data.message,
+                        icon: 'error'
+                    });
+                }
+            })
+            .catch(error => {
+                Swal.fire({
+                    title: 'Error',
+                    text: 'Error al enviar el mensaje',
+                    icon: 'error'
+                });
+            })
+            .finally(() => {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            });
+    });
+});
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Mostrar opciones avanzadas al hacer clic
+    document.addEventListener('DOMContentLoaded', function() {
+        const advancedBtn = document.querySelector('[data-bs-target="#twilioConfig"]');
+        if (advancedBtn) {
+            advancedBtn.addEventListener('click', function() {
+                const whatsappConfig = document.getElementById('whatsappConfig');
+                const twilioConfig = document.getElementById('twilioConfig');
+                
+                if (twilioConfig.classList.contains('show')) {
+                    // Si Twilio está visible, también mostrar WhatsApp
+                    setTimeout(() => {
+                        whatsappConfig.classList.add('show');
+                    }, 300);
+                } else {
+                    // Si se oculta Twilio, también ocultar WhatsApp
+                    whatsappConfig.classList.remove('show');
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

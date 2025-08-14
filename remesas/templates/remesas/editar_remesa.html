@@ -1,0 +1,191 @@
+{% extends 'eglisapp/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card bg-dark text-white">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <h3 class="mb-0">
+                            <i class="fas fa-edit me-2"></i>
+                            Editar Remesa
+                        </h3>
+                        <small class="text-muted">ID: {{ remesa.remesa_id }}</small>
+                    </div>
+                    <div class="btn-group">
+                        <a href="{% url 'remesas:detalle_remesa' remesa.id %}" class="btn btn-outline-light">
+                            <i class="fas fa-eye me-2"></i>Ver Detalle
+                        </a>
+                        <a href="{% url 'remesas:registro_transacciones' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>Volver a Lista
+                        </a>
+                    </div>
+                </div>
+
+                <div class="card-body">
+                    <form id="formEditarRemesa" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <!-- Información básica de la Remesa -->
+                        <div class="row">
+                            <div class="col-12">
+                                <h5 class="text-warning border-bottom pb-2 mb-3">
+                                    <i class="fas fa-money-bill me-2"></i>Información de la Remesa
+                                </h5>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="receptor_nombre" class="form-label">Remitente *</label>
+                                    <input type="text" class="form-control bg-dark text-white border-secondary" 
+                                           id="receptor_nombre" name="receptor_nombre" 
+                                           value="{{ remesa.receptor_nombre }}" required>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="importe" class="form-label">Importe *</label>
+                                    <input type="number" step="0.01" class="form-control bg-dark text-white border-secondary" 
+                                           id="importe" name="importe" 
+                                           value="{{ remesa.importe }}" required>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="moneda" class="form-label">Moneda *</label>
+                                    <select class="form-control bg-dark text-white border-secondary" 
+                                            id="moneda" name="moneda" required>
+                                        <option value="">Seleccione una moneda</option>
+                                        {% for moneda_option in monedas %}
+                                            <option value="{{ moneda_option.id }}" 
+                                                    {% if remesa.moneda.id == moneda_option.id %}selected{% endif %}>
+                                                {{ moneda_option.nombre }} ({{ moneda_option.codigo }})
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="tipo_pago" class="form-label">Tipo de Pago *</label>
+                                    <select class="form-control bg-dark text-white border-secondary" 
+                                            id="tipo_pago" name="tipo_pago" required>
+                                        <option value="">Seleccione tipo de pago</option>
+                                        <option value="transferencia" {% if remesa.tipo_pago == 'transferencia' %}selected{% endif %}>
+                                            Transferencia
+                                        </option>
+                                        <option value="efectivo" {% if remesa.tipo_pago == 'efectivo' %}selected{% endif %}>
+                                            Efectivo
+                                        </option>
+                                    </select>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="observaciones" class="form-label">Observaciones</label>
+                                    <textarea class="form-control bg-dark text-white border-secondary" 
+                                              id="observaciones" name="observaciones" rows="3">{{ remesa.observaciones }}</textarea>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="comprobante" class="form-label">Comprobante</label>
+                                    {% if remesa.comprobante %}
+                                        <div class="mb-2">
+                                            <img src="{{ remesa.comprobante.url }}" alt="Comprobante actual" 
+                                                 class="img-thumbnail" style="max-width: 150px;">
+                                            <small class="text-muted d-block">Archivo actual</small>
+                                        </div>
+                                    {% endif %}
+                                    <input type="file" class="form-control bg-dark text-white border-secondary" 
+                                           id="comprobante" name="comprobante" accept="image/*">
+                                    <small class="text-muted">Deje vacío para mantener el comprobante actual</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <!-- Botones -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'remesas:registro_transacciones' %}" class="btn btn-outline-light">
+                                <i class="fas fa-arrow-left me-2"></i>Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary" id="btnGuardar">
+                                <i class="fas fa-save me-2"></i>Guardar Cambios
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('formEditarRemesa');
+    const btnGuardar = document.getElementById('btnGuardar');
+    
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Deshabilitar botón mientras se procesa
+        btnGuardar.disabled = true;
+        btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Guardando...';
+        
+        // Crear FormData para manejar archivos
+        const formData = new FormData(form);
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                Swal.fire({
+                    title: '¡Éxito!',
+                    text: data.message,
+                    icon: 'success',
+                    background: '#343a40',
+                    color: '#ffffff'
+                }).then(() => {
+                    window.location.href = '{% url "remesas:registro_transacciones" %}';
+                });
+            } else {
+                Swal.fire({
+                    title: 'Error',
+                    text: data.message,
+                    icon: 'error',
+                    background: '#343a40',
+                    color: '#ffffff'
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            Swal.fire({
+                title: 'Error',
+                text: 'Ocurrió un error al guardar los cambios',
+                icon: 'error',
+                background: '#343a40',
+                color: '#ffffff'
+            });
+        })
+        .finally(() => {
+            // Rehabilitar botón
+            btnGuardar.disabled = false;
+            btnGuardar.innerHTML = '<i class="fas fa-save me-2"></i>Guardar Cambios';
+        });
+    });
+});
+</script>
+
+{% endblock %}

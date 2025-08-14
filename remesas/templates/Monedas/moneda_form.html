@@ -1,0 +1,99 @@
+
+{% extends 'eglisapp/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card bg-dark text-white">
+                <div class="card-header">
+                    <h3 class="text-center mb-0">
+                        <i class="fas fa-coins me-2"></i>{% if is_edit %}Editar{% else %}Crear{% endif %} Moneda
+                    </h3>
+                    {% if is_edit and tiene_registros %}
+                    <div class="alert alert-warning mt-3 mb-0" role="alert">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <div>
+                                <strong>⚠️ Advertencia:</strong> Esta moneda está siendo utilizada en el sistema:
+                                <ul class="mb-0 mt-2">
+                                    {% if remesas_count > 0 %}
+                                    <li><strong>{{ remesas_count }}</strong> remesa(s)</li>
+                                    {% endif %}
+                                    {% if balances_count > 0 %}
+                                    <li><strong>{{ balances_count }}</strong> balance(s) de usuario</li>
+                                    {% endif %}
+                                    {% if pagos_count > 0 %}
+                                    <li><strong>{{ pagos_count }}</strong> pago(s)</li>
+                                    {% endif %}
+                                </ul>
+                                <small class="text-muted d-block mt-2">
+                                    Los cambios no afectarán los registros históricos existentes.
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="codigo" class="form-label">Código</label>
+                            <input type="text" class="form-control bg-dark text-white" id="codigo" name="codigo" 
+                                   maxlength="10" placeholder="USD" required 
+                                   {% if is_edit %}value="{{ moneda.codigo }}"{% endif %}
+                                   {% if is_edit and moneda.codigo == 'USD' %}readonly{% endif %}>
+                            <small class="form-text text-muted">
+                                Código de hasta 10 caracteres de la moneda (ej: USD, EUR, COP, USDT)
+                                {% if is_edit and moneda.codigo == 'USD' %}
+                                    <br><span class="text-warning">⚠️ No se puede cambiar el código de la moneda USD</span>
+                                {% elif is_edit and tiene_registros %}
+                                    <br><span class="text-info">ℹ️ Esta moneda tiene registros asociados. El cambio de código no afectará los datos históricos.</span>
+                                {% endif %}
+                            </small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="nombre" class="form-label">Nombre</label>
+                            <input type="text" class="form-control bg-dark text-white" id="nombre" name="nombre" 
+                                   placeholder="Dólar Estadounidense" required {% if is_edit %}value="{{ moneda.nombre }}"{% endif %}>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="valor_actual" class="form-label">Valor Actual</label>
+                            <input type="number" class="form-control bg-dark text-white" id="valor_actual" name="valor_actual" 
+                                   step="0.01" min="0.01" placeholder="1.00" required {% if is_edit %}value="{{ moneda.valor_actual }}"{% endif %}>
+                            <small class="form-text text-muted">Valor actual de la moneda respecto al USD</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="valor_comercial" class="form-label">Valor Comercial</label>
+                            <input type="number" class="form-control bg-dark text-white" id="valor_comercial" name="valor_comercial" 
+                                   step="0.01" min="0.01" placeholder="1.00" required {% if is_edit %}value="{{ moneda.valor_comercial }}"{% endif %}>
+                            <small class="form-text text-muted">Valor comercial de la moneda para transacciones</small>
+                        </div>
+                        
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="activa" name="activa" 
+                                   {% if not is_edit or moneda.activa %}checked{% endif %}>
+                            <label class="form-check-label" for="activa">Moneda Activa</label>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Guardar
+                            </button>
+                            <a href="{% url 'remesas:lista_monedas' %}" class="btn btn-secondary">
+                                <i class="fas fa-times me-2"></i>Cancelar
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

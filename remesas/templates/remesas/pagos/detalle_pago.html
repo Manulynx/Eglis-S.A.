@@ -1,0 +1,334 @@
+{% extends 'eglisapp/base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="text-white">
+                    <i class="fas fa-credit-card mr-2"></i>
+                    {{ title }}
+                </h2>
+                <div>
+                    <a href="{% url 'remesas:editar_pago' pago.id %}" class="btn btn-warning mr-2">
+                        <i class="fas fa-edit mr-1"></i>
+                        Editar
+                    </a>
+                    <a href="{% url 'remesas:registro_transacciones' %}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left mr-1"></i>
+                        Volver a Lista
+                    </a>
+                </div>
+            </div>
+
+            <!-- Card principal -->
+            <div class="card bg-dark border-secondary">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            Información del Pago
+                        </h5>
+                        <span class="badge badge-light badge-lg">{{ pago.pago_id|default:"Sin ID" }}</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Información principal -->
+                        <div class="col-md-6">
+                            <h6 class="text-white border-bottom border-secondary pb-2 mb-3">
+                                <i class="fas fa-file-alt mr-1"></i>
+                                Datos del Pago
+                            </h6>
+                            
+                            <div class="mb-3">
+                                <label class="text-muted small">Tipo de Pago:</label>
+                                <div>
+                                    <span class="badge badge-{% if pago.tipo_pago == 'transferencia' %}info{% else %}warning{% endif %} badge-lg">
+                                        <i class="fas fa-{% if pago.tipo_pago == 'transferencia' %}exchange-alt{% else %}money-bill-wave{% endif %} mr-1"></i>
+                                        {{ pago.get_tipo_pago_display }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="text-muted small">Cantidad:</label>
+                                <div>
+                                    <span class="h4 text-success">
+                                        <i class="fas fa-dollar-sign"></i>{{ pago.cantidad|floatformat:2 }}
+                                    </span>
+                                    {% if pago.tipo_moneda %}
+                                        <span class="badge badge-secondary ml-2">{{ pago.tipo_moneda.codigo }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            {% if pago.tipo_moneda %}
+                            <div class="mb-3">
+                                <label class="text-muted small">Moneda:</label>
+                                <div class="text-white">
+                                    <strong>{{ pago.tipo_moneda.nombre }}</strong>
+                                    <small class="text-muted">({{ pago.tipo_moneda.codigo }})</small>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <div class="mb-3">
+                                <label class="text-muted small">Fecha de Creación:</label>
+                                <div class="text-white">
+                                    <i class="fas fa-calendar mr-1"></i>
+                                    {{ pago.fecha_creacion|date:"d/m/Y" }}
+                                    <small class="text-muted">{{ pago.fecha_creacion|date:"H:i" }}</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Información del destinatario -->
+                        <div class="col-md-6">
+                            <h6 class="text-white border-bottom border-secondary pb-2 mb-3">
+                                <i class="fas fa-user mr-1"></i>
+                                Datos del Destinatario
+                            </h6>
+                            
+                            <div class="mb-3">
+                                <label class="text-muted small">Nombre Completo:</label>
+                                <div class="text-white">
+                                    <strong>{{ pago.destinatario }}</strong>
+                                </div>
+                            </div>
+
+                            {% if pago.carnet_identidad %}
+                            <div class="mb-3">
+                                <label class="text-muted small">Documento de Identidad:</label>
+                                <div class="text-white">
+                                    <i class="fas fa-id-card mr-1"></i>
+                                    {{ pago.carnet_identidad }}
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            {% if pago.telefono %}
+                            <div class="mb-3">
+                                <label class="text-muted small">Teléfono:</label>
+                                <div class="text-white">
+                                    <i class="fas fa-phone mr-1"></i>
+                                    <a href="tel:{{ pago.telefono }}" class="text-white text-decoration-none">
+                                        {{ pago.telefono }}
+                                    </a>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            {% if pago.direccion %}
+                            <div class="mb-3">
+                                <label class="text-muted small">Dirección:</label>
+                                <div class="text-white">
+                                    <i class="fas fa-map-marker-alt mr-1"></i>
+                                    {{ pago.direccion }}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Observaciones -->
+                    {% if pago.observaciones %}
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <h6 class="text-white border-bottom border-secondary pb-2 mb-3">
+                                <i class="fas fa-sticky-note mr-1"></i>
+                                Observaciones
+                            </h6>
+                            <div class="alert alert-info bg-dark border-info text-white">
+                                <i class="fas fa-info-circle mr-2"></i>
+                                {{ pago.observaciones|linebreaks }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Comprobante de Pago -->
+                    {% if pago.comprobante_pago %}
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <h6 class="text-white border-bottom border-secondary pb-2 mb-3">
+                                <i class="fas fa-receipt mr-1"></i>
+                                Comprobante de Pago
+                            </h6>
+                            <div class="text-center">
+                                <div class="mb-3">
+                                    <img src="{{ pago.comprobante_pago.url }}" 
+                                         alt="Comprobante de pago" 
+                                         class="img-fluid rounded border border-secondary"
+                                         style="max-width: 100%; max-height: 400px; cursor: pointer;"
+                                         onclick="mostrarComprobanteCompleto('{{ pago.comprobante_pago.url }}')">
+                                </div>
+                                <div class="d-flex justify-content-center gap-2">
+                                    <a href="{{ pago.comprobante_pago.url }}" 
+                                       target="_blank" 
+                                       class="btn btn-outline-light btn-sm">
+                                        <i class="fas fa-eye mr-1"></i>
+                                        Ver en nueva pestaña
+                                    </a>
+                                    <a href="{{ pago.comprobante_pago.url }}" 
+                                       download 
+                                       class="btn btn-outline-success btn-sm">
+                                        <i class="fas fa-download mr-1"></i>
+                                        Descargar
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Acciones -->
+            <div class="card bg-dark border-secondary mt-3">
+                <div class="card-body">
+                    <h6 class="text-white mb-3">
+                        <i class="fas fa-cogs mr-1"></i>
+                        Acciones Disponibles
+                    </h6>
+                    <div class="d-flex justify-content-center">
+                        <a href="{% url 'remesas:editar_pago' pago.id %}" class="btn btn-warning mr-2">
+                            <i class="fas fa-edit mr-1"></i>
+                            Editar Pago
+                        </a>
+                        <button type="button" 
+                                class="btn btn-danger mr-2 btn-eliminar-pago"
+                                data-pago-id="{{ pago.id }}"
+                                data-pago-destinatario="{{ pago.destinatario }}">
+                            <i class="fas fa-trash mr-1"></i>
+                            Eliminar Pago
+                        </button>
+                        <a href="{% url 'remesas:registro_transacciones' %}" class="btn btn-secondary">
+                            <i class="fas fa-list mr-1"></i>
+                            Ver Todos los Pagos
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Información adicional -->
+            <div class="card bg-dark border-secondary mt-3">
+                <div class="card-body">
+                    <h6 class="text-white mb-2">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Resumen:
+                    </h6>
+                    <div class="row">
+                        <div class="col-md-4 text-center">
+                            <div class="text-muted small">ID del Pago</div>
+                            <div class="h5 text-primary">#{{ pago.id }}</div>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <div class="text-muted small">Monto Total</div>
+                            <div class="h5 text-success">
+                                ${{ pago.cantidad|floatformat:2 }}
+                                {% if pago.tipo_moneda %}{{ pago.tipo_moneda.codigo }}{% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <div class="text-muted small">Método</div>
+                            <div class="h5 text-info">{{ pago.get_tipo_pago_display }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Agregar event listener al botón de eliminar
+    const btnEliminar = document.querySelector('.btn-eliminar-pago');
+    if (btnEliminar) {
+        btnEliminar.addEventListener('click', function() {
+            const pagoId = this.getAttribute('data-pago-id');
+            const destinatario = this.getAttribute('data-pago-destinatario');
+            eliminarPago(pagoId, destinatario);
+        });
+    }
+});
+
+function mostrarComprobanteCompleto(url) {
+    Swal.fire({
+        imageUrl: url,
+        imageAlt: 'Comprobante de pago',
+        showCloseButton: true,
+        showConfirmButton: false,
+        background: '#343a40',
+        imageWidth: '90%',
+        imageHeight: 'auto',
+        customClass: {
+            image: 'img-fluid'
+        }
+    });
+}
+
+function eliminarPago(pagoId, destinatario) {
+    Swal.fire({
+        title: '¿Estás seguro?',
+        text: `Se eliminará el pago para "${destinatario}"`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar',
+        background: '#343a40',
+        color: '#ffffff'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            fetch(`{% url 'remesas:eliminar_pago' 0 %}`.replace('0', pagoId), {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        title: '¡Eliminado!',
+                        text: data.message,
+                        icon: 'success',
+                        background: '#343a40',
+                        color: '#ffffff'
+                    }).then(() => {
+                        window.location.href = '{% url "remesas:registro_transacciones" %}';
+                    });
+                } else {
+                    Swal.fire({
+                        title: 'Error',
+                        text: data.message,
+                        icon: 'error',
+                        background: '#343a40',
+                        color: '#ffffff'
+                    });
+                }
+            })
+            .catch(error => {
+                Swal.fire({
+                    title: 'Error',
+                    text: 'Ocurrió un error inesperado',
+                    icon: 'error',
+                    background: '#343a40',
+                    color: '#ffffff'
+                });
+            });
+        }
+    });
+}
+</script>
+{% endblock %}

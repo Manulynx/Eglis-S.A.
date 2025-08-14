@@ -1,0 +1,300 @@
+{% extends 'eglisapp/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card bg-dark text-white">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <h3 class="mb-0">
+                            <i class="fas fa-edit me-2"></i>
+                            Editar Pago
+                        </h3>
+                        <small class="text-muted">ID: {{ pago.pago_id }}</small>
+                    </div>
+                    <div class="btn-group">
+                        <a href="{% url 'remesas:detalle_pago' pago.id %}" class="btn btn-outline-light">
+                            <i class="fas fa-eye me-2"></i>Ver Detalle
+                        </a>
+                        <a href="{% url 'remesas:registro_transacciones' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-2"></i>Volver a Lista
+                        </a>
+                    </div>
+                </div>
+
+                <div class="card-body">
+                    <form id="formEditarPago" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <!-- Información básica del Pago -->
+                        <div class="row">
+                            <div class="col-12">
+                                <h5 class="text-info border-bottom pb-2 mb-3">
+                                    <i class="fas fa-credit-card me-2"></i>Información del Pago
+                                </h5>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="destinatario" class="form-label">Destinatario *</label>
+                                    <input type="text" class="form-control bg-dark text-white border-secondary" 
+                                           id="destinatario" name="destinatario" 
+                                           value="{{ pago.destinatario }}" required>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="cantidad" class="form-label">Cantidad *</label>
+                                    <input type="number" step="0.01" class="form-control bg-dark text-white border-secondary" 
+                                           id="cantidad" name="cantidad" 
+                                           value="{{ pago.cantidad }}" required>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="tipo_moneda" class="form-label">Moneda *</label>
+                                    <select class="form-control bg-dark text-white border-secondary" 
+                                            id="tipo_moneda" name="tipo_moneda" required>
+                                        <option value="">Seleccione una moneda</option>
+                                        {% for moneda_option in monedas %}
+                                            <option value="{{ moneda_option.id }}" 
+                                                    data-valor="{{ moneda_option.valor_actual }}"
+                                                    {% if pago.tipo_moneda.id == moneda_option.id %}selected{% endif %}>
+                                                {{ moneda_option.nombre }} ({{ moneda_option.codigo }})
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="tipo_pago" class="form-label">Tipo de Pago *</label>
+                                    <select class="form-control bg-dark text-white border-secondary" 
+                                            id="tipo_pago" name="tipo_pago" required>
+                                        <option value="">Seleccione tipo de pago</option>
+                                        <option value="transferencia" {% if pago.tipo_pago == 'transferencia' %}selected{% endif %}>
+                                            Transferencia
+                                        </option>
+                                        <option value="efectivo" {% if pago.tipo_pago == 'efectivo' %}selected{% endif %}>
+                                            Efectivo
+                                        </option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="telefono" class="form-label">Teléfono</label>
+                                    <input type="text" class="form-control bg-dark text-white border-secondary" 
+                                           id="telefono" name="telefono" 
+                                           value="{{ pago.telefono }}">
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="carnet_identidad" class="form-label">Carnet de Identidad</label>
+                                    <input type="text" class="form-control bg-dark text-white border-secondary" 
+                                           id="carnet_identidad" name="carnet_identidad" 
+                                           value="{{ pago.carnet_identidad }}">
+                                </div>
+                                
+                                <div class="mb-3" id="campo_tarjeta">
+                                    <label for="tarjeta" class="form-label">Número de Tarjeta</label>
+                                    <input type="text" class="form-control bg-dark text-white border-secondary" 
+                                           id="tarjeta" name="tarjeta" 
+                                           value="{{ pago.tarjeta }}" maxlength="19" 
+                                           placeholder="#### #### #### ####">
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="direccion" class="form-label">Dirección</label>
+                                    <textarea class="form-control bg-dark text-white border-secondary" 
+                                              id="direccion" name="direccion" rows="2">{{ pago.direccion }}</textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <!-- Campos adicionales -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="observaciones" class="form-label">Observaciones</label>
+                                    <textarea class="form-control bg-dark text-white border-secondary" 
+                                              id="observaciones" name="observaciones" rows="3">{{ pago.observaciones }}</textarea>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="comprobante_pago" class="form-label">Comprobante de Pago</label>
+                                    {% if pago.comprobante_pago %}
+                                        <div class="mb-2">
+                                            <img src="{{ pago.comprobante_pago.url }}" alt="Comprobante actual" 
+                                                 class="img-thumbnail" style="max-width: 150px;">
+                                            <small class="text-muted d-block">Archivo actual</small>
+                                        </div>
+                                    {% endif %}
+                                    <input type="file" class="form-control bg-dark text-white border-secondary" 
+                                           id="comprobante_pago" name="comprobante_pago" accept="image/*">
+                                    <small class="text-muted">Deje vacío para mantener el comprobante actual</small>
+                                </div>
+                                
+                                <!-- Mostrar equivalencia en USD -->
+                                <div class="alert alert-info" id="equivalencia_usd" style="display: none;">
+                                    <strong>Equivalencia en USD:</strong> $<span id="monto_usd">0.00</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+
+                        <!-- Botones -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'remesas:registro_transacciones' %}" class="btn btn-outline-light">
+                                <i class="fas fa-arrow-left me-2"></i>Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary" id="btnGuardar">
+                                <i class="fas fa-save me-2"></i>Guardar Cambios
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('formEditarPago');
+    const btnGuardar = document.getElementById('btnGuardar');
+    const tipoPagoSelect = document.getElementById('tipo_pago');
+    const campoTarjeta = document.getElementById('campo_tarjeta');
+    const tarjetaInput = document.getElementById('tarjeta');
+    const cantidadInput = document.getElementById('cantidad');
+    const tipoMonedaSelect = document.getElementById('tipo_moneda');
+    const equivalenciaDiv = document.getElementById('equivalencia_usd');
+    const montoUsdSpan = document.getElementById('monto_usd');
+    
+    // Configurar visibilidad inicial del campo de tarjeta
+    const tipoPagoInicial = '{{ pago.tipo_pago }}';
+    if (tipoPagoInicial !== 'transferencia') {
+        campoTarjeta.style.display = 'none';
+        tarjetaInput.required = false;
+    } else {
+        campoTarjeta.style.display = 'block';
+        tarjetaInput.required = true;
+    }
+    
+    // Mostrar/ocultar campo de tarjeta según tipo de pago
+    tipoPagoSelect.addEventListener('change', function() {
+        if (this.value === 'transferencia') {
+            campoTarjeta.style.display = 'block';
+            tarjetaInput.required = true;
+        } else {
+            campoTarjeta.style.display = 'none';
+            tarjetaInput.required = false;
+            tarjetaInput.value = '';
+        }
+    });
+    
+    // Formatear número de tarjeta
+    tarjetaInput.addEventListener('input', function() {
+        let value = this.value.replace(/\D/g, '');
+        value = value.replace(/(\d{4})(?=\d)/g, '$1 ');
+        this.value = value;
+    });
+    
+    // Calcular equivalencia en USD
+    function calcularEquivalenciaUSD() {
+        const cantidad = parseFloat(cantidadInput.value) || 0;
+        const selectedOption = tipoMonedaSelect.selectedOptions[0];
+        
+        if (cantidad > 0 && selectedOption) {
+            const valorMoneda = parseFloat(selectedOption.dataset.valor) || 1;
+            const codigo = selectedOption.textContent.match(/\(([^)]+)\)/)[1];
+            
+            let montoUSD = 0;
+            if (codigo === 'USD') {
+                montoUSD = cantidad;
+            } else {
+                montoUSD = cantidad / valorMoneda;
+            }
+            
+            montoUsdSpan.textContent = montoUSD.toFixed(2);
+            equivalenciaDiv.style.display = 'block';
+        } else {
+            equivalenciaDiv.style.display = 'none';
+        }
+    }
+    
+    cantidadInput.addEventListener('input', calcularEquivalenciaUSD);
+    tipoMonedaSelect.addEventListener('change', calcularEquivalenciaUSD);
+    
+    // Calcular al cargar la página
+    calcularEquivalenciaUSD();
+    
+    // Envío del formulario
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Deshabilitar botón mientras se procesa
+        btnGuardar.disabled = true;
+        btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Guardando...';
+        
+        // Crear FormData para manejar archivos
+        const formData = new FormData(form);
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                Swal.fire({
+                    title: '¡Éxito!',
+                    text: data.message,
+                    icon: 'success',
+                    background: '#343a40',
+                    color: '#ffffff'
+                }).then(() => {
+                    window.location.href = '{% url "remesas:registro_transacciones" %}';
+                });
+            } else {
+                Swal.fire({
+                    title: 'Error',
+                    text: data.message,
+                    icon: 'error',
+                    background: '#343a40',
+                    color: '#ffffff'
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            Swal.fire({
+                title: 'Error',
+                text: 'Ocurrió un error al guardar los cambios',
+                icon: 'error',
+                background: '#343a40',
+                color: '#ffffff'
+            });
+        })
+        .finally(() => {
+            // Rehabilitar botón
+            btnGuardar.disabled = false;
+            btnGuardar.innerHTML = '<i class="fas fa-save me-2"></i>Guardar Cambios';
+        });
+    });
+});
+</script>
+
+{% endblock %}

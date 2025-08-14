@@ -1,0 +1,797 @@
+
+{% extends 'eglisapp/base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-6">
+            <!-- Card del formulario -->
+            <div class="card bg-dark border-secondary">
+                <div class="card-body">
+                    <h4 class="text-white text-center mb-4">
+                        <i class="fas fa-paper-plane text-primary me-2"></i>
+                        Enviar
+                    </h4>
+
+                    <!-- Balance disponible -->
+                    <div class="alert bg-dark text-white border {% if user.perfil.balance >= 0 %}border-info{% else %}border-danger{% endif %} mb-4">
+                        <div class="text-center">
+                            <h6 class="mb-2">Balance Disponible</h6>
+                            <h3 class="mb-0 {% if user.perfil.balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                ${{ user.perfil.balance|floatformat:2 }} USD
+                                {% if user.perfil.balance < 0 %}
+                                    <small class="d-block text-warning" style="font-size: 0.7rem;">
+                                        <i class="fas fa-exclamation-triangle me-1"></i>Balance negativo
+                                    </small>
+                                {% endif %}
+                            </h3>
+                        </div>
+                    </div>
+
+                    <form method="post" enctype="multipart/form-data" novalidate>
+                        {% csrf_token %}
+                        
+                        <!-- Tipo de Pago -->
+                        <div class="mb-3">
+                            <label class="form-label text-white">
+                                Tipo de Pago *
+                            </label>
+                            <div class="mt-2">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input tipo-pago-check" type="checkbox" 
+                                           id="tipo_pago_transferencia" name="tipo_pago" value="transferencia">
+                                    <label class="form-check-label text-white" for="tipo_pago_transferencia">
+                                        <i class="fas fa-university me-2"></i>Transferencia
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input tipo-pago-check" type="checkbox" 
+                                           id="tipo_pago_efectivo" name="tipo_pago" value="efectivo">
+                                    <label class="form-check-label text-white" for="tipo_pago_efectivo">
+                                        <i class="fas fa-money-bills me-2"></i>Efectivo
+                                    </label>
+                                </div>
+                            </div>
+                            {% if form.tipo_pago.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.tipo_pago.errors.0 }}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Campos para Transferencia -->
+                        <div id="campos_transferencia" style="display: none;">
+                            <!-- Campo oculto para destinatario en transferencias -->
+                            <input type="hidden" id="destinatario_transferencia" name="destinatario" value="">
+                            
+                            <div class="mb-3">
+                                <label for="{{ form.tipo_moneda.id_for_label }}" class="form-label text-white">
+                                    Moneda *
+                                </label>
+                                {{ form.tipo_moneda }}
+                                {% if form.tipo_moneda.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.tipo_moneda.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="{{ form.cantidad.id_for_label }}" class="form-label text-white">
+                                    Cantidad *
+                                </label>
+                                {{ form.cantidad }}
+                                {% if form.cantidad.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.cantidad.errors.0 }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="{{ form.tarjeta.id_for_label }}" class="form-label text-white">
+                                    Tarjeta *
+                                </label>
+                                {{ form.tarjeta }}
+                                {% if form.tarjeta.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.tarjeta.errors.0 }}
+                                    </div>
+                                {% endif %}
+                                <small class="form-text text-muted">Ingrese el número de tarjeta (16 dígitos)</small>
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="check_comprobante_pago">
+                                    <label class="form-check-label text-white" for="check_comprobante_pago">
+                                        <i class="fas fa-receipt me-2"></i>Adjuntar comprobante de pago
+                                    </label>
+                                </div>
+                                <div id="campo_comprobante_pago" style="display: none;">
+                                    <label for="{{ form.comprobante_pago.id_for_label }}" class="form-label text-white">Comprobante de Pago</label>
+                                    {{ form.comprobante_pago }}
+                                    {% if form.comprobante_pago.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.comprobante_pago.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">Suba una imagen del comprobante de pago</small>
+                                </div>
+                            </div>
+
+                            <!-- Campo de Observaciones para Transferencia -->
+                            <div class="mb-3">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="check_observaciones_transferencia">
+                                    <label class="form-check-label text-white" for="check_observaciones_transferencia">
+                                        <i class="fas fa-comment me-2"></i>Agregar observaciones
+                                    </label>
+                                </div>
+                                <div id="campo_observaciones_transferencia" style="display: none;">
+                                    <label for="{{ form.observaciones.id_for_label }}" class="form-label text-white">
+                                        Observaciones
+                                    </label>
+                                    {{ form.observaciones }}
+                                    {% if form.observaciones.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {{ form.observaciones.errors.0 }}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">Agregue comentarios adicionales sobre el pago</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Campos para Efectivo -->
+                        <div id="campos_efectivo" style="display: none;">
+                            <div class="mb-3">
+                                <label for="{{ form.tipo_moneda.id_for_label }}_efectivo" class="form-label text-white">
+                                    Moneda *
+                                </label>
+                                <select class="form-select bg-dark text-white border-secondary" 
+                                        id="{{ form.tipo_moneda.id_for_label }}_efectivo" 
+                                        name="tipo_moneda_efectivo">
+                                    <option value="">Seleccionar moneda...</option>
+                                    {% for moneda in form.tipo_moneda.field.queryset %}
+                                        <option value="{{ moneda.id }}">{{ moneda.nombre }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="{{ form.cantidad.id_for_label }}_efectivo" class="form-label text-white">
+                                    Cantidad *
+                                </label>
+                                <input type="number" class="form-control bg-dark text-white border-secondary" 
+                                       id="{{ form.cantidad.id_for_label }}_efectivo" 
+                                       name="cantidad_efectivo" step="0.01" placeholder="0.00">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="{{ form.destinatario.id_for_label }}_efectivo" class="form-label text-white">
+                                    Destinatario *
+                                </label>
+                                <input type="text" class="form-control bg-dark text-white border-secondary" 
+                                       id="{{ form.destinatario.id_for_label }}_efectivo" 
+                                       name="destinatario_efectivo" placeholder="Nombre del destinatario">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="{{ form.telefono.id_for_label }}_efectivo" class="form-label text-white">
+                                    Teléfono *
+                                </label>
+                                <input type="tel" class="form-control bg-dark text-white border-secondary" 
+                                       id="{{ form.telefono.id_for_label }}_efectivo" 
+                                       name="telefono_efectivo" placeholder="+1234567890">
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="{{ form.direccion.id_for_label }}_efectivo" class="form-label text-white">
+                                    Dirección *
+                                </label>
+                                <textarea class="form-control bg-dark text-white border-secondary" 
+                                          id="{{ form.direccion.id_for_label }}_efectivo" 
+                                          name="direccion_efectivo" rows="3" 
+                                          placeholder="Dirección completa del destinatario"></textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="{{ form.carnet_identidad.id_for_label }}_efectivo" class="form-label text-white">
+                                    Cédula/Documento
+                                </label>
+                                <input type="text" class="form-control bg-dark text-white border-secondary" 
+                                       id="{{ form.carnet_identidad.id_for_label }}_efectivo" 
+                                       name="carnet_identidad_efectivo" 
+                                       placeholder="Número de cédula o documento de identidad">
+                            </div>
+
+                            <!-- Campo de Observaciones para Efectivo -->
+                            <div class="mb-3">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="check_observaciones_efectivo">
+                                    <label class="form-check-label text-white" for="check_observaciones_efectivo">
+                                        <i class="fas fa-comment me-2"></i>Agregar observaciones
+                                    </label>
+                                </div>
+                                <div id="campo_observaciones_efectivo" style="display: none;">
+                                    <label for="observaciones_efectivo" class="form-label text-white">
+                                        Observaciones
+                                    </label>
+                                    <textarea class="form-control bg-dark text-white border-secondary" 
+                                              id="observaciones_efectivo" 
+                                              name="observaciones_efectivo" rows="3" 
+                                              placeholder="Agregue comentarios adicionales sobre el pago"></textarea>
+                                    <small class="form-text text-muted">Agregue comentarios adicionales sobre el pago</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Mostrar errores de destinatario si existen -->
+                        {% if form.destinatario.errors %}
+                            <div class="alert alert-danger">
+                                {{ form.destinatario.errors.0 }}
+                            </div>
+                        {% endif %}
+
+                        <!-- Botones -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'remesas:registro_transacciones' %}" class="btn btn-outline-light">
+                                Volver
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                Realizar Pago
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Script para pasar datos de Django a JavaScript -->
+<script type="application/json" id="monedas-data">{{ monedas_data_json|safe }}</script>
+<script type="application/json" id="user-balance">{{ user.perfil.balance|floatformat:2 }}</script>
+
+<!-- Estilos para checkboxes -->
+<style>
+.form-check-input {
+    background-color: #1a1a1a;
+    border: 1px solid #333;
+    margin-right: 8px;
+}
+
+.form-check-input:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.form-check-input:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+.form-check-label {
+    cursor: pointer;
+    user-select: none;
+}
+
+.form-check-label:hover {
+    color: #87ceeb !important;
+}
+
+.tipo-pago-check:checked + .form-check-label {
+    color: #87ceeb !important;
+}
+
+/* Estilos para input file */
+input[type="file"].form-control {
+    padding: 8px;
+}
+
+input[type="file"].form-control::file-selector-button {
+    background-color: #0d6efd;
+    border: none;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 3px;
+    margin-right: 10px;
+    cursor: pointer;
+}
+
+input[type="file"].form-control::file-selector-button:hover {
+    background-color: #0b5ed7;
+}
+
+/* Animación para mostrar/ocultar campos */
+.campo-animado {
+    transition: all 0.3s ease-in-out;
+    overflow: hidden;
+}
+</style>
+
+<!-- JavaScript para validación en tiempo real -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Configurar checkboxes de tipo de pago para comportamiento exclusivo
+    configurarTipoPago();
+    
+    // Validación en tiempo real del formulario
+    const form = document.querySelector('form');
+    const cantidadInput = document.getElementById('{{ form.cantidad.id_for_label }}');
+    const monedaSelect = document.getElementById('{{ form.tipo_moneda.id_for_label }}');
+    const telefonoInput = document.getElementById('{{ form.telefono.id_for_label }}');
+    
+    // Obtener datos desde los scripts JSON
+    const monedasDataElement = document.getElementById('monedas-data');
+    const userBalanceElement = document.getElementById('user-balance');
+    
+    let monedasData = {};
+    let balanceActual = 0;
+    
+    try {
+        monedasData = JSON.parse(monedasDataElement.textContent);
+    } catch (e) {
+        console.error('Error parsing monedas data:', e);
+        monedasData = {};
+    }
+    
+    try {
+        balanceActual = parseFloat(userBalanceElement.textContent) || 0;
+    } catch (e) {
+        console.error('Error parsing balance:', e);
+        balanceActual = 0;
+    }
+
+    function configurarTipoPago() {
+        const tiposPagoChecks = document.querySelectorAll('.tipo-pago-check');
+        const camposTransferencia = document.getElementById('campos_transferencia');
+        const camposEfectivo = document.getElementById('campos_efectivo');
+        
+        tiposPagoChecks.forEach(function(checkbox) {
+            checkbox.addEventListener('change', function() {
+                if (this.checked) {
+                    // Desmarcar todos los otros checkboxes de tipo de pago
+                    tiposPagoChecks.forEach(function(otherCheckbox) {
+                        if (otherCheckbox !== checkbox) {
+                            otherCheckbox.checked = false;
+                        }
+                    });
+                    
+                    // Mostrar campos correspondientes
+                    if (this.value === 'transferencia') {
+                        camposTransferencia.style.display = 'block';
+                        camposEfectivo.style.display = 'none';
+                        limpiarCamposEfectivo();
+                        
+                        // Establecer valor por defecto para destinatario en transferencias
+                        const destinatarioTransferencia = document.getElementById('destinatario_transferencia');
+                        if (destinatarioTransferencia) {
+                            destinatarioTransferencia.value = 'Transferencia bancaria';
+                        }
+                    } else if (this.value === 'efectivo') {
+                        camposEfectivo.style.display = 'block';
+                        camposTransferencia.style.display = 'none';
+                        limpiarCamposTransferencia();
+                    }
+                } else {
+                    // Si se desmarca, ocultar todos los campos
+                    camposTransferencia.style.display = 'none';
+                    camposEfectivo.style.display = 'none';
+                }
+            });
+        });
+        
+        // Configurar checkbox del comprobante de pago
+        configurarComprobantePago();
+    }
+    
+    function configurarComprobantePago() {
+        const checkComprobante = document.getElementById('check_comprobante_pago');
+        const campoComprobante = document.getElementById('campo_comprobante_pago');
+        const inputComprobante = document.getElementById('comprobante_pago');
+        
+        if (checkComprobante) {
+            checkComprobante.addEventListener('change', function() {
+                if (this.checked) {
+                    campoComprobante.style.display = 'block';
+                    campoComprobante.classList.add('campo-animado');
+                } else {
+                    campoComprobante.style.display = 'none';
+                    if (inputComprobante) {
+                        inputComprobante.value = '';
+                    }
+                }
+            });
+        }
+        
+        // Configurar checkbox de observaciones para transferencia
+        const checkObservacionesTransferencia = document.getElementById('check_observaciones_transferencia');
+        const campoObservacionesTransferencia = document.getElementById('campo_observaciones_transferencia');
+        const inputObservacionesTransferencia = document.getElementById('{{ form.observaciones.id_for_label }}');
+        
+        if (checkObservacionesTransferencia) {
+            checkObservacionesTransferencia.addEventListener('change', function() {
+                if (this.checked) {
+                    campoObservacionesTransferencia.style.display = 'block';
+                    campoObservacionesTransferencia.classList.add('campo-animado');
+                } else {
+                    campoObservacionesTransferencia.style.display = 'none';
+                    if (inputObservacionesTransferencia) {
+                        inputObservacionesTransferencia.value = '';
+                    }
+                }
+            });
+        }
+        
+        // Configurar checkbox de observaciones para efectivo
+        const checkObservacionesEfectivo = document.getElementById('check_observaciones_efectivo');
+        const campoObservacionesEfectivo = document.getElementById('campo_observaciones_efectivo');
+        const inputObservacionesEfectivo = document.getElementById('observaciones_efectivo');
+        
+        if (checkObservacionesEfectivo) {
+            checkObservacionesEfectivo.addEventListener('change', function() {
+                if (this.checked) {
+                    campoObservacionesEfectivo.style.display = 'block';
+                    campoObservacionesEfectivo.classList.add('campo-animado');
+                } else {
+                    campoObservacionesEfectivo.style.display = 'none';
+                    if (inputObservacionesEfectivo) {
+                        inputObservacionesEfectivo.value = '';
+                    }
+                }
+            });
+        }
+    }
+    
+    function limpiarCamposTransferencia() {
+        const campos = ['{{ form.tarjeta.id_for_label }}', '{{ form.comprobante_pago.id_for_label }}', 'destinatario_transferencia'];
+        campos.forEach(function(campo) {
+            const elemento = document.getElementById(campo);
+            if (elemento) {
+                elemento.value = '';
+            }
+        });
+        
+        // Resetear checkbox del comprobante
+        const checkComprobante = document.getElementById('check_comprobante_pago');
+        const campoComprobante = document.getElementById('campo_comprobante_pago');
+        if (checkComprobante) {
+            checkComprobante.checked = false;
+        }
+        if (campoComprobante) {
+            campoComprobante.style.display = 'none';
+        }
+        
+        // Resetear checkbox de observaciones para transferencia
+        const checkObservacionesTransferencia = document.getElementById('check_observaciones_transferencia');
+        const campoObservacionesTransferencia = document.getElementById('campo_observaciones_transferencia');
+        const inputObservacionesTransferencia = document.getElementById('{{ form.observaciones.id_for_label }}');
+        if (checkObservacionesTransferencia) {
+            checkObservacionesTransferencia.checked = false;
+        }
+        if (campoObservacionesTransferencia) {
+            campoObservacionesTransferencia.style.display = 'none';
+        }
+        if (inputObservacionesTransferencia) {
+            inputObservacionesTransferencia.value = '';
+        }
+    }
+    
+    function limpiarCamposEfectivo() {
+        const campos = [
+            '{{ form.tipo_moneda.id_for_label }}_efectivo',
+            '{{ form.cantidad.id_for_label }}_efectivo',
+            '{{ form.destinatario.id_for_label }}_efectivo',
+            '{{ form.telefono.id_for_label }}_efectivo',
+            '{{ form.direccion.id_for_label }}_efectivo',
+            '{{ form.carnet_identidad.id_for_label }}_efectivo',
+            'observaciones_efectivo'
+        ];
+        campos.forEach(function(campo) {
+            const elemento = document.getElementById(campo);
+            if (elemento) {
+                elemento.value = '';
+            }
+        });
+        
+        // Resetear checkbox de observaciones para efectivo
+        const checkObservacionesEfectivo = document.getElementById('check_observaciones_efectivo');
+        const campoObservacionesEfectivo = document.getElementById('campo_observaciones_efectivo');
+        if (checkObservacionesEfectivo) {
+            checkObservacionesEfectivo.checked = false;
+        }
+        if (campoObservacionesEfectivo) {
+            campoObservacionesEfectivo.style.display = 'none';
+        }
+    }
+    
+    // Función para obtener valor de moneda
+    function obtenerValorMoneda(monedaId) {
+        if (monedasData[monedaId]) {
+            return monedasData[monedaId];
+        }
+        return { codigo: 'USD', valor_actual: 1 };
+    }
+    
+    // Función para calcular y mostrar el monto en USD
+    function calcularMontoUSD() {
+        const tipoPagoSeleccionado = document.querySelector('.tipo-pago-check:checked');
+        
+        if (!tipoPagoSeleccionado) return;
+        
+        let cantidadInput, monedaSelect;
+        
+        if (tipoPagoSeleccionado.value === 'transferencia') {
+            cantidadInput = document.getElementById('{{ form.cantidad.id_for_label }}');
+            monedaSelect = document.getElementById('{{ form.tipo_moneda.id_for_label }}');
+        } else if (tipoPagoSeleccionado.value === 'efectivo') {
+            cantidadInput = document.getElementById('{{ form.cantidad.id_for_label }}_efectivo');
+            monedaSelect = document.getElementById('{{ form.tipo_moneda.id_for_label }}_efectivo');
+        }
+        
+        if (cantidadInput && monedaSelect) {
+            const cantidad = parseFloat(cantidadInput.value) || 0;
+            const monedaId = monedaSelect.value;
+            
+            if (cantidad > 0 && monedaId) {
+                const moneda = obtenerValorMoneda(monedaId);
+                let montoUSD = cantidad;
+                
+                if (moneda.codigo !== 'USD') {
+                    montoUSD = cantidad / moneda.valor_actual;
+                }
+                
+                // Mostrar el cálculo
+                let calculoDiv = document.getElementById('calculo-usd');
+                if (!calculoDiv) {
+                    calculoDiv = document.createElement('div');
+                    calculoDiv.id = 'calculo-usd';
+                    calculoDiv.className = 'alert alert-warning mt-2';
+                    cantidadInput.parentNode.appendChild(calculoDiv);
+                }
+                
+                const quedara = balanceActual - montoUSD;
+                
+                let mensaje = '<strong>Monto en USD:</strong> $' + montoUSD.toFixed(2) + ' USD<br>';
+                mensaje += '<strong>Balance después del pago:</strong> $' + quedara.toFixed(2) + ' USD';
+                
+                if (quedara < 0) {
+                    calculoDiv.className = 'alert alert-warning mt-2';
+                    mensaje += '<br><span class="text-warning"><i class="fas fa-info-circle"></i> Balance resultará negativo</span>';
+                } else {
+                    calculoDiv.className = 'alert alert-info mt-2';
+                }
+                
+                calculoDiv.innerHTML = mensaje;
+            } else {
+                const calculoDiv = document.getElementById('calculo-usd');
+                if (calculoDiv) {
+                    calculoDiv.remove();
+                }
+            }
+        }
+    }
+    
+    // Agregar listeners para recalcular (para ambos tipos de pago)
+    function configurarCalculos() {
+        // Listeners para transferencia
+        const cantidadTransferencia = document.getElementById('{{ form.cantidad.id_for_label }}');
+        const monedaTransferencia = document.getElementById('{{ form.tipo_moneda.id_for_label }}');
+        
+        if (cantidadTransferencia) {
+            cantidadTransferencia.addEventListener('input', calcularMontoUSD);
+        }
+        if (monedaTransferencia) {
+            monedaTransferencia.addEventListener('change', calcularMontoUSD);
+        }
+        
+        // Listeners para efectivo
+        const cantidadEfectivo = document.getElementById('{{ form.cantidad.id_for_label }}_efectivo');
+        const monedaEfectivo = document.getElementById('{{ form.tipo_moneda.id_for_label }}_efectivo');
+        
+        if (cantidadEfectivo) {
+            cantidadEfectivo.addEventListener('input', calcularMontoUSD);
+        }
+        if (monedaEfectivo) {
+            monedaEfectivo.addEventListener('change', calcularMontoUSD);
+        }
+    }
+    
+    // Llamar a la configuración de cálculos
+    configurarCalculos();
+    
+    // Validar teléfono
+    if (telefonoInput) {
+        telefonoInput.addEventListener('input', function() {
+            const digits = this.value.replace(/\D/g, '');
+            if (this.value.length > 0 && digits.length < 7) {
+                this.classList.add('is-invalid');
+            } else {
+                this.classList.remove('is-invalid');
+                if (this.value.length > 0) {
+                    this.classList.add('is-valid');
+                }
+            }
+        });
+    }
+    
+    // Configurar validaciones de cantidad para ambos tipos de pago
+    function configurarValidacionesCantidad() {
+        const cantidadTransferencia = document.getElementById('{{ form.cantidad.id_for_label }}');
+        const cantidadEfectivo = document.getElementById('{{ form.cantidad.id_for_label }}_efectivo');
+        
+        [cantidadTransferencia, cantidadEfectivo].forEach(input => {
+            if (input) {
+                input.addEventListener('input', function() {
+                    const value = parseFloat(this.value);
+                    if (isNaN(value) || value <= 0) {
+                        this.classList.add('is-invalid');
+                    } else {
+                        this.classList.remove('is-invalid');
+                        this.classList.add('is-valid');
+                    }
+                });
+            }
+        });
+    }
+    
+    configurarValidacionesCantidad();
+    
+    // Función para formatear el campo de tarjeta
+    function configurarFormatoTarjeta() {
+        const tarjetaInput = document.getElementById('{{ form.tarjeta.id_for_label }}');
+        
+        if (tarjetaInput) {
+            tarjetaInput.addEventListener('input', function(e) {
+                // Obtener solo los números del valor actual
+                let value = e.target.value.replace(/\D/g, '');
+                
+                // Limitar a 16 dígitos máximo
+                if (value.length > 16) {
+                    value = value.substring(0, 16);
+                }
+                
+                // Formatear en grupos de 4 separados por guiones
+                let formattedValue = '';
+                for (let i = 0; i < value.length; i += 4) {
+                    if (i > 0) {
+                        formattedValue += '-';
+                    }
+                    formattedValue += value.substring(i, i + 4);
+                }
+                
+                // Actualizar el valor del input
+                e.target.value = formattedValue;
+                
+                // Validación visual
+                if (value.length === 16) {
+                    e.target.classList.remove('is-invalid');
+                    e.target.classList.add('is-valid');
+                } else if (value.length > 0) {
+                    e.target.classList.add('is-invalid');
+                    e.target.classList.remove('is-valid');
+                } else {
+                    e.target.classList.remove('is-invalid', 'is-valid');
+                }
+            });
+            
+            // Prevenir pegado de caracteres no numéricos
+            tarjetaInput.addEventListener('paste', function(e) {
+                e.preventDefault();
+                
+                // Obtener texto del portapapeles
+                const paste = (e.clipboardData || window.clipboardData).getData('text');
+                
+                // Extraer solo los números
+                const numbers = paste.replace(/\D/g, '');
+                
+                // Limitar a 16 dígitos
+                const limitedNumbers = numbers.substring(0, 16);
+                
+                // Formatear y establecer el valor
+                let formattedValue = '';
+                for (let i = 0; i < limitedNumbers.length; i += 4) {
+                    if (i > 0) {
+                        formattedValue += '-';
+                    }
+                    formattedValue += limitedNumbers.substring(i, i + 4);
+                }
+                
+                tarjetaInput.value = formattedValue;
+                
+                // Disparar evento input para activar validaciones
+                tarjetaInput.dispatchEvent(new Event('input'));
+            });
+            
+            // Prevenir escritura de caracteres no numéricos (excepto guiones)
+            tarjetaInput.addEventListener('keypress', function(e) {
+                // Permitir teclas de control (backspace, delete, tab, escape, enter)
+                if ([8, 9, 27, 13, 46].includes(e.keyCode) ||
+                    // Permitir Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+                    (e.keyCode === 65 && e.ctrlKey === true) ||
+                    (e.keyCode === 67 && e.ctrlKey === true) ||
+                    (e.keyCode === 86 && e.ctrlKey === true) ||
+                    (e.keyCode === 88 && e.ctrlKey === true)) {
+                    return;
+                }
+                
+                // Permitir solo números
+                if ((e.keyCode < 48 || e.keyCode > 57)) {
+                    e.preventDefault();
+                }
+            });
+        }
+    }
+    
+    // Configurar formato de tarjeta (solo números, agrupados en bloques de 4)
+    configurarFormatoTarjeta();
+    
+    // Calcular inicial si hay valores
+    calcularMontoUSD();
+    
+    // Confirmación antes de enviar
+    form.addEventListener('submit', function(e) {
+        const tipoPagoSeleccionado = document.querySelector('.tipo-pago-check:checked');
+        
+        if (!tipoPagoSeleccionado) {
+            e.preventDefault();
+            mostrarError('Por favor seleccione un tipo de pago');
+            return;
+        }
+        
+        if (tipoPagoSeleccionado.value === 'transferencia') {
+            // Validar campos de transferencia
+            const cantidad = document.getElementById('{{ form.cantidad.id_for_label }}').value;
+            const moneda = document.getElementById('{{ form.tipo_moneda.id_for_label }}').value;
+            const tarjeta = document.getElementById('{{ form.tarjeta.id_for_label }}').value;
+            
+            if (!cantidad || !moneda || !tarjeta) {
+                e.preventDefault();
+                mostrarError('Por favor complete todos los campos obligatorios para transferencia');
+                return;
+            }
+            
+            // Validar que la tarjeta tenga 16 dígitos
+            const tarjetaNumeros = tarjeta.replace(/\D/g, '');
+            if (tarjetaNumeros.length !== 16) {
+                e.preventDefault();
+                mostrarError('El número de tarjeta debe tener exactamente 16 dígitos');
+                return;
+            }
+        } else if (tipoPagoSeleccionado.value === 'efectivo') {
+            // Validar campos de efectivo
+            const cantidad = document.getElementById('{{ form.cantidad.id_for_label }}_efectivo').value;
+            const moneda = document.getElementById('{{ form.tipo_moneda.id_for_label }}_efectivo').value;
+            const destinatario = document.getElementById('{{ form.destinatario.id_for_label }}_efectivo').value;
+            const telefono = document.getElementById('{{ form.telefono.id_for_label }}_efectivo').value;
+            const direccion = document.getElementById('{{ form.direccion.id_for_label }}_efectivo').value;
+            
+            if (!cantidad || !moneda || !destinatario || !telefono || !direccion) {
+                e.preventDefault();
+                mostrarError('Por favor complete todos los campos obligatorios para efectivo');
+                return;
+            }
+        }
+    });
+    
+    function mostrarError(mensaje) {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: 'Campos obligatorios',
+                text: mensaje,
+                icon: 'warning',
+                background: '#343a40',
+                color: '#ffffff'
+            });
+        } else {
+            alert(mensaje);
+        }
+    }
+});
+</script>
+{% endblock %}

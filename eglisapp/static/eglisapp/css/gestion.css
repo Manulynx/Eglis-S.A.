@@ -1,0 +1,287 @@
+:root {
+    --primary-gradient: linear-gradient(135deg, #1a2980 0%, #576ffb 100%);
+    --text-color: #e2e8f0;
+    --nav-bg: rgba(26, 32, 44, 0.95);
+    --nav-text: #ffffff;
+    --accent: #4facfe;
+    --hover-color: #576ffb;
+    --card-bg: rgba(26, 32, 44, 0.8);
+    --border-color: rgba(255, 255, 255, 0.1);
+    --nav-hover-bg: rgba(255, 255, 255, 0.1);
+    --nav-active-bg: rgba(255, 255, 255, 0.15);
+}
+
+body {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    min-height: 100vh;
+    background: #07519c;
+    min-height: 100vh;
+    color: #1e293b;
+    font-family: 'Inter', sans-serif;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+}
+
+/* Hero Section */
+.hero-section {
+    background: var(--primary-gradient);
+    padding: 6rem 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('../img/pattern.png');
+    opacity: 0.1;
+}
+
+.hero-image-wrap {
+    position: relative;
+    z-index: 1;
+    transform: perspective(1000px) rotateY(-15deg);
+    transition: transform 0.3s ease;
+}
+
+.hero-image-wrap:hover {
+    transform: perspective(1000px) rotateY(-5deg);
+}
+
+/* Feature Cards */
+.feature-card {
+    background: white;
+    border-radius: 16px;
+    padding: 2rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(0,0,0,0.05);
+    height: 100%;
+}
+
+.feature-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+}
+
+.icon-wrap {
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    background: rgba(79, 172, 254, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.5rem;
+}
+
+.icon-wrap i {
+    font-size: 1.5rem;
+}
+
+/* Step Cards */
+.step-card {
+    background: white;
+    border-radius: 16px;
+    padding: 2rem;
+    text-align: center;
+    position: relative;
+    border: 1px solid rgba(0,0,0,0.05);
+    height: 100%;
+    transition: all 0.3s ease;
+}
+
+.step-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+}
+
+.step-number {
+    width: 40px;
+    height: 40px;
+    background: var(--primary-gradient);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    margin: 0 auto 1rem;
+}
+
+/* Stats Cards */
+.stat-card {
+    background: white;
+    border-radius: 16px;
+    padding: 2rem;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(0,0,0,0.05);
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+}
+
+/* CTA Section */
+.cta-section {
+    background: var(--primary-gradient);
+    position: relative;
+    overflow: hidden;
+}
+
+.cta-section::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('../img/pattern.png');
+    opacity: 0.1;
+}
+
+/* Utility Classes */
+.min-vh-75 {
+    min-height: 75vh;
+}
+
+.rounded-4 {
+    border-radius: 1rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .hero-section {
+        padding: 4rem 0;
+    }
+    
+    .hero-image-wrap {
+        margin-top: 2rem;
+        transform: none;
+    }
+    
+    .step-card {
+        margin-bottom: 1rem;
+    }
+}
+
+/* Navbar Styles */
+.navbar-dark {
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Nav Items */
+.nav-item {
+    margin: 0 0.25rem;
+    position: relative;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.nav-link {
+    color: var(--nav-text) !important;
+    padding: 0.75rem 1.25rem !important;
+    border-radius: 8px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Hover Effect */
+.nav-link::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--nav-hover-bg);
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    z-index: -1;
+    border-radius: 8px;
+}
+
+.nav-link:hover::before {
+    transform: translateX(0);
+}
+
+.nav-link:hover {
+    transform: translateY(-2px);
+    color: var(--hover-color) !important;
+}
+
+/* Active State */
+.nav-item.active .nav-link {
+    background: var(--nav-active-bg);
+    color: var(--hover-color) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Dropdown Styles */
+.dropdown-menu {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    padding: 0.5rem;
+    margin-top: 0.5rem;
+    background: rgba(26, 32, 44, 0.95);
+}
+
+.dropdown-item {
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+    color: var(--nav-text);
+}
+
+.dropdown-item:hover {
+    background: var(--nav-hover-bg);
+    color: var(--hover-color);
+    transform: translateX(5px);
+}
+
+.dropdown-item i {
+    margin-right: 0.5rem;
+    width: 20px;
+    text-align: center;
+}
+
+.dropdown-divider {
+    margin: 0.5rem 0;
+    border-color: var(--border-color);
+}
+
+/* Responsive adjustments */
+@media (max-width: 992px) {
+    .nav-item {
+        margin: 0.25rem 0;
+    }
+    
+    .nav-link {
+        padding: 0.5rem 1rem !important;
+    }
+    
+    .dropdown-menu {
+        border-radius: 8px;
+        margin-top: 0;
+        background: rgba(26, 32, 44, 0.95);
+    }
+    
+    .dropdown-item {
+        color: var(--nav-text);
+    }
+    
+    .dropdown-item:hover {
+        background: var(--nav-hover-bg);
+        color: var(--hover-color);
+    }
+}
