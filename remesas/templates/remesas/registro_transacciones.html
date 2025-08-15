@@ -88,27 +88,6 @@
     width: 1.2rem;
     text-align: center;
 }
-
-/* Estilos para el dropdown */
-.dropdown-menu {
-    margin-top: 0.125rem;
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-}
-
-.dropdown-toggle::after {
-    transition: transform 0.15s ease;
-}
-
-.dropdown-toggle[aria-expanded="true"]::after {
-    transform: rotate(180deg);
-}
-
-/* Prevenir que el dropdown se quede abierto en móviles */
-@media (max-width: 768px) {
-    .dropdown-menu.show {
-        position: absolute !important;
-    }
-}
 </style>
 
 <div class="container-fluid p-4">
@@ -1248,38 +1227,69 @@ document.addEventListener('DOMContentLoaded', function() {
     // Función para configurar el comportamiento del dropdown
     function setupDropdownBehavior() {
         const dropdownButton = document.getElementById('newTransactionButton');
-        
-        if (!dropdownButton) return;
-        
-        // Inicializar el dropdown con autoClose
-        const dropdown = new bootstrap.Dropdown(dropdownButton, {
-            autoClose: true
-        });
 
-        // Cerrar dropdown al hacer click fuera
+        if (!dropdownButton) {
+            console.log('Botón dropdown no encontrado');
+            return;
+        }
+
+        console.log('Configurando dropdown behavior');
+
+        // Función simple para cerrar dropdown
+        function forceCloseDropdown() {
+            // Obtener la instancia de Bootstrap
+            const dropdownInstance = bootstrap.Dropdown.getInstance(dropdownButton);
+            if (dropdownInstance) {
+                dropdownInstance.hide();
+                return true;
+            }
+
+            // Fallback: trigger click en el botón si está abierto
+            if (dropdownButton.getAttribute('aria-expanded') === 'true') {
+                dropdownButton.click();
+                return true;
+            }
+
+            return false;
+        }
+
+        // Listener para clicks fuera del dropdown
         document.addEventListener('click', function(event) {
-            const isDropdownButton = event.target.matches('#newTransactionButton');
-            const isInsideDropdown = event.target.closest('.dropdown-menu');
-            
-            if (!isDropdownButton && !isInsideDropdown) {
-                dropdown.hide();
+            // Verificar si el dropdown está abierto
+            if (dropdownButton.getAttribute('aria-expanded') !== 'true') {
+                return;
             }
-        });
 
-        // Cerrar dropdown al hacer click en un item
-        const dropdownItems = document.querySelectorAll('.dropdown-item');
-        dropdownItems.forEach(item => {
-            item.addEventListener('click', () => {
-                dropdown.hide();
-            });
-        });
+            // Verificar si el click fue fuera del dropdown
+            const dropdownContainer = dropdownButton.closest('.btn-group');
+            if (dropdownContainer && !dropdownContainer.contains(event.target)) {
+                console.log('Click fuera del dropdown, cerrando...');
+                forceCloseDropdown();
+            }
+        }, true);
 
-        // Cerrar dropdown al presionar ESC
+        // Listener para tecla Escape
         document.addEventListener('keydown', function(event) {
-            if (event.key === 'Escape') {
-                dropdown.hide();
+            if (event.key === 'Escape' && dropdownButton.getAttribute('aria-expanded') === 'true') {
+                console.log('Escape presionado, cerrando dropdown...');
+                forceCloseDropdown();
+                event.preventDefault();
             }
         });
+
+        // Listener para scroll en móvil
+        let scrollTimeout;
+        window.addEventListener('scroll', function() {
+            if (dropdownButton.getAttribute('aria-expanded') === 'true') {
+                clearTimeout(scrollTimeout);
+                scrollTimeout = setTimeout(function() {
+                    console.log('Scroll detectado, cerrando dropdown...');
+                    forceCloseDropdown();
+                }, 100);
+            }
+        });
+
+        console.log('Dropdown behavior configurado correctamente');
     }
 
     // Función para configurar listeners de paginación específicos
@@ -1699,16 +1709,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Mostrar la pestaña activa al cargar o basada en el hash de la URL
     const urlHash = window.location.hash;
-    let savedTab = localStorage.getItem('activeTab');
-
-    // Si hay un hash en la URL (#remesas, #pagos o #total), usarlo
-    if (urlHash === '#remesas' || urlHash === '#pagos' || urlHash === '#total') {
-        savedTab = urlHash;
-        localStorage.setItem('activeTab', savedTab);
-    }
-
-    if (savedTab) {
-        const
     let savedTab = localStorage.getItem('activeTab');
 
     // Si hay un hash en la URL (#remesas, #pagos o #total), usarlo
