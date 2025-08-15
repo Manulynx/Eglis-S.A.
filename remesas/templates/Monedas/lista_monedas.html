@@ -1,7 +1,7 @@
 {% extends 'eglisapp/base.html' %}
 {% load static %}
 
-
+{% block content %}
 {% csrf_token %}
 <div class="container mt-5">
     <div class="card bg-dark text-white">
@@ -12,7 +12,7 @@
             <a href="{% url 'remesas:crear_moneda' %}" class="btn btn-success">
                 <i class="fas fa-plus me-2"></i>Nueva Moneda
             </a>
-            
+           
         </div>
         <div class="card-body">
             <!-- Vista Desktop -->
