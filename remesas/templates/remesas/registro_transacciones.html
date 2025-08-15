@@ -1227,69 +1227,38 @@ document.addEventListener('DOMContentLoaded', function() {
     // Función para configurar el comportamiento del dropdown
     function setupDropdownBehavior() {
         const dropdownButton = document.getElementById('newTransactionButton');
+        
+        if (!dropdownButton) return;
+        
+        // Inicializar el dropdown con autoClose
+        const dropdown = new bootstrap.Dropdown(dropdownButton, {
+            autoClose: true
+        });
 
-        if (!dropdownButton) {
-            console.log('Botón dropdown no encontrado');
-            return;
-        }
-
-        console.log('Configurando dropdown behavior');
-
-        // Función simple para cerrar dropdown
-        function forceCloseDropdown() {
-            // Obtener la instancia de Bootstrap
-            const dropdownInstance = bootstrap.Dropdown.getInstance(dropdownButton);
-            if (dropdownInstance) {
-                dropdownInstance.hide();
-                return true;
-            }
-
-            // Fallback: trigger click en el botón si está abierto
-            if (dropdownButton.getAttribute('aria-expanded') === 'true') {
-                dropdownButton.click();
-                return true;
-            }
-
-            return false;
-        }
-
-        // Listener para clicks fuera del dropdown
+        // Cerrar dropdown al hacer click fuera
         document.addEventListener('click', function(event) {
-            // Verificar si el dropdown está abierto
-            if (dropdownButton.getAttribute('aria-expanded') !== 'true') {
-                return;
+            const isDropdownButton = event.target.matches('#newTransactionButton');
+            const isInsideDropdown = event.target.closest('.dropdown-menu');
+            
+            if (!isDropdownButton && !isInsideDropdown) {
+                dropdown.hide();
             }
+        });
 
-            // Verificar si el click fue fuera del dropdown
-            const dropdownContainer = dropdownButton.closest('.btn-group');
-            if (dropdownContainer && !dropdownContainer.contains(event.target)) {
-                console.log('Click fuera del dropdown, cerrando...');
-                forceCloseDropdown();
-            }
-        }, true);
+        // Cerrar dropdown al hacer click en un item
+        const dropdownItems = document.querySelectorAll('.dropdown-item');
+        dropdownItems.forEach(item => {
+            item.addEventListener('click', () => {
+                dropdown.hide();
+            });
+        });
 
-        // Listener para tecla Escape
+        // Cerrar dropdown al presionar ESC
         document.addEventListener('keydown', function(event) {
-            if (event.key === 'Escape' && dropdownButton.getAttribute('aria-expanded') === 'true') {
-                console.log('Escape presionado, cerrando dropdown...');
-                forceCloseDropdown();
-                event.preventDefault();
+            if (event.key === 'Escape') {
+                dropdown.hide();
             }
         });
-
-        // Listener para scroll en móvil
-        let scrollTimeout;
-        window.addEventListener('scroll', function() {
-            if (dropdownButton.getAttribute('aria-expanded') === 'true') {
-                clearTimeout(scrollTimeout);
-                scrollTimeout = setTimeout(function() {
-                    console.log('Scroll detectado, cerrando dropdown...');
-                    forceCloseDropdown();
-                }, 100);
-            }
-        });
-
-        console.log('Dropdown behavior configurado correctamente');
     }
 
     // Función para configurar listeners de paginación específicos
@@ -1703,6 +1672,37 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             // Guardar la pestaña activa
+            localStorage.setItem('activeTab', this.getAttribute('href'));
+        });
+    });
+
+    // Mostrar la pestaña activa al cargar o basada en el hash de la URL
+    const urlHash = window.location.hash;
+    let savedTab = localStorage.getItem('activeTab');
+
+    // Si hay un hash en la URL (#remesas, #pagos o #total), usarlo
+    if (urlHash === '#remesas' || urlHash === '#pagos' || urlHash === '#total') {
+        savedTab = urlHash;
+        localStorage.setItem('activeTab', savedTab);
+    }
+
+    if (savedTab) {
+        const tabElement = document.querySelector(`a[href="${savedTab}"]`);
+        if (tabElement) {
+            const tab = new bootstrap.Tab(tabElement);
+            tab.show();
+            // Cambiar filtros según la pestaña activa
+            if (savedTab === '#remesas') {
+                switchFilters('remesas');
+            } else if (savedTab === '#pagos') {
+                switchFilters('pagos');
+            } else if (savedTab === '#total') {
+                switchFilters('total');
+            }
+        }
+    } else {
+        // Si no hay pestaña guardada, mostrar la primera
+       
             localStorage.setItem('activeTab', this.getAttribute('href'));
         });
     });
