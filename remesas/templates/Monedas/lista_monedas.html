@@ -1958,3 +1958,983 @@ function toggleEstadoMoneda(monedaId, estadoActual) {
 </script>
 {% endblock %}
 {% endblock %}
+{% extends 'eglisapp/base.html' %}
+{% load static %}
+
+{% block content %}
+{% csrf_token %}
+<div class="container mt-5">
+    <div class="card bg-dark text-white">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h3 class="mb-0">
+                <i class="fas fa-coins me-2"></i>Gestión de Monedas
+            </h3>
+            <a href="{% url 'remesas:crear_moneda' %}" class="btn btn-success">
+                <i class="fas fa-plus me-2"></i>Nueva Moneda
+            </a>
+            
+        </div>
+        <div class="card-body">
+            <!-- Vista Desktop -->
+            <div class="d-none d-lg-block">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Nombre</th>
+                                <th>Valor Actual</th>
+                                <th>Valor Comercial</th>
+                                <th>Estado</th>
+                                <th>Última Actualización</th>
+                                <th class="text-end">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for moneda in monedas %}
+                            <tr>
+                                <td>{{ moneda.codigo }}</td>
+                                <td>{{ moneda.nombre }}</td>
+                                <td>{{ moneda.valor_actual|floatformat:2 }}</td>
+                                <td>{{ moneda.valor_comercial|floatformat:2 }}</td>
+                                <td>
+                                    <button type="button" 
+                                            class="btn btn-sm {% if moneda.activa %}btn-success{% else %}btn-outline-danger{% endif %}"
+                                            data-moneda-id="{{ moneda.pk }}"
+                                            data-estado-actual="{% if moneda.activa %}true{% else %}false{% endif %}"
+                                            onclick="toggleEstadoMoneda(this.dataset.monedaId, this.dataset.estadoActual === 'true')"
+                                            {% if moneda.codigo == 'USD' %}disabled{% endif %}
+                                            title="{% if moneda.activa %}Desactivar moneda{% else %}Activar moneda{% endif %}">
+                                        <i class="fas {% if moneda.activa %}fa-toggle-on{% else %}fa-toggle-off{% endif %} me-1"></i>
+                                        {% if moneda.activa %}Activa{% else %}Inactiva{% endif %}
+                                    </button>
+                                </td>
+                                <td>{{ moneda.fecha_actualizacion|date:"d/m/Y H:i" }}</td>
+                                <td class="text-end">
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'remesas:editar_moneda' moneda.pk %}" 
+                                           class="btn btn-primary" 
+                                           {% if moneda.codigo == 'USD' %}disabled{% endif %}
+                                           title="Editar">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <button type="button" 
+                                                class="btn btn-danger" 
+                                                onclick="eliminarMoneda('{{ moneda.pk }}', '{{ moneda.codigo }}', '{{ moneda.nombre }}')"
+                                                {% if moneda.codigo == 'USD' %}disabled{% endif %}
+                                                title="Eliminar moneda">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center">No hay monedas registradas</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Vista Móvil -->
+            <div class="d-lg-none">
+                {% for moneda in monedas %}
+                <div class="card bg-dark border-secondary mb-3">
+                    <div class="card-body">
+                        <!-- Encabezado con código y estado -->
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 class="text-primary mb-0">{{ moneda.codigo }}</h5>
+                            <button type="button" 
+                                    class="btn btn-sm {% if moneda.activa %}btn-success{% else %}btn-outline-danger{% endif %}"
+                                    data-moneda-id="{{ moneda.pk }}"
+                                    data-estado-actual="{% if moneda.activa %}true{% else %}false{% endif %}"
+                                    onclick="toggleEstadoMoneda(this.dataset.monedaId, this.dataset.estadoActual === 'true')"
+                                    {% if moneda.codigo == 'USD' %}disabled{% endif %}
+                                    title="{% if moneda.activa %}Desactivar moneda{% else %}Activar moneda{% endif %}">
+                                <i class="fas {% if moneda.activa %}fa-toggle-on{% else %}fa-toggle-off{% endif %} me-1"></i>
+                                {% if moneda.activa %}Activa{% else %}Inactiva{% endif %}
+                            </button>
+                        </div>
+                        
+                        <!-- Información principal -->
+                        <div class="mb-3">
+                            <h6 class="text-white mb-3">{{ moneda.nombre }}</h6>
+                            
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <div class="p-2 bg-dark rounded border border-secondary">
+                                        <small class="text-muted d-block">Valor Actual</small>
+                                        <span class="text-info">{{ moneda.valor_actual|floatformat:2 }}</span>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="p-2 bg-dark rounded border border-secondary">
+                                        <small class="text-muted d-block">Valor Comercial</small>
+                                        <span class="text-warning">{{ moneda.valor_comercial|floatformat:2 }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <small class="text-muted d-block mt-2">
+                                Última actualización: {{ moneda.fecha_actualizacion|date:"d/m/Y H:i" }}
+                            </small>
+                        </div>
+
+                        <!-- Botones de acción -->
+                        <div class="d-flex gap-2">
+                            <a href="{% url 'remesas:editar_moneda' moneda.pk %}" 
+                               class="btn btn-primary btn-sm flex-grow-1"
+                               {% if moneda.codigo == 'USD' %}disabled{% endif %}>
+                                <i class="fas fa-edit me-1"></i>Editar
+                            </a>
+                            <button type="button" 
+                                    class="btn btn-danger btn-sm flex-grow-1"
+                                    onclick="eliminarMoneda('{{ moneda.pk }}', '{{ moneda.codigo }}', '{{ moneda.nombre }}')"
+                                    {% if moneda.codigo == 'USD' %}disabled{% endif %}>
+                                <i class="fas fa-trash me-1"></i>Eliminar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="text-center py-4">
+                    <p class="text-muted mb-0">No hay monedas registradas</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de información -->
+<div class="modal fade" id="infoModal" tabindex="-1" aria-labelledby="infoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-white border border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="infoModalLabel">
+                    <i class="fas fa-info-circle me-2"></i>Información sobre Gestión de Monedas
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-12">
+                        <h6 class="text-warning mb-3">
+                            <i class="fas fa-shield-alt me-2"></i>Protección de Datos Históricos
+                        </h6>
+                        <p class="mb-3">
+                            Este sistema está diseñado para preservar la integridad de los datos históricos. 
+                            Las siguientes políticas se aplican a la gestión de monedas:
+                        </p>
+                        
+                        <div class="mb-4">
+                            <h6 class="text-info">
+                                <i class="fas fa-edit me-2"></i>Edición de Monedas
+                            </h6>
+                            <ul class="list-unstyled ms-3">
+                                <li class="mb-2">
+                                    <i class="fas fa-check-circle text-success me-2"></i>
+                                    Se pueden modificar todos los campos (nombre, valores, estado)
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-check-circle text-success me-2"></i>
+                                    Los cambios no afectan los registros históricos existentes
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-times-circle text-danger me-2"></i>
+                                    No se puede cambiar el código de la moneda USD (protegida)
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                                    Se muestra advertencia si la moneda está en uso
+                                </li>
+                            </ul>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <h6 class="text-danger">
+                                <i class="fas fa-trash me-2"></i>Eliminación de Monedas
+                            </h6>
+                            <ul class="list-unstyled ms-3">
+                                <li class="mb-2">
+                                    <i class="fas fa-times-circle text-danger me-2"></i>
+                                    No se puede eliminar la moneda USD (protegida)
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-check-circle text-success me-2"></i>
+                                    Se pueden eliminar monedas aunque tengan registros asociados
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-shield-alt text-info me-2"></i>
+                                    Los registros históricos se preservan automáticamente
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-database text-warning me-2"></i>
+                                    Las referencias a la moneda eliminada se establecen como NULL
+                                </li>
+                            </ul>
+                        </div>
+                        
+                        <div class="alert alert-info border-info">
+                            <i class="fas fa-lightbulb me-2"></i>
+                            <strong>Cómo funciona:</strong> Cuando eliminas una moneda, todos los registros 
+                            asociados (remesas, pagos, balances) se conservan intactos. Solo se elimina la 
+                            referencia a la moneda, estableciéndose como NULL. Esto garantiza que nunca se 
+                            pierdan datos históricos importantes.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Entendido</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+@media (max-width: 991px) {
+    .card-body {
+        padding: 1rem;
+    }
+    
+    .btn-sm {
+        padding: 0.5rem;
+        font-size: 0.9rem;
+    }
+    
+    h5 {
+        font-size: 1.1rem;
+    }
+    
+    h6 {
+        font-size: 1rem;
+    }
+    
+    .text-muted {
+        font-size: 0.85rem;
+    }
+    
+    .badge {
+        font-size: 0.8rem;
+        padding: 0.5em 0.7em;
+    }
+}
+
+/* Estilos para los botones de acción */
+.btn-group .btn {
+    transition: all 0.3s ease;
+}
+
+.btn-group .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.btn-danger:hover {
+    background-color: #c82333 !important;
+    border-color: #bd2130 !important;
+}
+
+.btn-primary:hover {
+    background-color: #0056b3 !important;
+    border-color: #004085 !important;
+}
+
+/* Protección visual para USD */
+.btn[disabled] {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Estilos personalizados para SweetAlert2 */
+.swal-dark {
+    border: 1px solid #495057 !important;
+}
+
+.btn-custom-confirm {
+    background-color: var(--bs-primary) !important;
+    border-color: var(--bs-primary) !important;
+    color: white !important;
+    padding: 0.5rem 1rem !important;
+    border-radius: 0.375rem !important;
+    font-weight: 500 !important;
+    margin-right: 0.5rem !important;
+    transition: all 0.3s ease !important;
+}
+
+.btn-custom-confirm:hover {
+    background-color: var(--bs-primary-dark) !important;
+    border-color: var(--bs-primary-dark) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+.btn-custom-cancel {
+    background-color: #6c757d !important;
+    border-color: #6c757d !important;
+    color: white !important;
+    padding: 0.5rem 1rem !important;
+    border-radius: 0.375rem !important;
+    font-weight: 500 !important;
+    transition: all 0.3s ease !important;
+}
+
+.btn-custom-cancel:hover {
+    background-color: #5a6268 !important;
+    border-color: #545b62 !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Animaciones para los iconos de SweetAlert2 */
+.swal2-icon.swal2-success .swal2-success-ring {
+    border-color: #28a745 !important;
+}
+
+.swal2-icon.swal2-success .swal2-success-fix {
+    background-color: #212529 !important;
+}
+
+.swal2-icon.swal2-warning {
+    border-color: #ffc107 !important;
+    color: #ffc107 !important;
+}
+
+.swal2-icon.swal2-error {
+    border-color: #dc3545 !important;
+    color: #dc3545 !important;
+}
+
+/* Estilo para alertas internas de SweetAlert2 */
+.alert-dark {
+    background-color: rgba(33, 37, 41, 0.8) !important;
+    border-color: #495057 !important;
+    color: #fff !important;
+}
+
+/* Animación de pulso para botones de estado */
+@keyframes pulse-success {
+    0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+}
+
+@keyframes pulse-danger {
+    0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+}
+
+.btn-success:not(:disabled):hover {
+    animation: pulse-success 1.5s infinite;
+}
+
+.btn-outline-danger:not(:disabled):hover {
+    animation: pulse-danger 1.5s infinite;
+}
+</style>
+
+{% block extra_js %}
+<script>
+function eliminarMoneda(monedaId, codigo, nombre) {
+    // Verificar si es la moneda USD (protegida)
+    if (codigo === 'USD') {
+        Swal.fire({
+            title: 'Acción no permitida',
+            html: `
+                <div class="text-center">
+                    <i class="fas fa-shield-alt fa-3x mb-3" style="color: #ffc107"></i>
+                    <p><strong>La moneda USD está protegida</strong></p>
+                    <small class="text-muted">No se puede eliminar la moneda USD ya que es la moneda base del sistema.</small>
+                </div>
+            `,
+            icon: 'warning',
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#6c757d',
+            background: '#212529',
+            color: '#fff',
+            customClass: {
+                popup: 'swal-dark'
+            }
+        });
+        return;
+    }
+
+    Swal.fire({
+        title: '¿Eliminar moneda?',
+        html: `
+            <div class="text-center">
+                <i class="fas fa-trash-alt fa-3x mb-3" style="color: #dc3545"></i>
+                <p>¿Está seguro que desea eliminar la moneda?</p>
+                <div class="alert alert-dark border-warning mt-3">
+                    <strong>${codigo} - ${nombre}</strong>
+                </div>
+                <div class="text-warning mt-3">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Esta acción no se puede deshacer</strong>
+                </div>
+                <div class="text-info mt-2">
+                    <i class="fas fa-shield-alt me-2"></i>
+                    <small>Los registros históricos (remesas, pagos, balances) se preservarán automáticamente</small>
+                </div>
+            </div>
+        `,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: '<i class="fas fa-trash me-2"></i>Sí, eliminar',
+        cancelButtonText: '<i class="fas fa-times me-2"></i>Cancelar',
+        background: '#212529',
+        color: '#fff',
+        customClass: {
+            popup: 'swal-dark'
+        },
+        buttonsStyling: false
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Mostrar loading con animación personalizada
+            Swal.fire({
+                title: 'Eliminando moneda...',
+                html: `
+                    <div class="text-center">
+                        <i class="fas fa-trash-alt fa-spin fa-2x mb-3" style="color: #dc3545"></i>
+                        <p>Eliminando <strong>${codigo} - ${nombre}</strong></p>
+                        <small class="text-muted">Preservando registros históricos...</small>
+                    </div>
+                `,
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                background: '#212529',
+                color: '#fff',
+                customClass: {
+                    popup: 'swal-dark'
+                }
+            });
+
+            // Realizar petición para eliminar
+            fetch(`/remesas/monedas/eliminar/${monedaId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        title: '¡Moneda eliminada!',
+                        html: `
+                            <div class="text-center">
+                                <i class="fas fa-check-circle fa-3x mb-3" style="color: #28a745"></i>
+                                <p><strong>${codigo} - ${nombre}</strong> ha sido eliminada correctamente</p>
+                                <div class="alert alert-dark border-info mt-3">
+                                    <small>${data.message}</small>
+                                </div>
+                            </div>
+                        `,
+                        icon: 'success',
+                        timer: 3000,
+                        timerProgressBar: true,
+                        showConfirmButton: false,
+                        background: '#212529',
+                        color: '#fff',
+                        customClass: {
+                            popup: 'swal-dark'
+                        },
+                        willClose: () => {
+                            window.location.reload();
+                        }
+                    });
+                } else {
+                    throw new Error(data.message || 'Error desconocido');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                Swal.fire({
+                    title: 'Error al eliminar',
+                    html: `
+                        <div class="text-center">
+                            <i class="fas fa-exclamation-triangle fa-3x mb-3" style="color: #dc3545"></i>
+                            <p><strong>No se pudo eliminar la moneda</strong></p>
+                            <small class="text-muted">${error.message || 'Error de conexión con el servidor'}</small>
+                        </div>
+                    `,
+                    icon: 'error',
+                    confirmButtonText: 'Intentar de nuevo',
+                    confirmButtonColor: '#dc3545',
+                    background: '#212529',
+                    color: '#fff',
+                    customClass: {
+                        popup: 'swal-dark'
+                    }
+                });
+            });
+        }
+    });
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Función para mostrar notificaciones toast
+function mostrarToast(tipo, titulo, mensaje) {
+    const Toast = Swal.mixin({
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+        background: '#212529',
+        color: '#fff',
+        customClass: {
+            popup: 'swal-dark'
+        },
+        didOpen: (toast) => {
+            toast.addEventListener('mouseenter', Swal.stopTimer);
+            toast.addEventListener('mouseleave', Swal.resumeTimer);
+        }
+    });
+
+    Toast.fire({
+        icon: tipo,
+        title: titulo,
+        text: mensaje
+    });
+}
+
+// Función para confirmar acciones destructivas
+function confirmarAccion(opciones) {
+    return Swal.fire({
+        title: opciones.titulo || '¿Está seguro?',
+        html: opciones.mensaje || 'Esta acción no se puede deshacer',
+        icon: opciones.icono || 'warning',
+        showCancelButton: true,
+        confirmButtonColor: opciones.colorConfirmar || '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: opciones.textoConfirmar || 'Sí, continuar',
+        cancelButtonText: 'Cancelar',
+        background: '#212529',
+        color: '#fff',
+        customClass: {
+            popup: 'swal-dark'
+        },
+        buttonsStyling: false
+    });
+}
+
+// Función para mostrar loading personalizado
+function mostrarLoading(titulo, mensaje) {
+    Swal.fire({
+        title: titulo || 'Cargando...',
+        html: mensaje || 'Por favor espere',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        background: '#212529',
+        color: '#fff',
+        customClass: {
+            popup: 'swal-dark'
+        },
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+}
+
+// Inicialización cuando se carga la página
+document.addEventListener('DOMContentLoaded', function() {
+    // Agregar tooltips a los botones deshabilitados
+    const botonesDeshabilitados = document.querySelectorAll('button[disabled], a[disabled]');
+    botonesDeshabilitados.forEach(boton => {
+        if (!boton.title) {
+            boton.title = 'Esta acción está deshabilitada para la moneda USD';
+        }
+    });
+
+    // Manejar mensajes de éxito y error desde parámetros URL
+    const params = new URLSearchParams(window.location.search);
+    
+    // Función para decodificar parámetros URL
+    function decodeParam(param) {
+        return param ? decodeURIComponent(param) : '';
+    }
+    
+    // Mensajes de éxito
+    if (params.get('success')) {
+        const tipo = params.get('success');
+        const codigo = decodeParam(params.get('codigo')) || '';
+        const nombre = decodeParam(params.get('nombre')) || '';
+        
+        let titulo, mensaje, icono;
+        
+        switch(tipo) {
+            case 'edit':
+                titulo = '¡Moneda actualizada!';
+                mensaje = `La moneda <strong>${codigo} - ${nombre}</strong> ha sido actualizada correctamente`;
+                icono = `
+                    <div class="text-center">
+                        <i class="fas fa-edit fa-3x mb-3" style="color: #28a745"></i>
+                        <p>${mensaje}</p>
+                        <small class="text-muted">Todos los cambios han sido guardados exitosamente</small>
+                    </div>
+                `;
+                break;
+                
+            case 'create':
+                titulo = '¡Moneda creada!';
+                mensaje = `La moneda <strong>${codigo} - ${nombre}</strong> ha sido creada correctamente`;
+                icono = `
+                    <div class="text-center">
+                        <i class="fas fa-plus-circle fa-3x mb-3" style="color: #28a745"></i>
+                        <p>${mensaje}</p>
+                        <small class="text-muted">La nueva moneda está disponible para usar en el sistema</small>
+                    </div>
+                `;
+                break;
+                
+            default:
+                titulo = '¡Éxito!';
+                mensaje = 'Operación completada correctamente';
+                icono = `
+                    <div class="text-center">
+                        <i class="fas fa-check-circle fa-3x mb-3" style="color: #28a745"></i>
+                        <p>${mensaje}</p>
+                    </div>
+                `;
+        }
+        
+        Swal.fire({
+            title: titulo,
+            html: icono,
+            icon: 'success',
+            timer: 3000,
+            timerProgressBar: true,
+            showConfirmButton: false,
+            background: '#212529',
+            color: '#fff',
+            customClass: {
+                popup: 'swal-dark'
+            },
+            didOpen: () => {
+                // Limpiar URL sin recargar la página
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        });
+    }
+    
+    // Mensajes de error
+    else if (params.get('error')) {
+        const tipo = params.get('error');
+        const mensaje = decodeParam(params.get('message')) || 'Ocurrió un problema durante la operación';
+        
+        let titulo, descripcion;
+        
+        switch(tipo) {
+            case 'edit':
+                titulo = 'Error al actualizar moneda';
+                descripcion = 'No se pudo guardar los cambios en la moneda';
+                break;
+                
+            case 'create':
+                titulo = 'Error al crear moneda';
+                descripcion = 'No se pudo crear la nueva moneda';
+                break;
+                
+            default:
+                titulo = 'Error';
+                descripcion = 'Ocurrió un problema inesperado';
+        }
+        
+        Swal.fire({
+            title: titulo,
+            html: `
+                <div class="text-center">
+                    <i class="fas fa-exclamation-triangle fa-3x mb-3" style="color: #dc3545"></i>
+                    <p><strong>${descripcion}</strong></p>
+                    <div class="alert alert-dark border-danger mt-3">
+                        <small>${mensaje}</small>
+                    </div>
+                </div>
+            `,
+            icon: 'error',
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#dc3545',
+            background: '#212529',
+            color: '#fff',
+            customClass: {
+                popup: 'swal-dark'
+            },
+            didOpen: () => {
+                // Limpiar URL sin recargar la página
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        });
+    }
+});
+
+function actualizarTasa(monedaId) {
+    Swal.fire({
+        title: 'Actualizar Tasa de Cambio',
+        html: `
+            <div class="text-center mb-3">
+                <i class="fas fa-exchange-alt fa-2x mb-3" style="color: #17a2b8"></i>
+                <p>Ingrese la nueva tasa de cambio respecto al USD</p>
+            </div>
+        `,
+        input: 'number',
+        inputAttributes: {
+            step: '0.01',
+            min: '0.01',
+            placeholder: 'Ej: 1.25',
+            class: 'form-control'
+        },
+        inputLabel: 'Nueva tasa (USD = 1.00)',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-save me-2"></i>Actualizar',
+        cancelButtonText: '<i class="fas fa-times me-2"></i>Cancelar',
+        confirmButtonColor: '#17a2b8',
+        cancelButtonColor: '#6c757d',
+        background: '#212529',
+        color: '#fff',
+        customClass: {
+            popup: 'swal-dark'
+        },
+        buttonsStyling: false,
+        inputValidator: (value) => {
+            if (!value || parseFloat(value) <= 0) {
+                return 'Debe ingresar una tasa válida mayor a 0';
+            }
+            if (parseFloat(value) > 1000) {
+                return 'La tasa parece muy alta, verifique el valor';
+            }
+        },
+        preConfirm: (tasa) => {
+            mostrarLoading('Actualizando tasa...', 'Guardando nueva tasa de cambio');
+            
+            return fetch(`/remesas/monedas/actualizar-tasa/${monedaId}/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({tasa: tasa})
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'error') {
+                    throw new Error(data.message);
+                }
+                return data;
+            })
+            .catch(error => {
+                Swal.showValidationMessage(`Error: ${error.message}`);
+            });
+        },
+        allowOutsideClick: () => !Swal.isLoading()
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({
+                title: '¡Tasa actualizada!',
+                html: `
+                    <div class="text-center">
+                        <i class="fas fa-check-circle fa-3x mb-3" style="color: #28a745"></i>
+                        <p>La tasa de cambio se actualizó correctamente</p>
+                        <small class="text-muted">La página se actualizará para mostrar los cambios</small>
+                    </div>
+                `,
+                icon: 'success',
+                timer: 2000,
+                timerProgressBar: true,
+                showConfirmButton: false,
+                background: '#212529',
+                color: '#fff',
+                customClass: {
+                    popup: 'swal-dark'
+                },
+                willClose: () => {
+                    window.location.reload();
+                }
+            });
+        }
+    });
+}
+
+function toggleEstadoMoneda(monedaId, estadoActual) {
+    // Buscar el botón que activó esta función para verificar si está deshabilitado
+    const botones = document.querySelectorAll(`button[data-moneda-id="${monedaId}"]`);
+    let esProtegida = false;
+    
+    botones.forEach(boton => {
+        if (boton.disabled) {
+            esProtegida = true;
+        }
+    });
+
+    // Verificar si es la moneda USD (protegida)
+    if (esProtegida) {
+        Swal.fire({
+            title: 'Acción no permitida',
+            text: 'No se puede cambiar el estado de la moneda USD ya que es la moneda base del sistema.',
+            icon: 'warning',
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#6c757d',
+            background: '#212529',
+            color: '#fff',
+            customClass: {
+                popup: 'swal-dark'
+            }
+        });
+        return;
+    }
+
+    const accion = estadoActual ? 'desactivar' : 'activar';
+    const estadoTexto = estadoActual ? 'desactivada' : 'activada';
+    const iconoColor = estadoActual ? '#dc3545' : '#28a745';
+
+    Swal.fire({
+        title: `¿${accion.charAt(0).toUpperCase() + accion.slice(1)} moneda?`,
+        html: `
+            <div class="text-center">
+                <i class="fas ${estadoActual ? 'fa-toggle-off' : 'fa-toggle-on'} fa-3x mb-3" style="color: ${iconoColor}"></i>
+                <p>¿Está seguro que desea <strong>${accion}</strong> esta moneda?</p>
+                ${!estadoActual ? '<small class="text-warning">La moneda estará disponible en formularios de remesas y pagos</small>' : 
+                  '<small class="text-info">La moneda se ocultará de formularios pero mantendrá registros históricos</small>'}
+            </div>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: iconoColor,
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: `<i class="fas ${estadoActual ? 'fa-toggle-off' : 'fa-toggle-on'} me-2"></i>Sí, ${accion}`,
+        cancelButtonText: '<i class="fas fa-times me-2"></i>Cancelar',
+        background: '#212529',
+        color: '#fff',
+        customClass: {
+            popup: 'swal-dark',
+            confirmButton: 'btn-custom-confirm',
+            cancelButton: 'btn-custom-cancel'
+        },
+        buttonsStyling: false
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Mostrar loading con animación personalizada
+            Swal.fire({
+                title: 'Actualizando estado...',
+                html: `
+                    <div class="text-center">
+                        <i class="fas fa-sync-alt fa-spin fa-2x mb-3" style="color: ${iconoColor}"></i>
+                        <p>Por favor espere mientras se actualiza la moneda</p>
+                    </div>
+                `,
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                background: '#212529',
+                color: '#fff',
+                customClass: {
+                    popup: 'swal-dark'
+                }
+            });
+
+            // Realizar petición para cambiar estado
+            fetch(`/remesas/monedas/toggle-estado/${monedaId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        title: '¡Estado actualizado!',
+                        html: `
+                            <div class="text-center">
+                                <i class="fas fa-check-circle fa-3x mb-3" style="color: #28a745"></i>
+                                <p>La moneda ha sido <strong>${estadoTexto}</strong> correctamente</p>
+                                <small class="text-muted">La página se actualizará automáticamente</small>
+                            </div>
+                        `,
+                        icon: 'success',
+                        timer: 2000,
+                        timerProgressBar: true,
+                        showConfirmButton: false,
+                        background: '#212529',
+                        color: '#fff',
+                        customClass: {
+                            popup: 'swal-dark'
+                        },
+                        willClose: () => {
+                            window.location.reload();
+                        }
+                    });
+                } else {
+                    throw new Error(data.message || 'Error desconocido');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                Swal.fire({
+                    title: 'Error al actualizar',
+                    html: `
+                        <div class="text-center">
+                            <i class="fas fa-exclamation-triangle fa-3x mb-3" style="color: #dc3545"></i>
+                            <p><strong>No se pudo actualizar el estado de la moneda</strong></p>
+                            <small class="text-muted">${error.message || 'Error de conexión con el servidor'}</small>
+                        </div>
+                    `,
+                    icon: 'error',
+                    confirmButtonText: 'Intentar de nuevo',
+                    confirmButtonColor: '#dc3545',
+                    background: '#212529',
+                    color: '#fff',
+                    customClass: {
+                        popup: 'swal-dark'
+                    }
+                });
+            });
+        }
+    });
+}
+</script>
+{% endblock %}
+{% endblock %}
