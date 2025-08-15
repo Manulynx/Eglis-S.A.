@@ -88,6 +88,27 @@
     width: 1.2rem;
     text-align: center;
 }
+
+/* Estilos para el dropdown */
+.dropdown-menu {
+    margin-top: 0.125rem;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.dropdown-toggle::after {
+    transition: transform 0.15s ease;
+}
+
+.dropdown-toggle[aria-expanded="true"]::after {
+    transform: rotate(180deg);
+}
+
+/* Prevenir que el dropdown se quede abierto en móviles */
+@media (max-width: 768px) {
+    .dropdown-menu.show {
+        position: absolute !important;
+    }
+}
 </style>
 
 <div class="container-fluid p-4">
@@ -1687,28 +1708,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (savedTab) {
-        const tabElement = document.querySelector(`a[href="${savedTab}"]`);
-        if (tabElement) {
-            const tab = new bootstrap.Tab(tabElement);
-            tab.show();
-            // Cambiar filtros según la pestaña activa
-            if (savedTab === '#remesas') {
-                switchFilters('remesas');
-            } else if (savedTab === '#pagos') {
-                switchFilters('pagos');
-            } else if (savedTab === '#total') {
-                switchFilters('total');
-            }
-        }
-    } else {
-        // Si no hay pestaña guardada, mostrar la primera
-       
-            localStorage.setItem('activeTab', this.getAttribute('href'));
-        });
-    });
-
-    // Mostrar la pestaña activa al cargar o basada en el hash de la URL
-    const urlHash = window.location.hash;
+        const
     let savedTab = localStorage.getItem('activeTab');
 
     // Si hay un hash en la URL (#remesas, #pagos o #total), usarlo
