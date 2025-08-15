@@ -1147,41 +1147,25 @@ document.addEventListener('DOMContentLoaded', function() {
     setupTotalTabListeners();
 
     // Función para configurar el comportamiento del dropdown
-    function setupDropdownBehavior() {
-        const dropdownButton = document.getElementById('newTransactionButton');
-        
-        if (!dropdownButton) return;
-        
-        // Inicializar el dropdown con autoClose
-        const dropdown = new bootstrap.Dropdown(dropdownButton, {
-            autoClose: true
-        });
-
-        // Cerrar dropdown al hacer click fuera
-        document.addEventListener('click', function(event) {
-            const isDropdownButton = event.target.matches('#newTransactionButton');
-            const isInsideDropdown = event.target.closest('.dropdown-menu');
-            
-            if (!isDropdownButton && !isInsideDropdown) {
-                dropdown.hide();
-            }
-        });
-
-        // Cerrar dropdown al hacer click en un item
-        const dropdownItems = document.querySelectorAll('.dropdown-item');
-        dropdownItems.forEach(item => {
-            item.addEventListener('click', () => {
+    document.addEventListener('DOMContentLoaded', function() {
+        // Cerrar el dropdown al hacer click en un item (móvil y PC)
+        document.querySelectorAll('.dropdown-item').forEach(function(item) {
+            item.addEventListener('click', function() {
+                var dropdown = bootstrap.Dropdown.getOrCreateInstance(document.getElementById('newTransactionButton'));
                 dropdown.hide();
             });
         });
-
-        // Cerrar dropdown al presionar ESC
-        document.addEventListener('keydown', function(event) {
-            if (event.key === 'Escape') {
+        // Cerrar el dropdown al hacer click fuera (móvil)
+        document.addEventListener('click', function(e) {
+            var btn = document.getElementById('newTransactionButton');
+            var menu = btn.nextElementSibling;
+            if (!btn.contains(e.target) && !menu.contains(e.target)) {
+                var dropdown = bootstrap.Dropdown.getOrCreateInstance(btn);
                 dropdown.hide();
             }
         });
-    }
+    });    
+
 
     // Función para configurar listeners de paginación específicos
     function setupPaginationListeners() {
