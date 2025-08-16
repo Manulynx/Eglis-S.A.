@@ -820,8 +820,8 @@ function eliminarDestinatario(destinatarioId, nombre) {
     });
 }
 
-// Limpiar formulario al cerrar modal
-document.getElementById('addDestinatarioModal').addEventListener('hidden.bs.modal', function() {
+// Función para limpiar y cerrar el modal
+function limpiarYCerrarModal() {
     // Resetear título
     document.getElementById('destinatarioModalTitle').innerHTML = '<i class="fas fa-plus me-2"></i>Agregar Destinatario';
     
@@ -837,56 +837,28 @@ document.getElementById('addDestinatarioModal').addEventListener('hidden.bs.moda
     
     // Limpiar campo API Key
     document.getElementById('callmebot_api_key').value = '';
-});
-
-// Event listeners para botones
-// Función para minimizar/maximizar el modal
-function toggleMinimizarModal() {
-    const modalDialog = document.querySelector('#addDestinatarioModal .modal-dialog');
-    const btnMinimizar = document.getElementById('btnMinimizar');
-    const isMinimized = modalDialog.classList.contains('modal-minimized');
     
-    if (isMinimized) {
-        modalDialog.classList.remove('modal-minimized');
-        btnMinimizar.innerHTML = '<i class="fas fa-minus"></i>';
-        modalDialog.style.transform = 'none';
-    } else {
-        modalDialog.classList.add('modal-minimized');
-        btnMinimizar.innerHTML = '<i class="fas fa-expand"></i>';
-        modalDialog.style.transform = 'translateY(40vh)';
-    }
-}
-
-// Función para cerrar el modal
-function cerrarModal() {
+    // Cerrar modal usando Bootstrap
     const modal = bootstrap.Modal.getInstance(document.getElementById('addDestinatarioModal'));
     if (modal) {
         modal.hide();
     }
-    // Resetear el estado minimizado
-    const modalDialog = document.querySelector('#addDestinatarioModal .modal-dialog');
-    modalDialog.classList.remove('modal-minimized');
-    modalDialog.style.transform = 'none';
 }
 
+// Evento para limpiar al cerrar el modal
+document.getElementById('addDestinatarioModal').addEventListener('hidden.bs.modal', limpiarYCerrarModal);
+
+// Agregar evento al botón cancelar
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Configurando event listeners...');
-    
-    // Configurar botones del modal
-    const btnMinimizar = document.getElementById('btnMinimizar');
-    if (btnMinimizar) {
-        btnMinimizar.addEventListener('click', toggleMinimizarModal);
-    }
-    
     const btnCancelar = document.getElementById('btnCancelar');
     if (btnCancelar) {
-        btnCancelar.addEventListener('click', cerrarModal);
+        btnCancelar.addEventListener('click', limpiarYCerrarModal);
     }
-    
-    const btnCerrar = document.querySelector('#addDestinatarioModal .btn-close');
-    if (btnCerrar) {
-        btnCerrar.addEventListener('click', cerrarModal);
-    }
+});
+
+// Event listeners para botones
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Configurando event listeners...');
     
     // Botones para abrir modal de agregar destinatario
     const btnAgregar = document.getElementById('btnAgregarDestinatario');
