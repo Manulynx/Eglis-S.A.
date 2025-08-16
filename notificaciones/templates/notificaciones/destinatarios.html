@@ -278,86 +278,20 @@
 </div>
 
 <!-- Modal para Agregar/Editar Destinatario -->
-<div class="modal fade" id="addDestinatarioModal" tabindex="-1">
+<div class="modal fade" id="addDestinatarioModal" tabindex="-1" aria-labelledby="destinatarioModalTitle" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content bg-dark">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title text-white" id="destinatarioModalTitle">
                     <i class="fas fa-plus me-2"></i>Agregar Destinatario
                 </h5>
-                <div class="modal-header-buttons">
-                    <button type="button" class="btn btn-sm btn-outline-light me-2" id="btnMinimizar">
-                        <i class="fas fa-minus"></i>
-                    </button>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <form id="destinatarioForm" method="post">
                     {% csrf_token %}
                     <input type="hidden" id="destinatario_id" name="destinatario_id">
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label text-white">Nombre *</label>
-                            <input type="text" class="form-control" name="nombre" id="nombre" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label text-white">Teléfono WhatsApp *</label>
-                            <input type="tel" class="form-control" name="telefono" id="telefono" placeholder="+1234567890" required>
-                            <small class="form-text text-muted">Incluye el código de país</small>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-12 mb-3">
-                            <label class="form-label text-white">CallMeBot API Key</label>
-                            <input type="text" class="form-control" name="callmebot_api_key" id="callmebot_api_key" placeholder="Ingresa tu API Key de CallMeBot">
-                            <small class="form-text text-muted">
-                                <i class="fas fa-info-circle me-1"></i>
-                                Opcional. Se usa para enviar mensajes vía CallMeBot API. 
-                                <a href="https://api.callmebot.com/start.php" target="_blank" class="text-info">Obtener API Key</a>
-                            </small>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-12 mb-3">
-                            <h6 class="text-white">Configuración de Notificaciones</h6>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="activo" id="activo" checked>
-                                <label class="form-check-label text-white">
-                                    Destinatario Activo
-                                </label>
-                            </div>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="recibir_remesas" id="recibir_remesas" checked>
-                                <label class="form-check-label text-white">
-                                    Notificar Remesas
-                                </label>
-                            </div>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="recibir_pagos" id="recibir_pagos" checked>
-                                <label class="form-check-label text-white">
-                                    Notificar Pagos
-                                </label>
-                            </div>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="recibir_cambios_estado" id="recibir_cambios_estado" checked>
-                                <label class="form-check-label text-white">
-                                    Cambios de Estado
-                                </label>
-                            </div>
-                        </div>
-                    </div>
+                    {{ form.as_p }}
                 </form>
             </div>
             <div class="modal-footer border-secondary">
@@ -820,39 +754,48 @@ function eliminarDestinatario(destinatarioId, nombre) {
     });
 }
 
-// Función para limpiar y cerrar el modal
-function limpiarYCerrarModal() {
-    // Resetear título
-    document.getElementById('destinatarioModalTitle').innerHTML = '<i class="fas fa-plus me-2"></i>Agregar Destinatario';
-    
-    // Limpiar formulario
-    document.getElementById('destinatarioForm').reset();
-    document.getElementById('destinatario_id').value = '';
-    
-    // Marcar checkboxes por defecto
-    document.getElementById('activo').checked = true;
-    document.getElementById('recibir_remesas').checked = true;
-    document.getElementById('recibir_pagos').checked = true;
-    document.getElementById('recibir_cambios_estado').checked = true;
-    
-    // Limpiar campo API Key
-    document.getElementById('callmebot_api_key').value = '';
-    
-    // Cerrar modal usando Bootstrap
-    const modal = bootstrap.Modal.getInstance(document.getElementById('addDestinatarioModal'));
-    if (modal) {
-        modal.hide();
-    }
-}
-
-// Evento para limpiar al cerrar el modal
-document.getElementById('addDestinatarioModal').addEventListener('hidden.bs.modal', limpiarYCerrarModal);
-
-// Agregar evento al botón cancelar
 document.addEventListener('DOMContentLoaded', function() {
-    const btnCancelar = document.getElementById('btnCancelar');
+    // Obtener referencias a elementos del modal
+    const modal = document.getElementById('addDestinatarioModal');
+    const form = document.getElementById('destinatarioForm');
+    const modalTitle = document.getElementById('destinatarioModalTitle');
+    
+    // Función para limpiar el formulario
+    function resetearFormulario() {
+        form.reset();
+        document.getElementById('destinatario_id').value = '';
+        modalTitle.innerHTML = '<i class="fas fa-plus me-2"></i>Agregar Destinatario';
+        
+        // Restablecer valores predeterminados
+        document.getElementById('activo').checked = true;
+        document.getElementById('recibir_remesas').checked = true;
+        document.getElementById('recibir_pagos').checked = true;
+        document.getElementById('recibir_cambios_estado').checked = true;
+    }
+    
+    // Manejar cierre del modal
+    modal.addEventListener('hidden.bs.modal', resetearFormulario);
+    
+    // Manejar botón cancelar
+    const btnCancelar = modal.querySelector('.btn-secondary');
     if (btnCancelar) {
-        btnCancelar.addEventListener('click', limpiarYCerrarModal);
+        btnCancelar.addEventListener('click', function() {
+            const modalInstance = bootstrap.Modal.getInstance(modal);
+            if (modalInstance) {
+                modalInstance.hide();
+            }
+        });
+    }
+    
+    // Manejar botón cerrar (X)
+    const btnCerrar = modal.querySelector('.btn-close');
+    if (btnCerrar) {
+        btnCerrar.addEventListener('click', function() {
+            const modalInstance = bootstrap.Modal.getInstance(modal);
+            if (modalInstance) {
+                modalInstance.hide();
+            }
+        });
     }
 });
 
