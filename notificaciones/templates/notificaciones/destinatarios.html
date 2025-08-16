@@ -285,9 +285,9 @@
                 <h5 class="modal-title text-white" id="destinatarioModalTitle">
                     <i class="fas fa-plus me-2"></i>Agregar Destinatario
                 </h5>
-                <div>
-                    <button type="button" class="btn btn-sm btn-outline-light me-2" id="minimizeModal">
-                        <i class="fas fa-window-minimize"></i>
+                <div class="modal-header-buttons">
+                    <button type="button" class="btn btn-sm btn-outline-light me-2" id="btnMinimizar">
+                        <i class="fas fa-minus"></i>
                     </button>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                 </div>
@@ -489,19 +489,30 @@
 /* Asegurar que el modal sea visible */
 #addDestinatarioModal {
     z-index: 1050;
-    transition: all 0.3s ease-in-out;
 }
 
-/* Estilos para el botón minimizar */
-#minimizeModal {
+/* Estilos para los botones del modal */
+.modal-header-buttons {
+    display: flex;
+    align-items: center;
+}
+
+.modal-header-buttons .btn-sm {
     padding: 0.25rem 0.5rem;
-    line-height: 1;
     font-size: 0.875rem;
 }
 
-/* Animaciones para minimizar/maximizar */
+.modal-header-buttons .btn-close {
+    margin-left: 0.5rem;
+}
+
+/* Animación para minimizar/maximizar */
 .modal-dialog {
     transition: transform 0.3s ease-in-out;
+}
+
+.modal-dialog.modal-minimized {
+    transform: translateY(40vh);
 }
 
 .modal-content {
@@ -828,59 +839,53 @@ document.getElementById('addDestinatarioModal').addEventListener('hidden.bs.moda
     document.getElementById('callmebot_api_key').value = '';
 });
 
-// Función para cerrar el modal
-function cerrarModal() {
-    const modalElement = document.getElementById('addDestinatarioModal');
-    const modal = bootstrap.Modal.getInstance(modalElement);
-    if (modal) {
-        modal.hide();
+// Event listeners para botones
+// Función para minimizar/maximizar el modal
+function toggleMinimizarModal() {
+    const modalDialog = document.querySelector('#addDestinatarioModal .modal-dialog');
+    const btnMinimizar = document.getElementById('btnMinimizar');
+    const isMinimized = modalDialog.classList.contains('modal-minimized');
+    
+    if (isMinimized) {
+        modalDialog.classList.remove('modal-minimized');
+        btnMinimizar.innerHTML = '<i class="fas fa-minus"></i>';
+        modalDialog.style.transform = 'none';
     } else {
-        cerrarModalFallback();
+        modalDialog.classList.add('modal-minimized');
+        btnMinimizar.innerHTML = '<i class="fas fa-expand"></i>';
+        modalDialog.style.transform = 'translateY(40vh)';
     }
 }
 
-// Función para minimizar el modal
-function minimizarModal() {
-    const modalElement = document.getElementById('addDestinatarioModal');
-    modalElement.style.opacity = '0.5';
-    modalElement.style.transform = 'translateY(70%)';
+// Función para cerrar el modal
+function cerrarModal() {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('addDestinatarioModal'));
+    if (modal) {
+        modal.hide();
+    }
+    // Resetear el estado minimizado
+    const modalDialog = document.querySelector('#addDestinatarioModal .modal-dialog');
+    modalDialog.classList.remove('modal-minimized');
+    modalDialog.style.transform = 'none';
 }
 
-// Función para restaurar el modal
-function restaurarModal() {
-    const modalElement = document.getElementById('addDestinatarioModal');
-    modalElement.style.opacity = '1';
-    modalElement.style.transform = 'translateY(0)';
-}
-
-// Event listeners para botones
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Configurando event listeners...');
     
-    // Configurar botón minimizar
-    const btnMinimize = document.getElementById('minimizeModal');
-    if (btnMinimize) {
-        let minimizado = false;
-        btnMinimize.addEventListener('click', function() {
-            if (!minimizado) {
-                minimizarModal();
-            } else {
-                restaurarModal();
-            }
-            minimizado = !minimizado;
-        });
+    // Configurar botones del modal
+    const btnMinimizar = document.getElementById('btnMinimizar');
+    if (btnMinimizar) {
+        btnMinimizar.addEventListener('click', toggleMinimizarModal);
     }
     
-    // Configurar botón cerrar en modal
-    const btnClose = document.querySelector('.btn-close');
-    if (btnClose) {
-        btnClose.addEventListener('click', cerrarModal);
+    const btnCancelar = document.getElementById('btnCancelar');
+    if (btnCancelar) {
+        btnCancelar.addEventListener('click', cerrarModal);
     }
     
-    // Configurar botón cancelar en modal
-    const btnCancel = document.querySelector('.modal-footer .btn-secondary');
-    if (btnCancel) {
-        btnCancel.addEventListener('click', cerrarModal);
+    const btnCerrar = document.querySelector('#addDestinatarioModal .btn-close');
+    if (btnCerrar) {
+        btnCerrar.addEventListener('click', cerrarModal);
     }
     
     // Botones para abrir modal de agregar destinatario
