@@ -580,6 +580,23 @@ document.getElementById('guardarDestinatario').addEventListener('click', functio
     });
 });
 
+// Arreglar botón Cancelar para cerrar el modal correctamente
+document.addEventListener('DOMContentLoaded', function() {
+    const btnCancelar = document.querySelector('#addDestinatarioModal .btn.btn-secondary[data-bs-dismiss="modal"]');
+    if (btnCancelar) {
+        btnCancelar.addEventListener('click', function(e) {
+            // Si Bootstrap está disponible, dejar que el atributo data-bs-dismiss funcione
+            if (typeof bootstrap === 'undefined' || !bootstrap.Modal) {
+                // Si no hay Bootstrap, usar el fallback manual
+                e.preventDefault();
+                cerrarModalFallback();
+            }
+        });
+    }
+});
+
+// Función para cerrar modal manualmente (fallback)
+
 // Función para editar destinatario
 function editarDestinatario(id, nombre, telefono, callmebotApiKey, activo, recibir_remesas, recibir_pagos, recibir_cambios_estado) {
     // Cambiar título del modal
