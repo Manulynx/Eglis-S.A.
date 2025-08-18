@@ -356,7 +356,7 @@
                 </form>
             </div>
             <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-secondary" id="btnCancelarDestinatario">Cancelar</button>
                 <button type="button" class="btn btn-success" id="guardarDestinatario">
                     <i class="fas fa-save me-2"></i>Guardar
                 </button>
@@ -816,6 +816,23 @@ document.getElementById('addDestinatarioModal').addEventListener('hidden.bs.moda
 // Event listeners para botones
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Configurando event listeners...');
+    
+    // Configurar el botón cancelar del modal
+    const btnCancelar = document.getElementById('btnCancelarDestinatario');
+    if (btnCancelar) {
+        btnCancelar.addEventListener('click', function() {
+            console.log('🔘 Clic en botón Cancelar');
+            if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('addDestinatarioModal'));
+                if (modal) {
+                    modal.hide();
+                }
+            } else {
+                cerrarModalFallback();
+            }
+        });
+        console.log('✅ Event listener agregado al botón Cancelar');
+    }
     
     // Botones para abrir modal de agregar destinatario
     const btnAgregar = document.getElementById('btnAgregarDestinatario');
