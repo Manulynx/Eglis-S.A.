@@ -18,5 +18,5 @@ def admin_usuarios_redirect(request):
 def home(request):
     from remesas.models import Moneda
     # Excluir USD y filtrar solo monedas activas
-    monedas = Moneda.objects.filter(activa=True).exclude(codigo='USD')
+    monedas = Moneda.objects.filter(activa=True)
     return render(request, 'eglisapp/home.html', {'monedas': monedas})
