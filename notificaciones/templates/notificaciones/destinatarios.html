@@ -285,7 +285,7 @@
                 <h5 class="modal-title text-white" id="destinatarioModalTitle">
                     <i class="fas fa-plus me-2"></i>Agregar Destinatario
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                
             </div>
             <div class="modal-body">
                 <form id="destinatarioForm" method="post">
@@ -596,23 +596,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Función para cerrar modal manualmente (fallback)
-document.addEventListener('DOMContentLoaded', function() {
-    const btnClose = document.querySelector('#addDestinatarioModal .btn-close');
-    if (btnClose) {
-        btnClose.addEventListener('click', function(e) {
-            const modalElement = document.getElementById('addDestinatarioModal');
-            // Si Bootstrap no está disponible, cerrar manualmente
-            if (typeof bootstrap === 'undefined' || !bootstrap.Modal) {
-                e.preventDefault();
-                modalElement.style.display = 'none';
-                modalElement.classList.remove('show');
-                document.body.classList.remove('modal-open');
-                const backdrop = document.querySelector('.modal-backdrop');
-                if (backdrop) backdrop.remove();
-            }
-        });
-    }
-});
 
 // Función para editar destinatario
 function editarDestinatario(id, nombre, telefono, callmebotApiKey, activo, recibir_remesas, recibir_pagos, recibir_cambios_estado) {
