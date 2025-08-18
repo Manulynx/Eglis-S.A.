@@ -181,9 +181,13 @@ def administrar_usuarios(request):
         pagos_count = Pago.objects.filter(usuario=usuario).count()
         total_pagos_count += pagos_count
         
-        # Calcular total en USD de remesas del usuario
+        # Calcular total en USD de remesas del usuario - Solo confirmadas y completadas
         total_remesas_usd = Decimal('0.00')
-        remesas_usuario = Remesa.objects.filter(gestor=usuario, importe__isnull=False).select_related('moneda')
+        remesas_usuario = Remesa.objects.filter(
+            gestor=usuario, 
+            importe__isnull=False,
+            estado__in=['confirmada', 'completada']
+        ).select_related('moneda')
         
         for remesa in remesas_usuario:
             if remesa.importe and remesa.moneda:
@@ -835,8 +839,9 @@ def historial_usuario(request, user_id):
     total_remesas_count = Remesa.objects.filter(gestor=usuario).count()
     total_pagos_count = Pago.objects.filter(usuario=usuario).count()
     
-    # Estadísticas
-    total_remesas_usd = sum([getattr(r, 'importe_usd', Decimal('0.00')) for r in remesas])
+    # Estadísticas - Solo remesas confirmadas y completadas para el total
+    remesas_confirmadas_completadas = [r for r in remesas if r.estado in ['confirmada', 'completada']]
+    total_remesas_usd = sum([getattr(r, 'importe_usd', Decimal('0.00')) for r in remesas_confirmadas_completadas])
     total_pagos_usd = sum([getattr(p, 'cantidad_usd', Decimal('0.00')) for p in pagos])
     balance = total_remesas_usd - total_pagos_usd
     

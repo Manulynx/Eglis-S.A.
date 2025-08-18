@@ -17,6 +17,6 @@ def admin_usuarios_redirect(request):
 @login_required
 def home(request):
     from remesas.models import Moneda
-    # Obtener todas las monedas activas, incluyendo USD
-    monedas = Moneda.objects.filter(activa=True).order_by('codigo')
+    # Excluir USD y filtrar solo monedas activas
+    monedas = Moneda.objects.filter(activa=True).exclude(codigo='USD')
     return render(request, 'eglisapp/home.html', {'monedas': monedas})

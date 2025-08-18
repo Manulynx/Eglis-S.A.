@@ -25,8 +25,9 @@ def registro_transacciones(request):
     remesas_count = remesas.count()
     pagos_count = pagos.count()
     
-    # Totales en USD
-    total_remesas = sum(remesa.calcular_monto_en_usd() for remesa in remesas)
+    # Totales en USD - Solo sumar remesas confirmadas y completadas
+    remesas_confirmadas_completadas = remesas.filter(estado__in=['confirmada', 'completada'])
+    total_remesas = sum(remesa.calcular_monto_en_usd() for remesa in remesas_confirmadas_completadas)
     total_pagos = sum(pago.calcular_monto_en_usd() for pago in pagos)
     
     # Obtener monedas para filtros

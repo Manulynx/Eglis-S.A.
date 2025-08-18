@@ -979,7 +979,7 @@
                         </div>
                     </div>
 
-                    <div class="table-container-total" style="max-height: 600px; overflow-y: auto; border: 1px solid #495057; border-radius: 0.375rem;">
+                    <div class="table-responsive table-container-total" style="max-height: 600px; overflow-y: auto; border: 1px solid #495057; border-radius: 0.375rem;">
                         <!-- Vista Desktop -->
                         <table class="table table-dark table-sm mb-0">
                             <thead class="sticky-top">
@@ -1211,9 +1211,22 @@
 {% csrf_token %}
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Variables globales - inicializar con el valor del backend
-    let activeTab = '{{ tab_activa|default:"remesas" }}';
+// Namespace específico para registro de transacciones
+(function() {
+    'use strict';
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('=== REGISTRO TRANSACCIONES JS INICIANDO ===');
+        console.log('Fecha/Hora:', new Date().toLocaleString());
+        console.log('URL actual:', window.location.href);
+        
+        // Verificar que no estamos interfiriendo con el navbar
+        const navbarDropdowns = document.querySelectorAll('.navbar .dropdown-toggle');
+        console.log('Dropdowns del navbar encontrados:', navbarDropdowns.length);
+        
+        // Variables globales - inicializar con el valor del backend
+        let activeTab = '{{ tab_activa|default:"remesas" }}';
+        console.log('Tab activa inicial:', activeTab);
 
     // Configurar manejo del dropdown del botón "Nueva"
     setupDropdownBehavior();
@@ -1253,20 +1266,25 @@ document.addEventListener('DOMContentLoaded', function() {
             return false;
         }
 
-        // Listener para clicks fuera del dropdown
+        // Listener para clicks fuera del dropdown - más específico
         document.addEventListener('click', function(event) {
-            // Verificar si el dropdown está abierto
+            // Solo procesar si el dropdown del botón crear está abierto
             if (dropdownButton.getAttribute('aria-expanded') !== 'true') {
                 return;
             }
 
-            // Verificar si el click fue fuera del dropdown
+            // Verificar si el click fue en el navbar - si es así, no interferir
+            if (event.target.closest('.navbar')) {
+                return; // Dejar que el navbar maneje sus propios dropdowns
+            }
+
+            // Verificar si el click fue fuera del dropdown del botón crear
             const dropdownContainer = dropdownButton.closest('.btn-group');
             if (dropdownContainer && !dropdownContainer.contains(event.target)) {
-                console.log('Click fuera del dropdown, cerrando...');
+                console.log('Click fuera del dropdown crear, cerrando...');
                 forceCloseDropdown();
             }
-        }, true);
+        }); // Removido el parámetro 'true' para usar fase de burbuja
 
         // Listener para tecla Escape
         document.addEventListener('keydown', function(event) {
@@ -1296,6 +1314,11 @@ document.addEventListener('DOMContentLoaded', function() {
     function setupPaginationListeners() {
         // Paginación de Remesas
         document.addEventListener('click', function(e) {
+            // No interferir con clicks en el navbar
+            if (e.target.closest('.navbar')) {
+                return;
+            }
+            
             if (e.target.closest('.pagination-remesas-link')) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1305,6 +1328,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Paginación de Pagos
         document.addEventListener('click', function(e) {
+            // No interferir con clicks en el navbar
+            if (e.target.closest('.navbar')) {
+                return;
+            }
+            
             if (e.target.closest('.pagination-pagos-link')) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1314,6 +1342,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Paginación de Total - usar navegación directa
         document.addEventListener('click', function(e) {
+            // No interferir con clicks en el navbar
+            if (e.target.closest('.navbar')) {
+                return;
+            }
+            
             if (e.target.closest('.pagination-total-link')) {
                 // Permitir navegación directa sin preventDefault para Total
                 // La navegación se maneja con el href del enlace
@@ -1398,6 +1431,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Event listeners para botones de la pestaña Total
         document.addEventListener('click', function(e) {
+            // No interferir with clicks en el navbar
+            if (e.target.closest('.navbar')) {
+                return;
+            }
+            
             // Log todos los clicks para debug
             if (e.target.classList.contains('btn-ver-total') || e.target.closest('.btn-ver-total')) {
                 console.log('Click detectado en botón ver total');
@@ -1740,6 +1778,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Interceptar clics en enlaces de paginación para mantener la pestaña activa
     document.addEventListener('click', function(e) {
+        // No interferir con clicks en el navbar
+        if (e.target.closest('.navbar')) {
+            return;
+        }
+        
         if (e.target.closest('.pagination a')) {
             e.preventDefault();
             const link = e.target.closest('.pagination a');
@@ -1754,6 +1797,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Event listeners para botones de acción
     document.addEventListener('click', function(e) {
         console.log('Click detectado en:', e.target);
+
+        // No interferir con clicks en el navbar
+        if (e.target.closest('.navbar')) {
+            return;
+        }
 
         if (e.target.closest('.btn-editar')) {
             const remesaId = e.target.closest('.btn-editar').dataset.remesaId;
@@ -2696,6 +2744,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 });
+
+// Cerrar namespace
+})();
 </script>
 
 <style>
@@ -2963,12 +3014,19 @@ document.addEventListener('DOMContentLoaded', function() {
 /* Estilos responsivos para móviles */
 @media (max-width: 768px) {
     /* Vista móvil */
-    .table-responsive {
-        display: none; /* Ocultar tabla en móvil */
+    .table-responsive,
+    .table-container-total,
+    .table-container {
+        display: none !important; /* Ocultar tabla en móvil */
     }
 
     .mobile-cards {
-        display: block; /* Mostrar cards en móvil */
+        display: block !important; /* Mostrar cards en móvil */
+    }
+
+    /* Ocultar todas las tablas en móvil */
+    table.table {
+        display: none !important;
     }
 
     .mobile-item {
@@ -3002,12 +3060,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
 @media (min-width: 769px) {
     /* Vista desktop */
-    .table-responsive {
-        display: block;
+    .table-responsive,
+    .table-container-total,
+    .table-container {
+        display: block !important;
     }
 
     .mobile-cards {
-        display: none; /* Ocultar cards en desktop */
+        display: none !important; /* Ocultar cards en desktop */
+    }
+
+    /* Mostrar todas las tablas en desktop */
+    table.table {
+        display: table !important;
     }
 }
 
