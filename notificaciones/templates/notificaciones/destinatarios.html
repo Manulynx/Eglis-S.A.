@@ -585,10 +585,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const btnCancelar = document.querySelector('#addDestinatarioModal .btn.btn-secondary[data-bs-dismiss="modal"]');
     if (btnCancelar) {
         btnCancelar.addEventListener('click', function(e) {
-            // Si Bootstrap está disponible, dejar que el atributo data-bs-dismiss funcione
-            if (typeof bootstrap === 'undefined' || !bootstrap.Modal) {
-                // Si no hay Bootstrap, usar el fallback manual
-                e.preventDefault();
+            const modalElement = document.getElementById('addDestinatarioModal');
+            if (typeof bootstrap !== 'undefined' && bootstrap.Modal && destinatarioModalInstance) {
+                destinatarioModalInstance.hide();
+            } else {
                 cerrarModalFallback();
             }
         });
@@ -613,7 +613,30 @@ function editarDestinatario(id, nombre, telefono, callmebotApiKey, activo, recib
     document.getElementById('recibir_cambios_estado').checked = recibir_cambios_estado;
     
     // Mostrar modal
-    new bootstrap.Modal(document.getElementById('addDestinatarioModal')).show();
+    const modalElement = document.getElementById('addDestinatarioModal');
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        if (!destinatarioModalInstance) {
+            destinatarioModalInstance = new bootstrap.Modal(modalElement);
+        }
+        destinatarioModalInstance.show();
+    } else {
+        // Fallback: mostrar modal manualmente
+        modalElement.style.display = 'block';
+        modalElement.classList.add('show');
+        document.body.classList.add('modal-open');
+        
+        // Agregar backdrop si no existe
+        if (!document.querySelector('.modal-backdrop')) {
+            const backdrop = document.createElement('div');
+            backdrop.className = 'modal-backdrop show';
+            document.body.appendChild(backdrop);
+            
+            // Cerrar modal al hacer clic en backdrop
+            backdrop.addEventListener('click', function() {
+                cerrarModalFallback();
+            });
+        }
+    }
 }
 
 // Función para toggle estado del destinatario
@@ -820,33 +843,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Configurar el botón cancelar del modal
     const btnCancelar = document.getElementById('btnCancelarDestinatario');
     if (btnCancelar) {
-        btnCancelar.addEventListener('click', function() {
-            console.log('🔘 Clic en botón Cancelar');
+        btnCancelar.addEventListener('click', function(e) {
             const modalElement = document.getElementById('addDestinatarioModal');
-            
-            // Intentar cerrar con Bootstrap primero
-            if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-                const modal = bootstrap.Modal.getInstance(modalElement);
-                if (modal) {
-                    modal.hide();
-                    return;
-                }
-            }
-            
-            // Fallback: cerrar manualmente si Bootstrap no está disponible
-            if (modalElement) {
-                modalElement.style.display = 'none';
-                modalElement.classList.remove('show');
-                document.body.classList.remove('modal-open');
-                
-                // Remover backdrop
-                const backdrop = document.querySelector('.modal-backdrop');
-                if (backdrop) {
-                    backdrop.remove();
-                }
+            if (typeof bootstrap !== 'undefined' && bootstrap.Modal && destinatarioModalInstance) {
+                destinatarioModalInstance.hide();
+            } else {
+                cerrarModalFallback();
             }
         });
-        console.log('✅ Event listener agregado al botón Cancelar');
     } else {
         console.error('❌ No se encontró el botón Cancelar');
     }
@@ -917,6 +921,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+// Variable para instancia de modal
+let destinatarioModalInstance = null;
+
 // Función para abrir modal de agregar
 function abrirModalAgregar() {
     console.log('🔄 Intentando abrir modal de agregar destinatario');
@@ -938,35 +945,29 @@ function abrirModalAgregar() {
     document.getElementById('callmebot_api_key').value = '';
     
     // Intentar abrir modal con Bootstrap
-    try {
-        const modalElement = document.getElementById('addDestinatarioModal');
-        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-            const modal = new bootstrap.Modal(modalElement);
-            modal.show();
-            console.log('✅ Modal abierto con Bootstrap');
-        } else {
-            // Fallback: mostrar modal manualmente
-            modalElement.style.display = 'block';
-            modalElement.classList.add('show');
-            document.body.classList.add('modal-open');
-            
-            // Agregar backdrop si no existe
-            if (!document.querySelector('.modal-backdrop')) {
-                const backdrop = document.createElement('div');
-                backdrop.className = 'modal-backdrop show';
-                document.body.appendChild(backdrop);
-                
-                // Cerrar modal al hacer clic en backdrop
-                backdrop.addEventListener('click', function() {
-                    cerrarModalFallback();
-                });
-            }
-            
-            console.log('⚠️ Modal abierto con fallback (Bootstrap no disponible)');
+    const modalElement = document.getElementById('addDestinatarioModal');
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        if (!destinatarioModalInstance) {
+            destinatarioModalInstance = new bootstrap.Modal(modalElement);
         }
-    } catch (error) {
-        console.error('❌ Error al abrir modal:', error);
-        alert('Error al abrir el formulario. Por favor, recarga la página.');
+        destinatarioModalInstance.show();
+    } else {
+        // Fallback: mostrar modal manualmente
+        modalElement.style.display = 'block';
+        modalElement.classList.add('show');
+        document.body.classList.add('modal-open');
+        
+        // Agregar backdrop si no existe
+        if (!document.querySelector('.modal-backdrop')) {
+            const backdrop = document.createElement('div');
+            backdrop.className = 'modal-backdrop show';
+            document.body.appendChild(backdrop);
+            
+            // Cerrar modal al hacer clic en backdrop
+            backdrop.addEventListener('click', function() {
+                cerrarModalFallback();
+            });
+        }
     }
 }
 
