@@ -822,16 +822,33 @@ document.addEventListener('DOMContentLoaded', function() {
     if (btnCancelar) {
         btnCancelar.addEventListener('click', function() {
             console.log('🔘 Clic en botón Cancelar');
+            const modalElement = document.getElementById('addDestinatarioModal');
+            
+            // Intentar cerrar con Bootstrap primero
             if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-                const modal = bootstrap.Modal.getInstance(document.getElementById('addDestinatarioModal'));
+                const modal = bootstrap.Modal.getInstance(modalElement);
                 if (modal) {
                     modal.hide();
+                    return;
                 }
-            } else {
-                cerrarModalFallback();
+            }
+            
+            // Fallback: cerrar manualmente si Bootstrap no está disponible
+            if (modalElement) {
+                modalElement.style.display = 'none';
+                modalElement.classList.remove('show');
+                document.body.classList.remove('modal-open');
+                
+                // Remover backdrop
+                const backdrop = document.querySelector('.modal-backdrop');
+                if (backdrop) {
+                    backdrop.remove();
+                }
             }
         });
         console.log('✅ Event listener agregado al botón Cancelar');
+    } else {
+        console.error('❌ No se encontró el botón Cancelar');
     }
     
     // Botones para abrir modal de agregar destinatario
