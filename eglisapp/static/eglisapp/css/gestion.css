@@ -1,3 +1,9 @@
+@media (min-width: 992px) {
+    body.login-page .navbar,
+    body.login-page #mainNav {
+        display: none !important;
+    }
+}
 :root {
     --primary-gradient: linear-gradient(135deg, #1a2980 0%, #576ffb 100%);
     --text-color: #e2e8f0;
