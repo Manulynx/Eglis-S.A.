@@ -3,6 +3,8 @@
 
 {% load static %}
 
+{% block body_class %} class="login-page"{% endblock %}
+
 {% block title %}Iniciar Sesión{% endblock %}
 
 {% block content %}
@@ -39,68 +41,35 @@
 
 {% block extra_js %}
 <script>
-// Aplicar clase al body para que los estilos de login en gestion.css se activen
-document.addEventListener('DOMContentLoaded', function() {
-        document.body.classList.add('login-page');
-
-        const form = document.getElementById('loginForm');
-        const loginBtn = document.getElementById('loginBtn');
-        const usernameInput = document.getElementById('username');
-        const passwordInput = document.getElementById('password');
-
-        if (!form) return;
-
-        form.addEventListener('submit', function() {
-                // Mostrar loading
-                if (loginBtn) {
-                        loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Verificando...';
-                        loginBtn.disabled = true;
-                }
-        });
-
-        function validateForm() {
-                if (!usernameInput || !passwordInput) return;
-                const isValid = usernameInput.value.trim() !== '' && passwordInput.value.trim() !== '';
-                if (loginBtn) loginBtn.disabled = !isValid;
-                return isValid;
-        }
-
-        if (usernameInput) usernameInput.addEventListener('input', validateForm);
-        if (passwordInput) passwordInput.addEventListener('input', validateForm);
-
-        // Validación inicial
-        validateForm();
-});
-</script>
-{% endblock %}
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('loginForm');
     const loginBtn = document.getElementById('loginBtn');
-    
-    form.addEventListener('submit', function(e) {
-        // Mostrar loading
-        loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Verificando...';
-        loginBtn.disabled = true;
-        
-        // Si hay errores, el formulario se enviará normalmente y Django manejará la respuesta
-        // Si es exitoso, SweetAlert2 se encargará de mostrar el mensaje
-    });
-    
-    // Validación en tiempo real
     const usernameInput = document.getElementById('username');
     const passwordInput = document.getElementById('password');
-    
+
+    if (!form) return;
+
+    form.addEventListener('submit', function() {
+        // Mostrar loading
+        if (loginBtn) {
+            loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Verificando...';
+            loginBtn.disabled = true;
+        }
+    });
+
     function validateForm() {
+        if (!usernameInput || !passwordInput) return;
         const isValid = usernameInput.value.trim() !== '' && passwordInput.value.trim() !== '';
-        loginBtn.disabled = !isValid;
+        if (loginBtn) loginBtn.disabled = !isValid;
         return isValid;
     }
-    
-    usernameInput.addEventListener('input', validateForm);
-    passwordInput.addEventListener('input', validateForm);
-    
+
+    if (usernameInput) usernameInput.addEventListener('input', validateForm);
+    if (passwordInput) passwordInput.addEventListener('input', validateForm);
+
     // Validación inicial
     validateForm();
 });
 </script>
+{% endblock %}
 

@@ -15,8 +15,8 @@ body {
     display: grid;
     grid-template-rows: auto 1fr auto;
     min-height: 100vh;
-    background: #07519c;
-    min-height: 100vh;
+    /* background moved to base.html - keep a fallback color */
+    background-color: #07519c;
     color: #1e293b;
     font-family: 'Inter', sans-serif;
     line-height: 1.6;
@@ -203,6 +203,18 @@ body {
     }
     .card-body small {
         font-size: 0.7rem !important;
+    }
+}
+
+/* Centro vertical en escritorio para login-page */
+@media (min-width: 992px) {
+    body.login-page {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .login-container {
+        max-width: 420px;
     }
 }
 
