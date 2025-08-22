@@ -218,6 +218,38 @@ body {
     }
 }
 
+/* Forzar layout de login: ocultar elementos de chrome y asegurar fondo */
+body.login-page {
+    /* Reaplicar el fondo que usa base.html para evitar inconsistencias en mobile */
+    background: linear-gradient(145deg, #1a1c2e, #2c3e50) fixed !important;
+    background-size: cover !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 100vh !important;
+    padding: 1rem !important;
+}
+
+/* Ocultar header/navbar y elementos no deseados en la pantalla de login */
+body.login-page .navbar,
+body.login-page .pull-to-refresh-container,
+body.login-page #mainNav,
+body.login-page .pull-to-refresh-container,
+body.login-page footer {
+    display: none !important;
+}
+
+/* Ajustes adicionales para el contenedor del login */
+.login-container {
+    width: 100%;
+    max-width: 420px;
+    margin: 0 auto;
+}
+
+.auth-card {
+    margin: 0 auto;
+}
+
 @media (max-width: 991px) {
     .card-body {
         padding: 1rem;
