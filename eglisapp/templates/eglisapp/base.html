@@ -415,26 +415,19 @@
             </a>
           </li>
 
-          <li class="nav-item dropdown {% if request.resolver_match.url_name in 'nueva_remesa,crear_pago' %}active{% endif %}">
-            <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" href="#" id="remesasDropdown"
-               role="button" data-bs-toggle="dropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-              <i class="fas fa-exchange-alt"></i>
-              <span>Operaciones</span>
+          <li class="nav-item {% if request.resolver_match.url_name == 'nueva_remesa' %}active{% endif %}">
+            <a class="nav-link d-flex align-items-center gap-2" href="{% url 'remesas:nueva_remesa' %}">
+              <i class="fas fa-list-alt"></i>
+              <span>Enviar</span>
             </a>
-            <div class="dropdown-menu dropdown-menu-dark" aria-labelledby="remesasDropdown">
-
-              <a class="dropdown-item d-flex align-items-center gap-2" href="{% url 'remesas:nueva_remesa' %}">
-                <i class="fas fa-plus fa-fw"></i>
-                <span> Recibir</span>
-              </a>
-              <div class="dropdown-divider"></div>
-
-              <a class="dropdown-item d-flex align-items-center gap-2" href="{% url 'remesas:crear_pago' %}">
-                <i class="fas fa-minus fa-fw"></i>
-                <span> Enviar</span>
-              </a>
-            </div>
           </li>
+          <li class="nav-item {% if request.resolver_match.url_name == 'crear_pago' %}active{% endif %}">
+            <a class="nav-link d-flex align-items-center gap-2" href="{% url 'remesas:crear_pago' %}">
+              <i class="fas fa-list-alt"></i>
+              <span>Recibir</span>
+            </a>
+          </li>
+
           <li class="nav-item {% if request.resolver_match.url_name == 'registro_transacciones' %}active{% endif %}">
             <a class="nav-link d-flex align-items-center gap-2" href="{% url 'remesas:registro_transacciones' %}">
               <i class="fas fa-list-alt"></i>
