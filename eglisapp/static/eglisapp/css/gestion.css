@@ -502,3 +502,42 @@ body.login-page {
         color: var(--hover-color);
     }
 }
+
+/* ----- Strong rules to ensure compact, centered login on desktop ----- */
+@media (min-width: 992px) {
+    /* Make the login container a fixed, centered column and prevent full-width stretching */
+    body.login-page .login-container {
+        display: block !important;
+        flex: 0 0 auto !important;
+        width: auto !important;
+        max-width: 420px !important;
+        margin: 0 auto !important;
+        padding: 0 !important;
+    }
+
+    /* Ensure the card doesn't expand beyond the container */
+    body.login-page .auth-card,
+    body.login-page .auth-card .card {
+        width: 100% !important;
+        max-width: 420px !important;
+        margin: 0 auto !important;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.25) !important;
+    }
+
+    /* Slightly tighter paddings for desktop to keep it compact */
+    body.login-page .auth-card .card-body {
+        padding: 1rem 1.25rem !important;
+    }
+
+    /* Keep inputs and buttons compact */
+    body.login-page .auth-card .form-control {
+        padding: 0.5rem 0.6rem !important;
+        height: 40px !important;
+        font-size: 0.95rem !important;
+    }
+
+    body.login-page .auth-card .btn-lg {
+        padding: 0.45rem 0.8rem !important;
+        font-size: 0.98rem !important;
+    }
+}
