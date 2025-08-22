@@ -282,6 +282,64 @@ body {
 #addDestinatarioModal {
     z-index: 1050;
 }
+
+/* Compact login layout: centered vertically and tighter paddings */
+body.login-page {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.login-container {
+    width: 100%;
+    max-width: 420px;
+    margin: 0 auto;
+    padding: 0.25rem;
+}
+
+.auth-card {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.auth-card .card-header {
+    padding: 0.6rem 1rem;
+    font-size: 1.15rem;
+}
+
+.auth-card .card-body {
+    padding: 0.9rem 1rem;
+}
+
+.auth-card .form-group {
+    margin-bottom: 0.6rem;
+}
+
+.auth-card .form-control {
+    padding: 0.45rem 0.6rem;
+    height: 38px;
+    font-size: 0.95rem;
+}
+
+.auth-card .btn-lg {
+    padding: 0.5rem 0.75rem;
+    font-size: 1rem;
+}
+
+@media (max-width: 576px) {
+    body.login-page {
+        padding: 1rem;
+    }
+    .login-container {
+        max-width: 360px;
+    }
+    .auth-card .card-header {
+        font-size: 1rem;
+    }
+}
     .step-card {
         margin-bottom: 1rem;
     }
