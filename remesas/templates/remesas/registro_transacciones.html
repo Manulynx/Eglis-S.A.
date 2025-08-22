@@ -45,33 +45,11 @@
         border: 1px solid rgba(255, 255, 255, 0.125);
     }
 
-    /* Específico para el dropdown del botón Nueva */
-    #newTransactionButton + .dropdown-menu {
-        /* Forzar posicionamiento desde la derecha */
-        left: auto !important;
-        right: 0 !important;
-        /* Ajustar el ancho para que quepa cómodamente */
-        width: 180px;
-        /* Asegurar que no se corte en pantallas pequeñas */
-        margin-right: 0;
-    }
-
     .dropdown-item {
         padding: 0.75rem 1rem;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-    }
-
-    /* Ajustar el contenedor del botón en móvil */
-    .btn-group {
-        position: relative;
-    }
-
-    /* Asegurar que el dropdown tenga suficiente espacio */
-    .d-flex.justify-content-between.align-items-center {
-        position: relative;
-        overflow: visible;
     }
 }
 
@@ -99,23 +77,6 @@
                     <i class="fas fa-list-check me-2"></i>
                     Registro de Operaciones
                 </h2>
-                <div class="btn-group">
-                    <button class="btn btn-success dropdown-toggle" type="button" id="newTransactionButton" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="fas fa-plus fw"></i>Crear
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
-                        <li>
-                            <a class="dropdown-item" href="{% url 'remesas:nueva_remesa' %}">
-                                <i class="fas fa-plus fw"></i>Recibo
-                            </a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item" href="{% url 'remesas:crear_pago' %}">
-                                <i class="fas fa-minus fw"></i>Envio
-                            </a>
-                        </li>
-                    </ul>
-                </div>
             </div>
         </div>
     </div>
@@ -213,6 +174,19 @@
                             <option value="efectivo" {% if request.GET.tipo_pago_remesas == 'efectivo' %}selected{% endif %}>Efectivo</option>
                         </select>
                     </div>
+                    {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Usuario</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="usuario_remesas">
+                            <option value="">Todos los usuarios</option>
+                            {% for usuario in usuarios %}
+                                <option value="{{ usuario.id }}" {% if request.GET.usuario_remesas == usuario.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ usuario.first_name|default:usuario.username }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
                     <div class="col-md-6">
                         <label class="form-label text-muted small">Rango de Fechas</label>
                         <div class="row g-2">
@@ -285,6 +259,19 @@
                             {% endfor %}
                         </select>
                     </div>
+                    {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Usuario</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="usuario_pagos">
+                            <option value="">Todos los usuarios</option>
+                            {% for usuario in usuarios %}
+                                <option value="{{ usuario.id }}" {% if request.GET.usuario_pagos == usuario.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ usuario.first_name|default:usuario.username }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
                     <div class="col-md-3">
                         <label class="form-label text-muted small">Destinatario</label>
                         <input type="text" class="form-control bg-dark text-white border-secondary"
@@ -448,6 +435,7 @@
                 <!-- Pestaña Remesas -->
                 <div class="tab-pane fade {% if tab_activa == 'remesas' %}show active{% endif %}" id="remesas" role="tabpanel">
                     <!-- Información de filtros para Remesas -->
+                    {% if filtros_remesas_aplicados %}
                     <div class="row mb-3">
                         <div class="col-12">
                             <div class="alert alert-info d-flex justify-content-between align-items-center mb-0" style="background-color: #1e3a8a; border-color: #3b82f6; color: #dbeafe;">
@@ -469,6 +457,7 @@
                             </div>
                         </div>
                     </div>
+                    {% endif %}
 
                     <div class="table-responsive">
                         <!-- Vista Desktop -->
@@ -476,6 +465,9 @@
                             <thead>
                                 <tr>
                                     <th style="min-width: 120px;">ID Remesa</th>
+                                    {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                                    <th class="d-none d-lg-table-cell" style="min-width: 100px;">Usuario</th>
+                                    {% endif %}
                                     <th class="d-none d-md-table-cell" style="min-width: 150px;">Receptor</th>
                                     <th style="min-width: 100px;">Estado</th>
                                     <th style="min-width: 100px;">Importe</th>
@@ -490,6 +482,18 @@
                                     <td>
                                         <span class="text-info">{{ remesa.remesa_id }}</span>
                                     </td>
+                                    {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                                    <td class="d-none d-lg-table-cell">
+                                        {% if remesa.gestor %}
+                                            <div class="text-truncate" style="max-width: 100px;" title="{{ remesa.gestor.first_name|default:remesa.gestor.username }} ({{ remesa.gestor.perfil.tipo_usuario|capfirst }})">
+                                                <span class="text-info">{{ remesa.gestor.first_name|default:remesa.gestor.username }}</span>
+                                                <br><small class="text-muted">{{ remesa.gestor.perfil.tipo_usuario|capfirst }}</small>
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    {% endif %}
                                     <td class="d-none d-md-table-cell">
                                         {% if remesa.receptor_nombre %}
                                             <div class="text-truncate" style="max-width: 150px;" title="{{ remesa.receptor_nombre }}">
@@ -533,6 +537,7 @@
                                                 <i class="fas fa-eye"></i>
                                             </a>
 
+                                            {% if user_tipo != 'gestor' %}
                                             {% if remesa.estado == 'pendiente' %}
                                             <!-- Botón Editar -->
                                             <button class="btn btn-outline-warning btn-sm btn-editar"
@@ -586,6 +591,7 @@
                                                     data-bs-toggle="tooltip">
                                                 <i class="fas fa-lock"></i>
                                             </button>
+                                            {% endif %}
                                             {% endif %}
                                         </div>
                                     </td>
@@ -726,6 +732,7 @@
                 <!-- Pestaña Pagos -->
                 <div class="tab-pane fade {% if tab_activa == 'pagos' %}show active{% endif %}" id="pagos" role="tabpanel">
                     <!-- Información de filtros para Pagos -->
+                    {% if filtros_pagos_aplicados %}
                     <div class="row mb-3">
                         <div class="col-12">
                             <div class="alert alert-info d-flex justify-content-between align-items-center mb-0" style="background-color: #0891b2; border-color: #06b6d4; color: #cffafe;">
@@ -746,6 +753,7 @@
                             </div>
                         </div>
                     </div>
+                    {% endif %}
 
                     <div class="table-responsive">
                         <!-- Vista Desktop -->
@@ -754,6 +762,9 @@
                                 <tr>
                                     <th style="min-width: 120px;">ID Pago</th>
                                     <th style="min-width: 100px;">Tipo</th>
+                                    {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                                    <th class="d-none d-lg-table-cell" style="min-width: 100px;">Usuario</th>
+                                    {% endif %}
                                     <th style="min-width: 150px;">Destinatario</th>
                                     <th style="min-width: 100px;">Cantidad</th>
                                     <th style="min-width: 80px;">Moneda</th>
@@ -776,6 +787,18 @@
                                             <span class="badge bg-success">Efectivo</span>
                                         {% endif %}
                                     </td>
+                                    {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                                    <td class="d-none d-lg-table-cell">
+                                        {% if pago.usuario %}
+                                            <div class="text-truncate" style="max-width: 100px;" title="{{ pago.usuario.first_name|default:pago.usuario.username }} ({{ pago.usuario.perfil.tipo_usuario|capfirst }})">
+                                                <span class="text-info">{{ pago.usuario.first_name|default:pago.usuario.username }}</span>
+                                                <br><small class="text-muted">{{ pago.usuario.perfil.tipo_usuario|capfirst }}</small>
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    {% endif %}
                                     <td>
                                         <div class="text-truncate" style="max-width: 150px;" title="{{ pago.destinatario }}">
                                             {{ pago.destinatario }}
@@ -804,6 +827,7 @@
                                                 <i class="fas fa-eye"></i>
                                             </a>
 
+                                            {% if user_tipo != 'gestor' %}
                                             <!-- Botón Editar -->
                                             <a href="{% url 'remesas:editar_pago' pago.id %}"
                                                class="btn btn-outline-warning btn-sm"
@@ -821,6 +845,7 @@
                                                     data-bs-toggle="tooltip">
                                                 <i class="fas fa-trash"></i>
                                             </button>
+                                            {% endif %}
                                         </div>
                                     </td>
                                 </tr>
@@ -958,6 +983,7 @@
                 <!-- Pestaña Total -->
                 <div class="tab-pane fade {% if tab_activa == 'total' %}show active{% endif %}" id="total" role="tabpanel">
                     <!-- Información de filtros para Total -->
+                    {% if filtros_total_aplicados %}
                     <div class="row mb-3">
                         <div class="col-12">
                             <div class="alert alert-warning d-flex justify-content-between align-items-center mb-0" style="background-color: #92400e; border-color: #f59e0b; color: #fef3c7;">
@@ -978,6 +1004,7 @@
                             </div>
                         </div>
                     </div>
+                    {% endif %}
 
                     <div class="table-responsive table-container-total" style="max-height: 600px; overflow-y: auto; border: 1px solid #495057; border-radius: 0.375rem;">
                         <!-- Vista Desktop -->
@@ -1228,9 +1255,6 @@
         let activeTab = '{{ tab_activa|default:"remesas" }}';
         console.log('Tab activa inicial:', activeTab);
 
-    // Configurar manejo del dropdown del botón "Nueva"
-    setupDropdownBehavior();
-
     // Verificar filtros activos al cargar la página
     checkActiveFilters();
 
@@ -1238,78 +1262,6 @@
     setupTotalTabListeners();
 
     // Función para configurar el comportamiento del dropdown
-    function setupDropdownBehavior() {
-        const dropdownButton = document.getElementById('newTransactionButton');
-
-        if (!dropdownButton) {
-            console.log('Botón dropdown no encontrado');
-            return;
-        }
-
-        console.log('Configurando dropdown behavior');
-
-        // Función simple para cerrar dropdown
-        function forceCloseDropdown() {
-            // Obtener la instancia de Bootstrap
-            const dropdownInstance = bootstrap.Dropdown.getInstance(dropdownButton);
-            if (dropdownInstance) {
-                dropdownInstance.hide();
-                return true;
-            }
-
-            // Fallback: trigger click en el botón si está abierto
-            if (dropdownButton.getAttribute('aria-expanded') === 'true') {
-                dropdownButton.click();
-                return true;
-            }
-
-            return false;
-        }
-
-        // Listener para clicks fuera del dropdown - más específico
-        document.addEventListener('click', function(event) {
-            // Solo procesar si el dropdown del botón crear está abierto
-            if (dropdownButton.getAttribute('aria-expanded') !== 'true') {
-                return;
-            }
-
-            // Verificar si el click fue en el navbar - si es así, no interferir
-            if (event.target.closest('.navbar')) {
-                return; // Dejar que el navbar maneje sus propios dropdowns
-            }
-
-            // Verificar si el click fue fuera del dropdown del botón crear
-            const dropdownContainer = dropdownButton.closest('.btn-group');
-            if (dropdownContainer && !dropdownContainer.contains(event.target)) {
-                console.log('Click fuera del dropdown crear, cerrando...');
-                forceCloseDropdown();
-            }
-        }); // Removido el parámetro 'true' para usar fase de burbuja
-
-        // Listener para tecla Escape
-        document.addEventListener('keydown', function(event) {
-            if (event.key === 'Escape' && dropdownButton.getAttribute('aria-expanded') === 'true') {
-                console.log('Escape presionado, cerrando dropdown...');
-                forceCloseDropdown();
-                event.preventDefault();
-            }
-        });
-
-        // Listener para scroll en móvil
-        let scrollTimeout;
-        window.addEventListener('scroll', function() {
-            if (dropdownButton.getAttribute('aria-expanded') === 'true') {
-                clearTimeout(scrollTimeout);
-                scrollTimeout = setTimeout(function() {
-                    console.log('Scroll detectado, cerrando dropdown...');
-                    forceCloseDropdown();
-                }, 100);
-            }
-        });
-
-        console.log('Dropdown behavior configurado correctamente');
-    }
-
     // Función para configurar listeners de paginación específicos
     function setupPaginationListeners() {
         // Paginación de Remesas
@@ -1509,11 +1461,6 @@
             autoClose: true
         })
     });
-
-    // Configurar comportamiento adicional del dropdown después de inicializar Bootstrap
-    setTimeout(function() {
-        setupDropdownBehavior();
-    }, 100);
 
     // Toggle Filtros
     const toggleButton = document.getElementById('toggleFilters');

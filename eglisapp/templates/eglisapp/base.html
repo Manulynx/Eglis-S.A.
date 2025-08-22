@@ -366,21 +366,36 @@
     <!-- Navbar Responsive -->
     <nav class="navbar navbar-expand-lg navbar-dark sticky-top py-2" id="mainNav">
         <div class="container">
-            <!-- Balance del usuario (ahora a la izquierda) -->
-            {% if user.is_authenticated and user_balance is not None %}
-            <div class="d-flex align-items-center">
-              {% if user_balance >= 0 %}
-              <span class="badge bg-success rounded-pill fs-4">
-              <i class="fas fa-wallet me-1"></i>
-              <span class="fw-medium">Balance:</span>
-                {{ user_balance|floatformat:2 }} {{ user_balance_moneda }}
-              </span>
-              {% else %}
-              <span class="badge bg-danger rounded-pill fs-4">
-              <i class="fas fa-exclamation-triangle me-1"></i>
-              <span class="fw-medium">Balance:</span>
-                {{ user_balance|floatformat:2 }} {{ user_balance_moneda }}
-              </span>
+            <!-- Mensaje de bienvenida y Balance del usuario -->
+            {% if user.is_authenticated %}
+            <div class="d-flex flex-column align-items-start">
+              <!-- Mensaje de bienvenida -->
+              <div class="text-white mb-1 px-2 py-1 rounded" style="background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05)); border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(10px);">
+                <div class="d-flex align-items-center gap-2">
+                  <i class="fas fa-user-circle text-warning" style="font-size: 1.1rem;"></i>
+                  <span style="font-size: 0.9rem; font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">
+                    Bienvenido: <strong class="text-info">{{ user.first_name|default:user.username }}</strong>
+                  </span>
+                </div>
+              </div>
+              
+              <!-- Balance del usuario -->
+              {% if user_balance is not None %}
+              <div class="d-flex align-items-center">
+                {% if user_balance >= 0 %}
+                <span class="badge bg-success rounded-pill fs-4">
+                <i class="fas fa-wallet me-1"></i>
+                <span class="fw-medium">Balance:</span>
+                  {{ user_balance|floatformat:2 }} {{ user_balance_moneda }}
+                </span>
+                {% else %}
+                <span class="badge bg-danger rounded-pill fs-4">
+                <i class="fas fa-exclamation-triangle me-1"></i>
+                <span class="fw-medium">Balance:</span>
+                  {{ user_balance|floatformat:2 }} {{ user_balance_moneda }}
+                </span>
+                {% endif %}
+              </div>
               {% endif %}
             </div>
             {% endif %}
@@ -423,19 +438,21 @@
           <li class="nav-item {% if request.resolver_match.url_name == 'registro_transacciones' %}active{% endif %}">
             <a class="nav-link d-flex align-items-center gap-2" href="{% url 'remesas:registro_transacciones' %}">
               <i class="fas fa-list-alt"></i>
-              <span>Registros</span>
+              <span>Registro</span>
             </a>
           </li>
 
+          {% if user_tipo == 'admin' or user_tipo == 'contable' %}
           <li class="nav-item {% if request.resolver_match.url_name == 'lista_monedas' %}active{% endif %}">
             <a class="nav-link d-flex align-items-center gap-2" href="{% url 'remesas:lista_monedas' %}">
               <i class="fas fa-coins"></i>
               <span>Monedas</span>
             </a>
           </li>
+          {% endif %}
 
           <!-- Icono de notificaciones que lleva a destinatarios -->
-          {% if user.is_authenticated %}
+          {% if user.is_authenticated and user_tipo == 'admin' %}
           <li class="nav-item {% if request.resolver_match.url_name == 'destinatarios' %}active{% endif %}">
             <a class="nav-link d-flex align-items-center gap-2" href="{% url 'notificaciones:destinatarios' %}"
                title="Gestión de Destinatarios" data-bs-toggle="tooltip">
@@ -447,44 +464,22 @@
 
           <!-- Links de autenticación -->
           {% if user.is_authenticated %}
-            <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle d-flex align-items-center gap-2" href="#"
-                 id="navbarDropdown" role="button" data-bs-toggle="dropdown" data-toggle="dropdown"
-                 aria-haspopup="true" aria-expanded="false">
-                <i class="fas fa-user-circle"></i>
-                <span>{{ user.username }}</span>
+            <!-- Administrar usuarios -->
+            {% if user_tipo == 'admin' %}
+            <li class="nav-item">
+              <a class="nav-link d-flex align-items-center gap-2" href="{% url 'admin_usuarios' %}">
+                <i class="fas fa-users"></i>
+                <span>Administrar Usuarios</span>
               </a>
-              <div class="dropdown-menu dropdown-menu-dark dropdown-menu-end" aria-labelledby="navbarDropdown">
-                <a class="dropdown-item d-flex align-items-center gap-2" href="{% url 'login:historial_usuario' user.id %}">
-                  <i class="fas fa-history fa-fw"></i>
-                  <span>Mi Historial</span>
-                </a>
-                <div class="dropdown-divider"></div>
-                <a class="dropdown-item d-flex align-items-center gap-2" href="{% url 'admin_usuarios' %}">
-                  <i class="fas fa-users fa-fw"></i>
-                  <span>Admin Usuarios</span>
-            <!--    </a>
-                {% if user.is_staff %}
-                  <div class="dropdown-divider"></div>
-                  <a class="dropdown-item d-flex align-items-center gap-2" href="{% url 'notificaciones:destinatarios' %}">
-                    <i class="fas fa-bell fa-fw text-warning"></i>
-                    <span>Gestión de Destinatarios</span>
-                  </a>
-                  <a class="dropdown-item d-flex align-items-center gap-2" href="{% url 'notificaciones:configuracion' %}">
-                    <i class="fas fa-cogs fa-fw text-info"></i>
-                    <span>Configuración WhatsApp</span>
-                  </a>
-                  <a class="dropdown-item d-flex align-items-center gap-2" href="{% url 'admin:index' %}">
-                    <i class="fas fa-cogs fa-fw"></i>
-                    <span>Panel Admin</span>
-                  </a>
-                {% endif %}-->
-                <div class="dropdown-divider"></div>
-                <a class="dropdown-item d-flex align-items-center gap-2" href="{% url 'login:logout' %}">
-                  <i class="fas fa-sign-out-alt fa-fw"></i>
-                  <span>Cerrar Sesión</span>
-                </a>
-              </div>
+            </li>
+            {% endif %}
+            
+            <!-- Cerrar sesión -->
+            <li class="nav-item">
+              <a class="nav-link d-flex align-items-center gap-2" href="{% url 'login:logout' %}">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Cerrar Sesión</span>
+              </a>
             </li>
           {% else %}
             <li class="nav-item">

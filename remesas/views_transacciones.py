@@ -29,6 +29,7 @@ def registro_transacciones(request):
     estado_remesas = request.GET.get('estado_remesas')
     moneda_remesas = request.GET.get('moneda_remesas')
     tipo_pago_remesas = request.GET.get('tipo_pago_remesas')
+    usuario_remesas = request.GET.get('usuario_remesas')
     fecha_desde_remesas = request.GET.get('fecha_desde_remesas')
     fecha_hasta_remesas = request.GET.get('fecha_hasta_remesas')
     importe_min_remesas = request.GET.get('importe_min_remesas')
@@ -49,6 +50,9 @@ def registro_transacciones(request):
     
     if tipo_pago_remesas:
         remesas = remesas.filter(tipo_pago=tipo_pago_remesas)
+    
+    if usuario_remesas:
+        remesas = remesas.filter(gestor_id=usuario_remesas)
     
     if fecha_desde_remesas:
         try:
@@ -82,6 +86,7 @@ def registro_transacciones(request):
     search_pagos = request.GET.get('search_pagos')
     tipo_pago_pagos = request.GET.get('tipo_pago_pagos')
     moneda_pagos = request.GET.get('moneda_pagos')
+    usuario_pagos = request.GET.get('usuario_pagos')
     destinatario_pagos = request.GET.get('destinatario_pagos')
     fecha_desde_pagos = request.GET.get('fecha_desde_pagos')
     fecha_hasta_pagos = request.GET.get('fecha_hasta_pagos')
@@ -100,6 +105,9 @@ def registro_transacciones(request):
     
     if moneda_pagos:
         pagos = pagos.filter(tipo_moneda_id=moneda_pagos)
+    
+    if usuario_pagos:
+        pagos = pagos.filter(usuario_id=usuario_pagos)
     
     if destinatario_pagos:
         pagos = pagos.filter(destinatario__icontains=destinatario_pagos)
@@ -272,6 +280,21 @@ def registro_transacciones(request):
     pagos_count = pagos.count()
     total_operaciones_count = len(total_operaciones_list)
     
+    # Detectar si hay filtros aplicados para REMESAS
+    filtros_remesas_aplicados = bool(
+        search_remesas or estado_remesas or moneda_remesas or tipo_pago_remesas or usuario_remesas or
+        fecha_desde_remesas or fecha_hasta_remesas or importe_min_remesas or importe_max_remesas
+    )
+    
+    # Detectar si hay filtros aplicados para PAGOS
+    filtros_pagos_aplicados = bool(
+        search_pagos or tipo_pago_pagos or moneda_pagos or usuario_pagos or destinatario_pagos or 
+        fecha_desde_pagos or fecha_hasta_pagos or cantidad_min_pagos or cantidad_max_pagos
+    )
+    
+    # Detectar si hay filtros aplicados para TOTAL (cualquier filtro de remesas o pagos)
+    filtros_total_aplicados = filtros_remesas_aplicados or filtros_pagos_aplicados
+    
     # Calcular totales filtrados (mismo que el count ya que sin paginación)
     remesas_filtradas_count = remesas_count
     pagos_filtrados_count = pagos_count
@@ -286,6 +309,14 @@ def registro_transacciones(request):
     # Obtener monedas para filtros
     monedas = Moneda.objects.filter(activa=True)
     
+    # Obtener usuarios para filtros (solo si el usuario actual es admin o contable)
+    usuarios = []
+    if request.user.is_authenticated and hasattr(request.user, 'perfil'):
+        user_tipo_actual = request.user.perfil.tipo_usuario
+        if user_tipo_actual in ['admin', 'contable']:
+            from django.contrib.auth.models import User
+            usuarios = User.objects.filter(perfil__isnull=False).select_related('perfil').order_by('first_name', 'username')
+    
     # PAGINACIÓN COMENTADA TEMPORALMENTE - Mostrando todos los resultados
     # remesas_paginator = Paginator(remesas, 10)
     # pagos_paginator = Paginator(pagos, 10)
@@ -299,6 +330,11 @@ def registro_transacciones(request):
     # pagos_page = pagos_paginator.get_page(pagos_page_num)
     # total_page = total_paginator.get_page(total_page_num)
     
+    # Obtener el tipo de usuario si está autenticado
+    user_tipo = None
+    if request.user.is_authenticated and hasattr(request.user, 'perfil'):
+        user_tipo = request.user.perfil.tipo_usuario
+
     context = {
         'remesas': remesas,  # Mostrando todos los resultados sin paginación
         'pagos': pagos,  # Mostrando todos los resultados sin paginación
@@ -318,6 +354,11 @@ def registro_transacciones(request):
         'total_remesas': total_remesas,
         'total_pagos': total_pagos,
         'monedas': monedas,
+        'usuarios': usuarios,
+        'filtros_remesas_aplicados': filtros_remesas_aplicados,
+        'filtros_pagos_aplicados': filtros_pagos_aplicados,
+        'filtros_total_aplicados': filtros_total_aplicados,
+        'user_tipo': user_tipo,
     }
     
     return render(request, 'remesas/registro_transacciones.html', context)

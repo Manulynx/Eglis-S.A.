@@ -32,7 +32,12 @@ def registro_transacciones(request):
     
     # Obtener monedas para filtros
     monedas = models.Moneda.objects.filter(activa=True)
-    
+
+    # Obtener el tipo de usuario si está autenticado
+    user_tipo = None
+    if request.user.is_authenticated and hasattr(request.user, 'perfil'):
+        user_tipo = request.user.perfil.tipo_usuario
+
     context = {
         'remesas': remesas.order_by('-fecha'),
         'pagos': pagos.order_by('-fecha_creacion'),
@@ -41,8 +46,9 @@ def registro_transacciones(request):
         'total_remesas': total_remesas,
         'total_pagos': total_pagos,
         'monedas': monedas,
+        'user_tipo': user_tipo,
     }
-    
+
     return render(request, 'remesas/registro_transacciones.html', context)
 
 @login_required
