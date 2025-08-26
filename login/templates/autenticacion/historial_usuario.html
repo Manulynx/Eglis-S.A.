@@ -65,6 +65,38 @@
         visibility: visible !important;
         opacity: 1 !important;
     }
+    /* Pequeños ajustes extra para mejorar lectura en móvil (solo tablas) */
+    @media (max-width: 576px) {
+        .contenido-tab .d-lg-none .card {
+            padding: 0.15rem !important;
+            border: 1px solid rgba(255,255,255,0.04) !important;
+            background-clip: padding-box !important;
+        }
+
+        .contenido-tab .d-lg-none .card + .card {
+            margin-top: 0.45rem !important;
+        }
+
+        .contenido-tab .d-lg-none .card .card-body {
+            gap: 0.5rem !important;
+        }
+
+        .contenido-tab .d-lg-none .card .card-body h6.text-info,
+        .contenido-tab .d-lg-none .card .card-body .text-success,
+        .contenido-tab .d-lg-none .card .card-body .text-danger {
+            font-weight: 700 !important;
+            color: #ffffff !important;
+        }
+
+        .contenido-tab .d-lg-none .card .card-body .btn {
+            min-width: 88px !important;
+            padding: 0.5rem 0.75rem !important;
+        }
+
+        .contenido-tab .d-lg-none .card .card-body .d-flex.justify-content-between {
+            flex-wrap: wrap !important;
+        }
+    }
 </style>
 
 <div class="container-fluid p-4">
