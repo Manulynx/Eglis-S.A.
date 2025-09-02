@@ -65,37 +65,179 @@
         visibility: visible !important;
         opacity: 1 !important;
     }
-    /* Pequeños ajustes extra para mejorar lectura en móvil (solo tablas) */
-    @media (max-width: 576px) {
-        .contenido-tab .d-lg-none .card {
-            padding: 0.15rem !important;
-            border: 1px solid rgba(255,255,255,0.04) !important;
-            background-clip: padding-box !important;
-        }
-
-        .contenido-tab .d-lg-none .card + .card {
-            margin-top: 0.45rem !important;
-        }
-
-        .contenido-tab .d-lg-none .card .card-body {
-            gap: 0.5rem !important;
-        }
-
-        .contenido-tab .d-lg-none .card .card-body h6.text-info,
-        .contenido-tab .d-lg-none .card .card-body .text-success,
-        .contenido-tab .d-lg-none .card .card-body .text-danger {
-            font-weight: 700 !important;
-            color: #ffffff !important;
-        }
-
-        .contenido-tab .d-lg-none .card .card-body .btn {
-            min-width: 88px !important;
-            padding: 0.5rem 0.75rem !important;
-        }
-
-        .contenido-tab .d-lg-none .card .card-body .d-flex.justify-content-between {
-            flex-wrap: wrap !important;
-        }
+    
+    /* MEJORAS DE VISIBILIDAD PARA TABLAS */
+    
+    /* Mejorar contraste en tablas desktop */
+    .table-dark {
+        --bs-table-bg: #1a1d20;
+        --bs-table-color: #ffffff;
+        --bs-table-border-color: #2c3034;
+    }
+    
+    .table-dark th {
+        background-color: #2c3034 !important;
+        color: #ffffff !important;
+        font-weight: 600;
+        border-bottom: 2px solid #0d6efd;
+        padding: 12px 8px;
+    }
+    
+    .table-dark td {
+        padding: 12px 8px;
+        vertical-align: middle;
+        border-color: #2c3034;
+    }
+    
+    .table-dark tbody tr {
+        transition: background-color 0.15s ease;
+    }
+    
+    .table-dark tbody tr:hover {
+        background-color: #2a2e32 !important;
+    }
+    
+    /* Mejorar visibilidad de texto en celdas */
+    .table-dark .text-info {
+        color: #3dd5f3 !important;
+        font-weight: 600;
+    }
+    
+    .table-dark .text-warning {
+        color: #ffc107 !important;
+        font-weight: 600;
+    }
+    
+    .table-dark .text-success {
+        color: #20c997 !important;
+        font-weight: 600;
+    }
+    
+    .table-dark .text-danger {
+        color: #dc3545 !important;
+        font-weight: 600;
+    }
+    
+    .table-dark .text-muted {
+        color: #9aa0a6 !important;
+    }
+    
+    /* Mejorar badges en tablas */
+    .table-dark .badge {
+        font-size: 0.85em;
+        padding: 0.4em 0.65em;
+        font-weight: 600;
+    }
+    
+    /* Botones en tablas */
+    .table-dark .btn-sm {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+        border-width: 1px;
+    }
+    
+    /* Mejorar tarjetas móviles */
+    .contenido-tab .d-lg-none .card {
+        background-color: #2a2e32 !important;
+        border: 1px solid #3b3f44 !important;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+    
+    .contenido-tab .d-lg-none .card-body {
+        padding: 1rem;
+    }
+    
+    .contenido-tab .d-lg-none h6 {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+    
+    .contenido-tab .d-lg-none .text-info {
+        color: #3dd5f3 !important;
+        font-weight: 700;
+    }
+    
+    .contenido-tab .d-lg-none .text-warning {
+        color: #ffc107 !important;
+        font-weight: 700;
+    }
+    
+    .contenido-tab .d-lg-none .text-success {
+        color: #20c997 !important;
+        font-weight: 700;
+    }
+    
+    .contenido-tab .d-lg-none .text-danger {
+        color: #dc3545 !important;
+        font-weight: 700;
+    }
+    
+    .contenido-tab .d-lg-none .text-muted {
+        color: #9aa0a6 !important;
+        font-size: 0.85rem;
+    }
+    
+    .contenido-tab .d-lg-none .badge {
+        font-size: 0.8em;
+        padding: 0.35em 0.6em;
+    }
+    
+    /* Mejorar visibilidad de textos en formularios */
+    .form-label {
+        color: #e9ecef !important;
+        font-weight: 500;
+    }
+    
+    .form-control, .form-select {
+        background-color: #2a2e32 !important;
+        border: 1px solid #495057 !important;
+        color: #ffffff !important;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        background-color: #2a2e32;
+        border-color: #0d6efd;
+        color: #ffffff;
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+    }
+    
+    /* Mejorar contraste en mensajes de tablas vacías */
+    .text-center.text-muted {
+        color: #9aa0a6 !important;
+        padding: 2rem !important;
+    }
+    
+    .text-center.text-muted i {
+        margin-bottom: 1rem;
+        opacity: 0.7;
+    }
+    
+    /* Ajustar padding en tablas para mejor espaciado */
+    .table-responsive {
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    /* Mejorar headers de tarjetas */
+    .card-header {
+        background-color: #2a2e32 !important;
+        border-bottom: 1px solid #3b3f44 !important;
+        padding: 1rem 1.25rem;
+    }
+    
+    .card-header h5 {
+        color: #ffffff !important;
+        font-weight: 600;
+    }
+    
+    /* Ajustar colores de fondos para mejor contraste */
+    .bg-dark {
+        background-color: #1a1d20 !important;
+    }
+    
+    .bg-secondary {
+        background-color: #2a2e32 !important;
     }
 </style>
 
