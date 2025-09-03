@@ -61,7 +61,13 @@
                 <div class="card-body text-center d-flex flex-column">
                     <i class="fas fa-users fa-2x mb-2"></i>
                     <h5 class="text-nowrap">Total Usuarios</h5>
-                    <h3 class="mt-auto">{{ usuarios.count }}</h3>
+                    <h3 class="mt-auto">
+                        {% if usuarios.paginator %}
+                            {{ usuarios.paginator.count }}
+                        {% else %}
+                            {{ usuarios.count }}
+                        {% endif %}
+                    </h3>
                 </div>
             </div>
         </div>
