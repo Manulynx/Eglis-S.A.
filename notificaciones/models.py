@@ -134,8 +134,10 @@ class LogNotificacion(models.Model):
     TIPO_CHOICES = [
         ('remesa_nueva', 'Nueva Remesa'),
         ('remesa_estado', 'Cambio Estado Remesa'),
+        ('remesa_eliminada', 'Remesa Eliminada'),
         ('pago_nuevo', 'Nuevo Pago'),
         ('pago_estado', 'Cambio Estado Pago'),
+        ('pago_eliminado', 'Pago Eliminado'),
     ]
     
     ESTADO_CHOICES = [

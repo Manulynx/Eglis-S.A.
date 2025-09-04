@@ -150,7 +150,7 @@
                         <select class="form-select bg-dark text-white border-secondary" name="estado_remesas">
                             <option value="">Todos los estados</option>
                             <option value="pendiente" {% if request.GET.estado_remesas == 'pendiente' %}selected{% endif %}>Pendiente</option>
-                            <option value="confirmada" {% if request.GET.estado_remesas == 'confirmada' %}selected{% endif %}>Confirmada</option>
+                            <!-- Opción confirmada eliminada - ya no existe estado intermedio -->
                             <option value="completada" {% if request.GET.estado_remesas == 'completada' %}selected{% endif %}>Completada</option>
                             <option value="cancelada" {% if request.GET.estado_remesas == 'cancelada' %}selected{% endif %}>Cancelada</option>
                         </select>
@@ -506,8 +506,6 @@
                                     <td>
                                         {% if remesa.estado == 'completada' %}
                                             <span class="badge bg-success">Completada</span>
-                                        {% elif remesa.estado == 'confirmada' %}
-                                            <span class="badge bg-info">Confirmada</span>
                                         {% elif remesa.estado == 'pendiente' %}
                                             <span class="badge bg-warning text-dark">Pendiente</span>
                                         {% elif remesa.estado == 'cancelada' %}
@@ -516,7 +514,11 @@
                                             <span class="badge bg-secondary">{{ remesa.estado|title }}</span>
                                         {% endif %}
                                     </td>
-                                    <td><span class="text-success">${{ remesa.importe|floatformat:2 }}</span></td>
+                                    <td>
+                                        <span class="{% if remesa.estado == 'completada' %}text-success{% else %}text-muted{% endif %}">
+                                            ${{ remesa.importe|floatformat:2 }}
+                                        </span>
+                                    </td>
                                     <td>
                                         {% if remesa.moneda %}
                                             {{ remesa.moneda.codigo }}
@@ -525,7 +527,9 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        <span class="text-success">${{ remesa.calcular_monto_en_usd|floatformat:2 }}</span>
+                                        <span class="{% if remesa.estado == 'completada' %}text-success{% else %}text-muted{% endif %}">
+                                            ${{ remesa.calcular_monto_en_usd|floatformat:2 }}
+                                        </span>
                                     </td>
                                     <td>
                                         <div class="btn-group" role="group">
@@ -547,11 +551,11 @@
                                                 <i class="fas fa-edit"></i>
                                             </button>
 
-                                            <!-- Botón Confirmar -->
-                                            <button class="btn btn-outline-primary btn-sm btn-confirmar"
+                                            <!-- Botón Confirmar (ahora completa directamente la remesa) -->
+                                            <button class="btn btn-outline-success btn-sm btn-confirmar"
                                                     data-remesa-id="{{ remesa.id }}"
                                                     data-remesa-numero="{{ remesa.remesa_id }}"
-                                                    title="Confirmar remesa"
+                                                    title="Confirmar y completar remesa"
                                                     data-bs-toggle="tooltip">
                                                 <i class="fas fa-check-circle"></i>
                                             </button>
@@ -564,26 +568,17 @@
                                                     data-bs-toggle="tooltip">
                                                 <i class="fas fa-times"></i>
                                             </button>
-
-                                            {% elif remesa.estado == 'confirmada' %}
-                                            <!-- Botón Procesar -->
-                                            <button class="btn btn-outline-success btn-sm btn-procesar"
-                                                    data-remesa-id="{{ remesa.id }}"
-                                                    data-remesa-numero="{{ remesa.remesa_id }}"
-                                                    title="Completar remesa"
-                                                    data-bs-toggle="tooltip">
-                                                <i class="fas fa-check"></i>
-                                            </button>
-
-                                            <!-- Botón Cancelar -->
-                                            <button class="btn btn-outline-danger btn-sm btn-cancelar"
-                                                    data-remesa-id="{{ remesa.id }}"
-                                                    data-remesa-numero="{{ remesa.remesa_id }}"
-                                                    title="Cancelar remesa"
-                                                    data-bs-toggle="tooltip">
-                                                <i class="fas fa-times"></i>
-                                            </button>
                                             {% else %}
+                                            <!-- Botón Eliminar (solo para admins y remesas completadas) -->
+                                            {% if user_tipo == 'admin' and remesa.estado == 'completada' %}
+                                            <button class="btn btn-outline-danger btn-sm btn-eliminar-remesa"
+                                                    data-remesa-id="{{ remesa.id }}"
+                                                    data-remesa-numero="{{ remesa.remesa_id }}"
+                                                    title="Eliminar remesa (Solo Admin)"
+                                                    data-bs-toggle="tooltip">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                            {% endif %}
                                             <!-- Botón de estado (deshabilitado) -->
                                             <button class="btn btn-outline-secondary btn-sm"
                                                     disabled
@@ -669,7 +664,7 @@
                         <div class="mobile-item">
                             <div class="mobile-item-header">
                                 <span class="text-info fw-bold">{{ remesa.remesa_id }}</span>
-                                <span class="badge {% if remesa.estado == 'completada' %}bg-success{% elif remesa.estado == 'confirmada' %}bg-info{% elif remesa.estado == 'pendiente' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                                <span class="badge {% if remesa.estado == 'completada' %}bg-success{% elif remesa.estado == 'pendiente' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
                                     {{ remesa.get_estado_display }}
                                 </span>
                             </div>
@@ -702,16 +697,10 @@
                                             data-remesa-id="{{ remesa.id }}">
                                         <i class="fas fa-edit"></i> Editar
                                     </button>
-                                    <button class="btn btn-primary btn-sm btn-confirmar"
+                                    <button class="btn btn-success btn-sm btn-confirmar"
                                             data-remesa-id="{{ remesa.id }}"
                                             data-remesa-numero="{{ remesa.remesa_id }}">
                                         <i class="fas fa-check-circle"></i> Confirmar
-                                    </button>
-                                    {% elif remesa.estado == 'confirmada' %}
-                                    <button class="btn btn-success btn-sm btn-procesar"
-                                            data-remesa-id="{{ remesa.id }}"
-                                            data-remesa-numero="{{ remesa.remesa_id }}">
-                                        <i class="fas fa-check"></i> Completar
                                     </button>
                                     {% endif %}
 
@@ -720,6 +709,15 @@
                                             data-remesa-id="{{ remesa.id }}"
                                             data-remesa-numero="{{ remesa.remesa_id }}">
                                         <i class="fas fa-times"></i> Cancelar
+                                    </button>
+                                    {% endif %}
+
+                                    <!-- Botón Eliminar para administradores -->
+                                    {% if user_tipo == 'admin' and remesa.estado == 'completada' %}
+                                    <button class="btn btn-danger btn-sm btn-eliminar-remesa"
+                                            data-remesa-id="{{ remesa.id }}"
+                                            data-remesa-numero="{{ remesa.remesa_id }}">
+                                        <i class="fas fa-trash"></i> Eliminar
                                     </button>
                                     {% endif %}
                                 </div>
@@ -762,6 +760,7 @@
                                 <tr>
                                     <th style="min-width: 120px;">ID Pago</th>
                                     <th style="min-width: 100px;">Tipo</th>
+                                    <th style="min-width: 100px;">Estado</th>
                                     {% if user_tipo == 'admin' or user_tipo == 'contable' %}
                                     <th class="d-none d-lg-table-cell" style="min-width: 100px;">Usuario</th>
                                     {% endif %}
@@ -771,7 +770,7 @@
                                     <th style="min-width: 100px;">Equiv. USD</th>
                                     <th class="d-none d-md-table-cell" style="min-width: 100px;">Teléfono</th>
                                     <th class="d-none d-lg-table-cell" style="min-width: 100px;">CI</th>
-                                    <th style="min-width: 150px;">Acciones</th>
+                                    <th style="min-width: 200px;">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -785,6 +784,17 @@
                                             <span class="badge bg-primary">Transferencia</span>
                                         {% else %}
                                             <span class="badge bg-success">Efectivo</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if pago.estado == 'confirmado' %}
+                                            <span class="badge bg-success">Confirmado</span>
+                                        {% elif pago.estado == 'pendiente' %}
+                                            <span class="badge bg-warning text-dark">Pendiente</span>
+                                        {% elif pago.estado == 'cancelado' %}
+                                            <span class="badge bg-danger">Cancelado</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ pago.estado|title }}</span>
                                         {% endif %}
                                     </td>
                                     {% if user_tipo == 'admin' or user_tipo == 'contable' %}
@@ -804,7 +814,11 @@
                                             {{ pago.destinatario }}
                                         </div>
                                     </td>
-                                    <td><span class="text-danger">-${{ pago.cantidad|floatformat:2 }}</span></td>
+                                    <td>
+                                        <span class="{% if pago.estado == 'confirmado' %}text-danger{% else %}text-muted{% endif %}">
+                                            -${{ pago.cantidad|floatformat:2 }}
+                                        </span>
+                                    </td>
                                     <td>
                                         {% if pago.tipo_moneda %}
                                             {{ pago.tipo_moneda.codigo }}
@@ -813,7 +827,9 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        <span class="text-danger">-${{ pago.calcular_monto_en_usd|floatformat:2 }}</span>
+                                        <span class="{% if pago.estado == 'confirmado' %}text-danger{% else %}text-muted{% endif %}">
+                                            -${{ pago.calcular_monto_en_usd|floatformat:2 }}
+                                        </span>
                                     </td>
                                     <td class="d-none d-md-table-cell">{{ pago.telefono|default:"-" }}</td>
                                     <td class="d-none d-lg-table-cell">{{ pago.carnet_identidad|default:"-" }}</td>
@@ -828,20 +844,46 @@
                                             </a>
 
                                             {% if user_tipo != 'gestor' %}
-                                            <!-- Botón Editar -->
+                                            <!-- Botón Editar (solo para pagos pendientes) -->
+                                            {% if pago.estado == 'pendiente' %}
                                             <a href="{% url 'remesas:editar_pago' pago.id %}"
                                                class="btn btn-outline-warning btn-sm"
                                                title="Editar pago"
                                                data-bs-toggle="tooltip">
                                                 <i class="fas fa-edit"></i>
                                             </a>
+                                            {% endif %}
 
-                                            <!-- Botón Eliminar -->
+                                            <!-- Botones de confirmación y cancelación -->
+                                            {% if pago.estado == 'pendiente' %}
+                                                {% if pago.usuario == user or user_tipo == 'admin' %}
+                                                <button type="button"
+                                                        class="btn btn-outline-success btn-sm btn-confirmar-pago"
+                                                        data-pago-id="{{ pago.id }}"
+                                                        data-pago-destinatario="{{ pago.destinatario }}"
+                                                        title="Confirmar pago"
+                                                        data-bs-toggle="tooltip">
+                                                    <i class="fas fa-check"></i>
+                                                </button>
+                                                <button type="button"
+                                                        class="btn btn-outline-danger btn-sm btn-cancelar-pago"
+                                                        data-pago-id="{{ pago.id }}"
+                                                        data-pago-destinatario="{{ pago.destinatario }}"
+                                                        title="Cancelar pago"
+                                                        data-bs-toggle="tooltip">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                                {% endif %}
+                                            {% endif %}
+                                            {% endif %}
+
+                                            <!-- Botón Eliminar (solo para admins en pagos confirmados) -->
+                                            {% if user_tipo == 'admin' and pago.estado == 'confirmado' %}
                                             <button type="button"
                                                     class="btn btn-outline-danger btn-sm btn-eliminar-pago"
                                                     data-pago-id="{{ pago.id }}"
                                                     data-pago-destinatario="{{ pago.destinatario }}"
-                                                    title="Eliminar pago"
+                                                    title="Eliminar pago (Solo Admin)"
                                                     data-bs-toggle="tooltip">
                                                 <i class="fas fa-trash"></i>
                                             </button>
@@ -851,7 +893,7 @@
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="9" class="text-center text-muted">No hay pagos registrados</td>
+                                    <td colspan="{% if user_tipo == 'admin' or user_tipo == 'contable' %}11{% else %}9{% endif %}" class="text-center text-muted">No hay pagos registrados</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -938,11 +980,15 @@
                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                     <div>
                                         <small class="text-muted">Cantidad:</small><br>
-                                        <span class="text-danger">-${{ pago.cantidad|floatformat:2 }} {{ pago.tipo_moneda.codigo|default:"USD" }}</span>
+                                        <span class="{% if pago.estado == 'confirmado' %}text-danger{% else %}text-muted{% endif %}">
+                                            -${{ pago.cantidad|floatformat:2 }} {{ pago.tipo_moneda.codigo|default:"USD" }}
+                                        </span>
                                     </div>
                                     <div class="text-end">
                                         <small class="text-muted">Equiv. USD:</small><br>
-                                        <span class="text-danger">-${{ pago.calcular_monto_en_usd|floatformat:2 }}</span>
+                                        <span class="{% if pago.estado == 'confirmado' %}text-danger{% else %}text-muted{% endif %}">
+                                            -${{ pago.calcular_monto_en_usd|floatformat:2 }}
+                                        </span>
                                     </div>
                                 </div>
                                 {% if pago.telefono or pago.carnet_identidad %}
@@ -963,16 +1009,43 @@
                                        class="btn btn-info btn-sm">
                                         <i class="fas fa-eye"></i> Ver
                                     </a>
-                                    <a href="{% url 'remesas:editar_pago' pago.id %}"
-                                       class="btn btn-warning btn-sm">
-                                        <i class="fas fa-edit"></i> Editar
-                                    </a>
-                                    <button type="button"
-                                            class="btn btn-danger btn-sm btn-eliminar-pago"
-                                            data-pago-id="{{ pago.id }}"
-                                            data-pago-destinatario="{{ pago.destinatario }}">
-                                        <i class="fas fa-trash"></i> Eliminar
-                                    </button>
+                                    {% if user_tipo != 'gestor' %}
+                                        {% if pago.estado == 'pendiente' %}
+                                        <a href="{% url 'remesas:editar_pago' pago.id %}"
+                                           class="btn btn-warning btn-sm">
+                                            <i class="fas fa-edit"></i> Editar
+                                        </a>
+                                        {% endif %}
+                                        
+                                        <!-- Botones de confirmación y cancelación para móvil -->
+                                        {% if pago.estado == 'pendiente' %}
+                                            {% if pago.usuario == user or user_tipo == 'admin' %}
+                                            <button type="button"
+                                                    class="btn btn-success btn-sm btn-confirmar-pago"
+                                                    data-pago-id="{{ pago.id }}"
+                                                    data-pago-destinatario="{{ pago.destinatario }}">
+                                                <i class="fas fa-check"></i> Confirmar
+                                            </button>
+                                            <button type="button"
+                                                    class="btn btn-danger btn-sm btn-cancelar-pago"
+                                                    data-pago-id="{{ pago.id }}"
+                                                    data-pago-destinatario="{{ pago.destinatario }}">
+                                                <i class="fas fa-times"></i> Cancelar
+                                            </button>
+                                            {% endif %}
+                                        {% endif %}
+                                    {% endif %}
+                                    
+                                    {% if user_tipo == 'admin' %}
+                                        {% if pago.estado == 'confirmado' %}
+                                        <button type="button"
+                                                class="btn btn-danger btn-sm btn-eliminar-pago"
+                                                data-pago-id="{{ pago.id }}"
+                                                data-pago-destinatario="{{ pago.destinatario }}">
+                                            <i class="fas fa-trash"></i> Eliminar
+                                        </button>
+                                        {% endif %}
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
@@ -1031,33 +1104,47 @@
                                     </td>
                                     <td>
                                         {% if operacion.tipo_operacion == 'Pago' %}
-                                            <span class="text-danger">-${{ operacion.cantidad|floatformat:2 }}</span>
+                                            <span class="{% if operacion.estado == 'confirmado' %}text-danger{% else %}text-muted{% endif %}">
+                                                -${{ operacion.cantidad|floatformat:2 }}
+                                            </span>
                                         {% else %}
-                                            <span class="text-success">${{ operacion.cantidad|floatformat:2 }}</span>
+                                            <span class="{% if operacion.estado == 'completada' %}text-success{% else %}text-muted{% endif %}">
+                                                ${{ operacion.cantidad|floatformat:2 }}
+                                            </span>
                                         {% endif %}
                                     </td>
                                     <td>{{ operacion.moneda }}</td>
                                     <td class="fw-bold">
                                         {% if operacion.tipo_operacion == 'Pago' %}
-                                            <span class="text-danger">-${{ operacion.equiv_usd|floatformat:2 }}</span>
+                                            <span class="{% if operacion.estado == 'confirmado' %}text-danger{% else %}text-muted{% endif %}">
+                                                -${{ operacion.equiv_usd|floatformat:2 }}
+                                            </span>
                                         {% else %}
-                                            <span class="text-success">${{ operacion.equiv_usd|floatformat:2 }}</span>
+                                            <span class="{% if operacion.estado == 'completada' %}text-success{% else %}text-muted{% endif %}">
+                                                ${{ operacion.equiv_usd|floatformat:2 }}
+                                            </span>
                                         {% endif %}
                                     </td>
                                     <td>
                                         {% if operacion.tipo_operacion == 'Remesa' %}
                                             <span class="badge
                                                 {% if operacion.estado == 'pendiente' %}bg-warning text-dark
-                                                {% elif operacion.estado == 'confirmada' or operacion.estado == 'procesado' %}bg-info
+                                                {% elif operacion.estado == 'procesado' %}bg-info
                                                 {% elif operacion.estado == 'completada' or operacion.estado == 'completado' %}bg-success
                                                 {% elif operacion.estado == 'cancelada' or operacion.estado == 'cancelado' %}bg-danger
                                                 {% else %}bg-secondary{% endif %}">
                                                 {{ operacion.estado|capfirst }}
                                             </span>
                                         {% else %}
-                                            <span class="badge bg-success">
-                                                Efectuado
-                                            </span>
+                                            {% if operacion.estado == 'confirmado' %}
+                                                <span class="badge bg-danger">Confirmado</span>
+                                            {% elif operacion.estado == 'pendiente' %}
+                                                <span class="badge bg-warning text-dark">Pendiente</span>
+                                            {% elif operacion.estado == 'cancelado' %}
+                                                <span class="badge bg-danger">Cancelado</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{{ operacion.estado|title }}</span>
+                                            {% endif %}
                                         {% endif %}
                                     </td>
                                     <td>
@@ -1172,16 +1259,22 @@
                                 {% if operacion.tipo_operacion == 'Remesa' %}
                                     <span class="badge
                                         {% if operacion.estado == 'pendiente' %}bg-warning text-dark
-                                        {% elif operacion.estado == 'confirmada' or operacion.estado == 'procesado' %}bg-info
+                                        {% elif operacion.estado == 'procesado' %}bg-info
                                         {% elif operacion.estado == 'completada' or operacion.estado == 'completado' %}bg-success
                                         {% elif operacion.estado == 'cancelada' or operacion.estado == 'cancelado' %}bg-danger
                                         {% else %}bg-secondary{% endif %}">
                                         {{ operacion.estado|capfirst }}
                                     </span>
                                 {% else %}
-                                    <span class="badge bg-success">
-                                        Efectuado
-                                    </span>
+                                    {% if operacion.estado == 'confirmado' %}
+                                        <span class="badge bg-danger">Confirmado</span>
+                                    {% elif operacion.estado == 'pendiente' %}
+                                        <span class="badge bg-warning text-dark">Pendiente</span>
+                                    {% elif operacion.estado == 'cancelado' %}
+                                        <span class="badge bg-danger">Cancelado</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ operacion.estado|title }}</span>
+                                    {% endif %}
                                 {% endif %}
                             </div>
                             <div class="mobile-item-body">
@@ -1189,17 +1282,25 @@
                                     <div>
                                         <small class="text-muted">Cantidad:</small><br>
                                         {% if operacion.tipo_operacion == 'Pago' %}
-                                            <span class="text-danger">-${{ operacion.cantidad|floatformat:2 }} {{ operacion.moneda }}</span>
+                                            <span class="{% if operacion.estado == 'confirmado' %}text-danger{% else %}text-muted{% endif %}">
+                                                -${{ operacion.cantidad|floatformat:2 }} {{ operacion.moneda }}
+                                            </span>
                                         {% else %}
-                                            ${{ operacion.cantidad|floatformat:2 }} {{ operacion.moneda }}
+                                            <span class="{% if operacion.estado == 'completada' %}text-success{% else %}text-muted{% endif %}">
+                                                ${{ operacion.cantidad|floatformat:2 }} {{ operacion.moneda }}
+                                            </span>
                                         {% endif %}
                                     </div>
                                     <div class="text-end">
                                         <small class="text-muted">Equiv. USD:</small><br>
                                         {% if operacion.tipo_operacion == 'Pago' %}
-                                            <span class="text-danger fw-bold">-${{ operacion.equiv_usd|floatformat:2 }}</span>
+                                            <span class="{% if operacion.estado == 'confirmado' %}text-danger{% else %}text-muted{% endif %} fw-bold">
+                                                -${{ operacion.equiv_usd|floatformat:2 }}
+                                            </span>
                                         {% else %}
-                                            <span class="text-success fw-bold">${{ operacion.equiv_usd|floatformat:2 }}</span>
+                                            <span class="{% if operacion.estado == 'completada' %}text-success{% else %}text-muted{% endif %} fw-bold">
+                                                ${{ operacion.equiv_usd|floatformat:2 }}
+                                            </span>
                                         {% endif %}
                                     </div>
                                 </div>
@@ -1208,7 +1309,7 @@
                                 {% if operacion.tipo_operacion == 'Remesa' %}
                                     <small class="text-muted">Estado: {{ operacion.estado|capfirst }}</small>
                                 {% else %}
-                                    <small class="text-muted">Estado: Efectuado</small>
+                                    <small class="text-muted">Estado: {{ operacion.estado|capfirst }}</small>
                                 {% endif %}
                                 <div class="btn-group" role="group">
                                     {% if operacion.tipo_operacion == 'Remesa' %}
@@ -1668,6 +1769,92 @@
     // Configurar validación en tiempo real
     setupRealTimeValidation();
 
+    // FUNCIONES DE PROTECCIÓN CONTRA DOBLES CLICS
+    
+    function protegerBotonAccion(button) {
+        if (button.dataset.procesando === 'true') {
+            return false; // Ya está protegido
+        }
+        
+        console.log('Protegiendo botón:', button.className);
+        
+        // Marcar como procesando
+        button.dataset.procesando = 'true';
+        button.disabled = true;
+        
+        // Guardar estado original
+        button.dataset.originalInnerHTML = button.innerHTML;
+        button.dataset.originalClasses = button.className;
+        
+        // Cambiar apariencia visual
+        button.style.opacity = '0.6';
+        button.style.cursor = 'not-allowed';
+        button.style.pointerEvents = 'none';
+        
+        // Agregar spinner si no es un ícono ya
+        const icon = button.querySelector('i');
+        if (icon && !icon.classList.contains('fa-spinner')) {
+            button.dataset.originalIcon = icon.className;
+            icon.className = 'fas fa-spinner fa-spin';
+        }
+        
+        // Timeout de seguridad (30 segundos)
+        const timeoutId = setTimeout(() => {
+            console.log('Timeout de seguridad: liberando botón');
+            liberarBotonAccion(button);
+        }, 30000);
+        
+        button.dataset.timeoutId = timeoutId;
+        
+        return true;
+    }
+    
+    function liberarBotonAccion(button) {
+        if (button.dataset.procesando !== 'true') {
+            return; // No está protegido
+        }
+        
+        console.log('Liberando botón:', button.className);
+        
+        // Limpiar timeout
+        if (button.dataset.timeoutId) {
+            clearTimeout(parseInt(button.dataset.timeoutId));
+            delete button.dataset.timeoutId;
+        }
+        
+        // Restaurar estado original
+        button.dataset.procesando = 'false';
+        button.disabled = false;
+        button.style.opacity = '';
+        button.style.cursor = '';
+        button.style.pointerEvents = '';
+        
+        // Restaurar contenido original
+        if (button.dataset.originalInnerHTML) {
+            button.innerHTML = button.dataset.originalInnerHTML;
+            delete button.dataset.originalInnerHTML;
+        }
+        
+        // Restaurar ícono original
+        if (button.dataset.originalIcon) {
+            const icon = button.querySelector('i');
+            if (icon) {
+                icon.className = button.dataset.originalIcon;
+            }
+            delete button.dataset.originalIcon;
+        }
+        
+        delete button.dataset.originalClasses;
+    }
+    
+    function liberarTodosLosBotones() {
+        document.querySelectorAll('button[data-procesando="true"]').forEach(liberarBotonAccion);
+    }
+    
+    // Liberar botones en caso de navegación
+    window.addEventListener('beforeunload', liberarTodosLosBotones);
+    window.addEventListener('error', liberarTodosLosBotones);
+
     // Inicializar todas las pestañas
     const tabList = document.querySelectorAll('a[data-bs-toggle="tab"]');
     tabList.forEach(function(tabEl) {
@@ -1750,6 +1937,21 @@
             return;
         }
 
+        // PROTECCIÓN GLOBAL CONTRA DOBLES CLICS EN BOTONES DE ACCIÓN
+        const actionButton = e.target.closest('.btn-confirmar, .btn-cancelar, .btn-eliminar-remesa, .btn-eliminar-pago, .btn-confirmar-pago, .btn-cancelar-pago');
+        if (actionButton) {
+            // Verificar si el botón ya está procesando
+            if (actionButton.dataset.procesando === 'true') {
+                console.log('Acción bloqueada: botón ya está procesando');
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                return false;
+            }
+            
+            // Marcar botón como procesando
+            protegerBotonAccion(actionButton);
+        }
+
         if (e.target.closest('.btn-editar')) {
             const remesaId = e.target.closest('.btn-editar').dataset.remesaId;
             console.log('Editando remesa ID:', remesaId);
@@ -1761,23 +1963,25 @@
             const remesaId = btn.dataset.remesaId;
             const remesaNumero = btn.dataset.remesaNumero;
             console.log('Confirmando remesa ID:', remesaId, 'Número:', remesaNumero);
-            confirmarRemesa(remesaId, remesaNumero);
+            confirmarRemesa(remesaId, remesaNumero, btn);
         }
 
-        if (e.target.closest('.btn-procesar')) {
-            const btn = e.target.closest('.btn-procesar');
-            const remesaId = btn.dataset.remesaId;
-            const remesaNumero = btn.dataset.remesaNumero;
-            console.log('Procesando remesa ID:', remesaId, 'Número:', remesaNumero);
-            procesarRemesa(remesaId, remesaNumero);
-        }
+        // CÓDIGO ELIMINADO - btn-procesar ya no es necesario
 
         if (e.target.closest('.btn-cancelar')) {
             const btn = e.target.closest('.btn-cancelar');
             const remesaId = btn.dataset.remesaId;
             const remesaNumero = btn.dataset.remesaNumero;
             console.log('Cancelando remesa ID:', remesaId, 'Número:', remesaNumero);
-            cancelarRemesa(remesaId, remesaNumero);
+            cancelarRemesa(remesaId, remesaNumero, btn);
+        }
+
+        if (e.target.closest('.btn-eliminar-remesa')) {
+            const btn = e.target.closest('.btn-eliminar-remesa');
+            const remesaId = btn.dataset.remesaId;
+            const remesaNumero = btn.dataset.remesaNumero;
+            console.log('Eliminando remesa ID:', remesaId, 'Número:', remesaNumero);
+            eliminarRemesa(remesaId, remesaNumero, btn);
         }
 
         if (e.target.closest('.btn-eliminar-pago')) {
@@ -1785,7 +1989,23 @@
             const pagoId = btn.dataset.pagoId;
             const destinatario = btn.dataset.pagoDestinatario;
             console.log('Eliminando pago ID:', pagoId, 'Destinatario:', destinatario);
-            eliminarPago(pagoId, destinatario);
+            eliminarPago(pagoId, destinatario, btn);
+        }
+
+        if (e.target.closest('.btn-confirmar-pago')) {
+            const btn = e.target.closest('.btn-confirmar-pago');
+            const pagoId = btn.dataset.pagoId;
+            const destinatario = btn.dataset.pagoDestinatario;
+            console.log('Confirmando pago ID:', pagoId, 'Destinatario:', destinatario);
+            confirmarPago(pagoId, destinatario, btn);
+        }
+
+        if (e.target.closest('.btn-cancelar-pago')) {
+            const btn = e.target.closest('.btn-cancelar-pago');
+            const pagoId = btn.dataset.pagoId;
+            const destinatario = btn.dataset.pagoDestinatario;
+            console.log('Cancelando pago ID:', pagoId, 'Destinatario:', destinatario);
+            cancelarPago(pagoId, destinatario, btn);
         }
     });
 
@@ -1795,16 +2015,17 @@
         window.location.href = `/remesas/editar/${remesaId}/`;
     }
 
-    function confirmarRemesa(remesaId, remesaNumero) {
+    function confirmarRemesa(remesaId, remesaNumero, button) {
         console.log('Función confirmarRemesa llamada con ID:', remesaId, 'Número:', remesaNumero);
+        
         Swal.fire({
-            title: `¿Confirmar la remesa #${remesaNumero}?`,
-            text: "Esta acción no se puede deshacer",
+            title: `¿Confirmar y completar la remesa #${remesaNumero}?`,
+            text: "Esta acción confirmará y completará la remesa directamente. No se puede deshacer.",
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonColor: '#3085d6',
+            confirmButtonColor: '#28a745',
             cancelButtonColor: '#d33',
-            confirmButtonText: 'Sí, confirmar',
+            confirmButtonText: 'Sí, confirmar y completar',
             cancelButtonText: 'Cancelar',
             background: '#212529',
             color: '#fff'
@@ -1824,17 +2045,22 @@
                 .then(data => {
                     if (data.success) {
                         Swal.fire({
-                            title: '¡Confirmada!',
-                            text: 'La remesa ha sido confirmada exitosamente.',
+                            title: '¡Confirmada y Completada!',
+                            text: 'La remesa ha sido confirmada y completada exitosamente.',
                             icon: 'success',
                             background: '#212529',
                             color: '#fff'
                         }).then(() => window.location.reload());
                     } else {
+                        // Liberar botón en caso de error
+                        if (button) liberarBotonAccion(button);
                         throw new Error(data.error || 'Error al confirmar la remesa');
                     }
                 })
                 .catch(error => {
+                    // Liberar botón en caso de error
+                    if (button) liberarBotonAccion(button);
+                    
                     Swal.fire({
                         title: 'Error',
                         text: error.message,
@@ -1843,76 +2069,17 @@
                         color: '#fff'
                     });
                 });
+            } else {
+                // Liberar botón si se cancela la acción
+                if (button) liberarBotonAccion(button);
             }
         });
     }
 
-    function procesarRemesa(remesaId, remesaNumero) {
-        Swal.fire({
-            title: `¿Completar la remesa #${remesaNumero}?`,
-            text: "Esta acción no se puede deshacer",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#28a745',
-            cancelButtonColor: '#d33',
-            confirmButtonText: 'Sí, completar',
-            cancelButtonText: 'Cancelar',
-            background: '#212529',
-            color: '#fff'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    // FUNCIÓN ELIMINADA - procesarRemesa ya no es necesaria
+    // La lógica se movió a confirmarRemesa para simplificar el flujo
 
-                fetch(`/remesas/procesar/${remesaId}/`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': csrfToken,
-                        'Content-Type': 'application/json'
-                    },
-                    credentials: 'same-origin'
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        return response.text().then(text => {
-                            try {
-                                return JSON.parse(text);
-                            } catch (e) {
-                                throw new Error('Error en el servidor: ' + text);
-                            }
-                        });
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.success) {
-                        Swal.fire({
-                            title: '¡Completada!',
-                            text: 'La remesa ha sido completada exitosamente.',
-                            icon: 'success',
-                            background: '#212529',
-                            color: '#fff'
-                        }).then(() => {
-                            window.location.reload();
-                        });
-                    } else {
-                        throw new Error(data.error || data.message || 'Error al completar la remesa');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    Swal.fire({
-                        title: 'Error',
-                        text: error.message || 'Error al procesar la remesa. Por favor, intente nuevamente.',
-                        icon: 'error',
-                        background: '#212529',
-                        color: '#fff'
-                    });
-                });
-            }
-        });
-    }
-
-    function cancelarRemesa(remesaId, remesaNumero) {
+    function cancelarRemesa(remesaId, remesaNumero, button) {
         Swal.fire({
             title: `¿Cancelar la remesa #${remesaNumero}?`,
             text: "Esta acción no se puede deshacer",
@@ -1947,10 +2114,15 @@
                             color: '#fff'
                         }).then(() => window.location.reload());
                     } else {
+                        // Liberar botón en caso de error
+                        if (button) liberarBotonAccion(button);
                         throw new Error(data.error || 'Error al cancelar la remesa');
                     }
                 })
                 .catch(error => {
+                    // Liberar botón en caso de error
+                    if (button) liberarBotonAccion(button);
+                    
                     Swal.fire({
                         title: 'Error',
                         text: error.message,
@@ -1959,29 +2131,137 @@
                         color: '#fff'
                     });
                 });
+            } else {
+                // Liberar botón si se cancela la acción
+                if (button) liberarBotonAccion(button);
             }
         });
     }
 
-    // Función para eliminar pagos
-    function eliminarPago(pagoId, destinatario) {
+    // Función para eliminar remesas (solo administradores)
+    function eliminarRemesa(remesaId, remesaNumero, button) {
         Swal.fire({
-            title: '¿Eliminar pago?',
-            html: `<p class="text-muted">Se eliminará el pago para:</p><p class="text-white">${destinatario}</p>`,
+            title: '⚠️ ¿Eliminar remesa completada?',
+            html: `<div class="text-start">
+                <p class="text-warning mb-2"><i class="fas fa-exclamation-triangle"></i> <strong>ATENCIÓN:</strong> Esta acción es irreversible</p>
+                <p class="text-muted mb-1">Se eliminará la remesa:</p>
+                <p class="text-white"><strong>#${remesaNumero}</strong></p>
+                <p class="text-info">• El balance del gestor será ajustado automáticamente</p>
+                <p class="text-info">• Se enviará una notificación al usuario afectado</p>
+            </div>`,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#dc3545',
             cancelButtonColor: '#6c757d',
-            confirmButtonText: 'Sí, eliminar',
+            confirmButtonText: 'Sí, eliminar definitivamente',
             cancelButtonText: 'Cancelar',
             background: '#212529',
-            color: '#fff'
+            color: '#fff',
+            customClass: {
+                popup: 'text-start'
+            }
         }).then((result) => {
             if (result.isConfirmed) {
                 // Mostrar loading
                 Swal.fire({
-                    title: 'Eliminando...',
-                    text: 'Por favor espere',
+                    title: 'Eliminando remesa...',
+                    html: 'Procesando eliminación y ajustando balances...',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    showConfirmButton: false,
+                    background: '#212529',
+                    color: '#fff',
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
+                fetch(`/remesas/eliminar/${remesaId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'same-origin'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            title: '¡Remesa eliminada!',
+                            html: `<div class="text-center">
+                                <p class="text-success mb-2"><i class="fas fa-check-circle"></i> Eliminación exitosa</p>
+                                <p class="text-muted">${data.message}</p>
+                            </div>`,
+                            icon: 'success',
+                            background: '#212529',
+                            color: '#fff',
+                            showConfirmButton: false,
+                            timer: 3000
+                        }).then(() => {
+                            location.reload();
+                        });
+                    } else {
+                        // Liberar botón en caso de error
+                        if (button) liberarBotonAccion(button);
+                        Swal.fire({
+                            title: 'Error al eliminar',
+                            text: data.message,
+                            icon: 'error',
+                            background: '#212529',
+                            color: '#fff'
+                        });
+                    }
+                })
+                .catch(error => {
+                    // Liberar botón en caso de error
+                    if (button) liberarBotonAccion(button);
+                    
+                    console.error('Error:', error);
+                    Swal.fire({
+                        title: 'Error de conexión',
+                        text: 'Ocurrió un error al procesar la solicitud. Por favor, intente nuevamente.',
+                        icon: 'error',
+                        background: '#212529',
+                        color: '#fff'
+                    });
+                });
+            } else {
+                // Liberar botón si se cancela la acción
+                if (button) liberarBotonAccion(button);
+            }
+        });
+    }
+
+    // Función para eliminar pagos (solo administradores)
+    function eliminarPago(pagoId, destinatario, button) {
+        Swal.fire({
+            title: '⚠️ ¿Eliminar pago?',
+            html: `<div class="text-start">
+                <p class="text-warning mb-2"><i class="fas fa-exclamation-triangle"></i> <strong>ATENCIÓN:</strong> Esta acción es irreversible</p>
+                <p class="text-muted mb-1">Se eliminará el pago para:</p>
+                <p class="text-white"><strong>${destinatario}</strong></p>
+                <p class="text-info">• El balance del usuario será ajustado automáticamente</p>
+                <p class="text-info">• Se enviará una notificación al usuario afectado</p>
+            </div>`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Sí, eliminar definitivamente',
+            cancelButtonText: 'Cancelar',
+            background: '#212529',
+            color: '#fff',
+            customClass: {
+                popup: 'text-start'
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Mostrar loading
+                Swal.fire({
+                    title: 'Eliminando pago...',
+                    html: 'Procesando eliminación y ajustando balances...',
                     allowOutsideClick: false,
                     allowEscapeKey: false,
                     showConfirmButton: false,
@@ -2005,19 +2285,24 @@
                 .then(data => {
                     if (data.success) {
                         Swal.fire({
-                            title: '¡Eliminado!',
-                            text: data.message,
+                            title: '¡Pago eliminado!',
+                            html: `<div class="text-center">
+                                <p class="text-success mb-2"><i class="fas fa-check-circle"></i> Eliminación exitosa</p>
+                                <p class="text-muted">${data.message}</p>
+                            </div>`,
                             icon: 'success',
                             background: '#212529',
                             color: '#fff',
                             showConfirmButton: false,
-                            timer: 1500
+                            timer: 3000
                         }).then(() => {
                             location.reload();
                         });
                     } else {
+                        // Liberar botón en caso de error
+                        if (button) liberarBotonAccion(button);
                         Swal.fire({
-                            title: 'Error',
+                            title: 'Error al eliminar',
                             text: data.message,
                             icon: 'error',
                             background: '#212529',
@@ -2026,15 +2311,141 @@
                     }
                 })
                 .catch(error => {
+                    // Liberar botón en caso de error
+                    if (button) liberarBotonAccion(button);
+                    
                     console.error('Error:', error);
                     Swal.fire({
-                        title: 'Error',
-                        text: 'Ocurrió un error al procesar la solicitud',
+                        title: 'Error de conexión',
+                        text: 'Ocurrió un error al procesar la solicitud. Por favor, intente nuevamente.',
                         icon: 'error',
                         background: '#212529',
                         color: '#fff'
                     });
                 });
+            } else {
+                // Liberar botón si se cancela la acción
+                if (button) liberarBotonAccion(button);
+            }
+        });
+    }
+
+    // Función para confirmar pagos
+    function confirmarPago(pagoId, destinatario, button) {
+        Swal.fire({
+            title: `¿Confirmar pago para ${destinatario}?`,
+            text: "Esta acción deducirá el monto del balance del usuario y no se puede deshacer.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#28a745',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Sí, confirmar',
+            cancelButtonText: 'Cancelar',
+            background: '#212529',
+            color: '#fff'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+                fetch(`/remesas/pagos/confirmar/${pagoId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'same-origin'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            title: '¡Pago confirmado!',
+                            text: 'El pago ha sido confirmado exitosamente.',
+                            icon: 'success',
+                            background: '#212529',
+                            color: '#fff'
+                        }).then(() => window.location.reload());
+                    } else {
+                        // Liberar botón en caso de error
+                        if (button) liberarBotonAccion(button);
+                        throw new Error(data.error || 'Error al confirmar el pago');
+                    }
+                })
+                .catch(error => {
+                    // Liberar botón en caso de error
+                    if (button) liberarBotonAccion(button);
+                    
+                    Swal.fire({
+                        title: 'Error',
+                        text: error.message,
+                        icon: 'error',
+                        background: '#212529',
+                        color: '#fff'
+                    });
+                });
+            } else {
+                // Liberar botón si se cancela la acción
+                if (button) liberarBotonAccion(button);
+            }
+        });
+    }
+
+    // Función para cancelar pagos
+    function cancelarPago(pagoId, destinatario, button) {
+        Swal.fire({
+            title: `¿Cancelar pago para ${destinatario}?`,
+            text: "Esta acción cancelará el pago y no se puede deshacer.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Sí, cancelar',
+            cancelButtonText: 'No, mantener',
+            background: '#212529',
+            color: '#fff'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+                fetch(`/remesas/pagos/cancelar/${pagoId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'same-origin'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            title: '¡Pago cancelado!',
+                            text: 'El pago ha sido cancelado exitosamente.',
+                            icon: 'success',
+                            background: '#212529',
+                            color: '#fff'
+                        }).then(() => window.location.reload());
+                    } else {
+                        // Liberar botón en caso de error
+                        if (button) liberarBotonAccion(button);
+                        throw new Error(data.error || 'Error al cancelar el pago');
+                    }
+                })
+                .catch(error => {
+                    // Liberar botón en caso de error
+                    if (button) liberarBotonAccion(button);
+                    
+                    Swal.fire({
+                        title: 'Error',
+                        text: error.message,
+                        icon: 'error',
+                        background: '#212529',
+                        color: '#fff'
+                    });
+                });
+            } else {
+                // Liberar botón si se cancela la acción
+                if (button) liberarBotonAccion(button);
             }
         });
     }
@@ -2633,7 +3044,7 @@
     // Función para limpiar event listeners duplicados
     function cleanupEventListeners() {
         // Remover todos los event listeners duplicados de botones
-        const buttons = document.querySelectorAll('.btn-editar, .btn-confirmar, .btn-procesar, .btn-cancelar, .btn-eliminar-pago');
+        const buttons = document.querySelectorAll('.btn-editar, .btn-confirmar, .btn-cancelar, .btn-eliminar-pago, .btn-eliminar-remesa, .btn-confirmar-pago, .btn-cancelar-pago');
         buttons.forEach(function(button) {
             // Clonar el elemento para remover todos sus event listeners
             const newButton = button.cloneNode(true);
@@ -3002,6 +3413,56 @@
         margin-top: 0.5rem;
         padding-top: 0.5rem;
         border-top: 1px solid rgba(255, 255, 255, 0.1);
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    /* Optimización de botones en vista móvil */
+    .mobile-item-footer .btn {
+        padding: 6px 12px;
+        font-size: 0.8rem;
+        min-height: 32px;
+        font-weight: 500;
+    }
+    
+    .mobile-item-footer .d-flex {
+        flex-wrap: wrap;
+        gap: 6px;
+        width: 100%;
+        justify-content: flex-start;
+    }
+    
+    /* Asegurar que los botones sean visibles y táctiles en móvil */
+    .mobile-item .btn-confirmar-pago,
+    .mobile-item .btn-cancelar-pago {
+        min-width: 80px;
+        text-align: center;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+    }
+    
+    .mobile-item .btn-confirmar-pago {
+        background-color: rgba(40, 167, 69, 0.2);
+        border-color: #28a745;
+        color: #28a745;
+    }
+    
+    .mobile-item .btn-confirmar-pago:hover {
+        background-color: #28a745;
+        color: white;
+    }
+    
+    .mobile-item .btn-cancelar-pago {
+        background-color: rgba(220, 53, 69, 0.2);
+        border-color: #dc3545;
+        color: #dc3545;
+    }
+    
+    .mobile-item .btn-cancelar-pago:hover {
+        background-color: #dc3545;
+        color: white;
     }
 }
 

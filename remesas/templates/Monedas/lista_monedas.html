@@ -24,6 +24,7 @@
                             <tr>
                                 <th>Código</th>
                                 <th>Nombre</th>
+                                <th>Tipo</th>
                                 <th>Valor Actual</th>
                                 <th>Valor Comercial</th>
                                 <th>Estado</th>
@@ -36,6 +37,12 @@
                             <tr>
                                 <td>{{ moneda.codigo }}</td>
                                 <td>{{ moneda.nombre }}</td>
+                                <td>
+                                    <span class="badge {% if moneda.tipo_moneda == 'efectivo' %}bg-success{% else %}bg-info{% endif %}">
+                                        <i class="fas {% if moneda.tipo_moneda == 'efectivo' %}fa-money-bill-wave{% else %}fa-credit-card{% endif %} me-1"></i>
+                                        {{ moneda.get_tipo_moneda_display }}
+                                    </span>
+                                </td>
                                 <td>{{ moneda.valor_actual|floatformat:2 }}</td>
                                 <td>{{ moneda.valor_comercial|floatformat:2 }}</td>
                                 <td>
@@ -71,7 +78,7 @@
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="7" class="text-center">No hay monedas registradas</td>
+                                <td colspan="8" class="text-center">No hay monedas registradas</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -102,6 +109,14 @@
                         <!-- Información principal -->
                         <div class="mb-3">
                             <h6 class="text-white mb-3">{{ moneda.nombre }}</h6>
+                            
+                            <!-- Tipo de moneda -->
+                            <div class="mb-3">
+                                <span class="badge {% if moneda.tipo_moneda == 'efectivo' %}bg-success{% else %}bg-info{% endif %}">
+                                    <i class="fas {% if moneda.tipo_moneda == 'efectivo' %}fa-money-bill-wave{% else %}fa-credit-card{% endif %} me-1"></i>
+                                    {{ moneda.get_tipo_moneda_display }}
+                                </span>
+                            </div>
                             
                             <div class="row g-2 mb-2">
                                 <div class="col-6">

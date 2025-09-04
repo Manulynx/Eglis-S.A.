@@ -8,28 +8,28 @@
         
         <!-- Botones de Acción Principal -->
         <div class="row justify-content-center mb-4 mb-md-5">
-            <div class="col-12 col-md-8 col-lg-6">
-                <div class="row g-3 g-md-4">
-                    <div class="col-12 col-md-6">
+            <div class="col-12">
+                <div class="row g-2 justify-content-center">
+                    <div class="col-5 col-sm-4 col-md-3">
                         <div class="card h-100 bg-recibir hover-shadow transition">
-                            <div class="card-body text-center p-3 p-sm-4">
-                                <div class="mb-3">
-                                    <i class="fas fa-plus fa-2x fa-sm-3x text-success"></i>
+                            <div class="card-body text-center p-2 p-sm-3">
+                                <div class="mb-2">
+                                    <i class="fas fa-plus fa-lg text-success"></i>
                                 </div>
-                                <a href="{% url 'remesas:nueva_remesa' %}" class="btn w-100 btn-action btn-recibir">
-                                    <i class="fas fa-plus me-2"></i> Recibir
+                                <a href="{% url 'remesas:nueva_remesa' %}" class="btn w-100 btn-action btn-recibir btn-compact">
+                                    <i class="fas fa-plus me-1"></i> Recibir
                                 </a>
                             </div>
                         </div>
                     </div>
-                    <div class="col-12 col-sm-6">
+                    <div class="col-5 col-sm-4 col-md-3">
                         <div class="card h-100 bg-enviar hover-shadow transition">
-                            <div class="card-body text-center p-3 p-sm-4">
-                                <div class="mb-3">
-                                    <i class="fas fa-minus fa-2x fa-sm-3x text-primary"></i>
+                            <div class="card-body text-center p-2 p-sm-3">
+                                <div class="mb-2">
+                                    <i class="fas fa-minus fa-lg text-primary"></i>
                                 </div>
-                                <a href="{% url 'remesas:crear_pago' %}" class="btn w-100 btn-action btn-enviar">
-                                    <i class="fas fa-minus me-2"></i> Enviar
+                                <a href="{% url 'remesas:crear_pago' %}" class="btn w-100 btn-action btn-enviar btn-compact">
+                                    <i class="fas fa-minus me-1"></i> Enviar
                                 </a>
                             </div>
                         </div>
@@ -152,6 +152,12 @@
     border: none;
 }
 
+.btn-compact {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
 .btn-action:hover {
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
@@ -233,29 +239,21 @@
 
 /* Responsive adjustments */
 @media (max-width: 576px) {
-    .fa-sm-3x {
-        font-size: 1.75em;
-    }
-    
     .h5 {
         font-size: 1.1rem;
     }
 
     .card-body {
-        padding: 1.25rem !important;
+        padding: 0.75rem !important;
     }
     
-    .btn-action {
-        padding: 0.5rem 0.75rem;
-        font-size: 0.9rem;
+    .btn-compact {
+        padding: 0.4rem 0.5rem;
+        font-size: 0.85rem;
     }
 
-    .row.g-3 {
-        gap: 0.75rem !important;
-    }
-
-    .col-12.col-sm-6 {
-        padding: 0 0.5rem;
+    .row.g-2 {
+        gap: 0.5rem !important;
     }
     
     .cotizaciones-table {
@@ -270,6 +268,12 @@
     .badge {
         font-size: 0.7rem;
         padding: 0.25rem 0.5rem;
+    }
+
+    /* Asegurar que las cartas siempre estén lado a lado en móvil */
+    .col-5 {
+        flex: 0 0 45%;
+        max-width: 45%;
     }
 }
 

@@ -12,10 +12,32 @@
                     Gestión de Destinatarios
                 </h2>
                 <div class="btn-group">
+                    <button type="button" class="btn btn-info me-2" id="btnMostrarInfo">
+                        <i class="fas fa-info-circle me-2"></i>Información
+                    </button>
                     <button type="button" class="btn btn-success" id="btnAgregarDestinatario">
                         <i class="fas fa-plus me-2"></i>Agregar Destinatario
                     </button>
-                   
+                </div>
+            </div>
+
+            <!-- Información de CallMeBot (Oculta por defecto) -->
+            <div class="card bg-dark border-secondary mb-4" id="infoCallMeBot" style="display: none;">
+                <div class="card-header">
+                    <h6 class="mb-0 text-white">
+                        <i class="fas fa-robot me-2"></i>Configuración CallMeBot (SÚPER FÁCIL y GRATIS)
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle me-2"></i>Pasos para obtener tu API Key:</h6>
+                        <ol class="mb-0">
+                            <li>Envía el mensaje: <strong>"Autorizo callmebot a enviarme mensajes"</strong></li>
+                            <li>Al número de WhatsApp: <strong>+34 644 84 44 84</strong></li>
+                            <li>Recibirás tu API Key personalizada</li>
+                            <li>Completa el formulario con la información obtenida</li>
+                        </ol>
+                    </div>
                 </div>
             </div>
 
@@ -237,40 +259,6 @@
                             </button>
                         </div>
                     {% endif %}
-                </div>
-            </div>
-
-            <!-- Información de ayuda -->
-            <div class="card bg-dark border-secondary mt-4">
-                <div class="card-header">
-                    <h6 class="mb-0 text-white">
-                        <i class="fas fa-info-circle me-2"></i>Información de Notificaciones
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="text-center p-3">
-                                <span class="badge bg-info fs-6 mb-2">R</span>
-                                <p class="text-white mb-0">Remesas</p>
-                                <small class="text-muted">Nuevas remesas creadas</small>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="text-center p-3">
-                                <span class="badge bg-warning fs-6 mb-2">P</span>
-                                <p class="text-white mb-0">Pagos</p>
-                                <small class="text-muted">Pagos realizados</small>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="text-center p-3">
-                                <span class="badge bg-secondary fs-6 mb-2">E</span>
-                                <p class="text-white mb-0">Estados</p>
-                                <small class="text-muted">Cambios de estado</small>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -719,6 +707,27 @@ document.getElementById('addDestinatarioModal').addEventListener('hidden.bs.moda
 // Event listeners para botones
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Configurando event listeners...');
+    
+    // Botón para mostrar/ocultar información
+    const btnMostrarInfo = document.getElementById('btnMostrarInfo');
+    const infoCallMeBot = document.getElementById('infoCallMeBot');
+    
+    if (btnMostrarInfo && infoCallMeBot) {
+        btnMostrarInfo.addEventListener('click', function() {
+            if (infoCallMeBot.style.display === 'none') {
+                infoCallMeBot.style.display = 'block';
+                this.innerHTML = '<i class="fas fa-eye-slash me-2"></i>Ocultar Info';
+                this.classList.remove('btn-info');
+                this.classList.add('btn-secondary');
+            } else {
+                infoCallMeBot.style.display = 'none';
+                this.innerHTML = '<i class="fas fa-info-circle me-2"></i>Información';
+                this.classList.remove('btn-secondary');
+                this.classList.add('btn-info');
+            }
+        });
+        console.log('✅ Event listener agregado al botón Información');
+    }
     
     // Configurar el botón cancelar del modal
     const btnCancelar = document.getElementById('btnCancelarDestinatario');

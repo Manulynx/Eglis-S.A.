@@ -100,6 +100,52 @@
             50% { box-shadow: 0 20px 50px rgba(255, 107, 107, 0.8); }
         }
 
+        /* Estilos globales para protección contra envíos duplicados */
+        form[data-enviando="true"] {
+            pointer-events: none;
+            opacity: 0.7;
+            position: relative;
+        }
+
+        form[data-enviando="true"]:after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.1);
+            border-radius: inherit;
+            z-index: 1000;
+        }
+
+        form[data-enviando="true"] button[type="submit"],
+        form[data-enviando="true"] input[type="submit"] {
+            pointer-events: none !important;
+            cursor: not-allowed !important;
+            opacity: 0.6 !important;
+            position: relative;
+            z-index: 1001;
+        }
+
+        /* Permitir interacción con campos de entrada mientras se envía */
+        form[data-enviando="true"] input:not([type="submit"]),
+        form[data-enviando="true"] select,
+        form[data-enviando="true"] textarea {
+            pointer-events: auto;
+            opacity: 1;
+        }
+
+        /* Animación sutil para indicar estado de envío */
+        form[data-enviando="true"] button[type="submit"] .fa-spinner {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         .pull-to-refresh-text {
             position: absolute;
             top: -50px;
@@ -1102,6 +1148,120 @@
           }
         }, { passive: true });
       });
+    </script>
+
+    <!-- Script global para prevenir envíos duplicados -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Sistema de protección contra envíos duplicados iniciado');
+        
+        // Función global para proteger formularios
+        function protegerFormulario(form) {
+            if (form.dataset.protegido === 'true') {
+                return; // Ya está protegido
+            }
+            
+            form.dataset.protegido = 'true';
+            console.log('Protegiendo formulario:', form.id || 'sin ID');
+            
+            form.addEventListener('submit', function(e) {
+                const submitButton = form.querySelector('button[type="submit"], input[type="submit"]');
+                
+                // Verificar si ya se está enviando
+                if (form.dataset.enviando === 'true') {
+                    console.log('Formulario bloqueado: ya se está enviando');
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    return false;
+                }
+                
+                // Marcar como enviando
+                form.dataset.enviando = 'true';
+                console.log('Formulario marcado como enviando');
+                
+                // Deshabilitar botón de envío
+                if (submitButton) {
+                    submitButton.disabled = true;
+                    const originalText = submitButton.innerHTML;
+                    submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Enviando...';
+                    
+                    // Guardar texto original para restaurar
+                    submitButton.dataset.originalText = originalText;
+                }
+                
+                // Timeout de seguridad (30 segundos)
+                const timeoutId = setTimeout(() => {
+                    console.log('Timeout de seguridad: liberando formulario');
+                    liberarFormulario(form, submitButton);
+                }, 30000);
+                
+                // Guardar ID del timeout para limpiarlo si es necesario
+                form.dataset.timeoutId = timeoutId;
+            });
+        }
+        
+        // Función para liberar el formulario
+        function liberarFormulario(form, submitButton) {
+            form.dataset.enviando = 'false';
+            
+            // Limpiar timeout
+            if (form.dataset.timeoutId) {
+                clearTimeout(parseInt(form.dataset.timeoutId));
+                delete form.dataset.timeoutId;
+            }
+            
+            // Restaurar botón
+            if (submitButton) {
+                submitButton.disabled = false;
+                if (submitButton.dataset.originalText) {
+                    submitButton.innerHTML = submitButton.dataset.originalText;
+                }
+            }
+            
+            console.log('Formulario liberado');
+        }
+        
+        // Proteger todos los formularios existentes
+        document.querySelectorAll('form').forEach(protegerFormulario);
+        
+        // Observer para formularios que se agregan dinámicamente
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                mutation.addedNodes.forEach(function(node) {
+                    if (node.nodeType === 1) { // Element node
+                        if (node.tagName === 'FORM') {
+                            protegerFormulario(node);
+                        }
+                        // Proteger formularios dentro del nodo agregado
+                        node.querySelectorAll && node.querySelectorAll('form').forEach(protegerFormulario);
+                    }
+                });
+            });
+        });
+        
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+        
+        // Liberar formularios al navegar fuera de la página
+        window.addEventListener('beforeunload', function() {
+            document.querySelectorAll('form[data-enviando="true"]').forEach(function(form) {
+                const submitButton = form.querySelector('button[type="submit"], input[type="submit"]');
+                liberarFormulario(form, submitButton);
+            });
+        });
+        
+        // Liberar formularios en caso de error de página
+        window.addEventListener('error', function() {
+            document.querySelectorAll('form[data-enviando="true"]').forEach(function(form) {
+                const submitButton = form.querySelector('button[type="submit"], input[type="submit"]');
+                liberarFormulario(form, submitButton);
+            });
+        });
+        
+        console.log('Sistema de protección configurado exitosamente');
+    });
     </script>
 
 </body>

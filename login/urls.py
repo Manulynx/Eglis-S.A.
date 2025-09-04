@@ -13,6 +13,7 @@ urlpatterns = [
     # Administración de usuarios (requiere permisos de staff)
     path('admin/usuarios/', views.administrar_usuarios, name='administrar_usuarios'),
     path('admin/usuarios/crear/', views.crear_usuario, name='crear_usuario'),
+    path('admin/usuarios/obtener/<int:user_id>/', views.obtener_usuario, name='obtener_usuario'),
     path('admin/usuarios/editar/<int:user_id>/', views.editar_usuario, name='editar_usuario'),
     path('admin/usuarios/eliminar/<int:user_id>/', views.eliminar_usuario, name='eliminar_usuario'),
     path('admin/usuarios/toggle/<int:user_id>/', views.toggle_usuario, name='toggle_usuario'),

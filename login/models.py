@@ -40,6 +40,64 @@ class PerfilUsuario(models.Model):
     @property
     def nombre_completo(self):
         return f"{self.user.first_name} {self.user.last_name}".strip() or self.user.username
+    
+    def calcular_balance_real(self):
+        """
+        Calcula el balance real del usuario basándose en remesas y pagos
+        """
+        from remesas.models import Remesa, Pago
+        from decimal import Decimal
+        
+        balance_calculado = Decimal('0.00')
+        
+        # Sumar remesas completadas (dinero que entra)
+        remesas_completadas = Remesa.objects.filter(
+            gestor=self.user, 
+            estado='completada',
+            importe__isnull=False
+        ).select_related('moneda')
+        
+        for remesa in remesas_completadas:
+            if remesa.importe:
+                # Convertir a USD si es necesario
+                if remesa.moneda and remesa.moneda.codigo != 'USD':
+                    try:
+                        importe_usd = remesa.importe / remesa.moneda.valor_actual
+                        balance_calculado += importe_usd
+                    except (ZeroDivisionError, AttributeError):
+                        pass
+                else:
+                    balance_calculado += remesa.importe
+        
+        # Restar pagos confirmados (dinero que sale)
+        pagos_confirmados = Pago.objects.filter(
+            usuario=self.user,
+            estado='confirmado',
+            cantidad__isnull=False
+        ).select_related('tipo_moneda')
+        
+        for pago in pagos_confirmados:
+            if pago.cantidad:
+                # Convertir a USD si es necesario
+                if pago.tipo_moneda and pago.tipo_moneda.codigo != 'USD':
+                    try:
+                        cantidad_usd = pago.cantidad / pago.tipo_moneda.valor_actual
+                        balance_calculado -= cantidad_usd
+                    except (ZeroDivisionError, AttributeError):
+                        pass
+                else:
+                    balance_calculado -= pago.cantidad
+        
+        return balance_calculado
+    
+    def actualizar_balance(self):
+        """
+        Actualiza el campo balance con el balance real calculado
+        """
+        balance_real = self.calcular_balance_real()
+        self.balance = balance_real
+        self.save()
+        return balance_real
 
 class SesionUsuario(models.Model):
     """

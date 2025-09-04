@@ -2,8 +2,8 @@
 {% load static %}
 {% block content %}
 
-<div class="container py-4">
-    <div class="row justify-content-center">
+<div class="container-fluid px-2 py-4">
+    <div class="row justify-content-center no-gutters">
         <div class="col-12 col-md-8 col-lg-6">
             <div class="card bg-dark border-secondary">
                 <div class="card-body">
@@ -134,6 +134,42 @@
 </script>
 
 <style>
+/* PREVENCIÓN DE OVERFLOW HORIZONTAL */
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100vw;
+}
+
+.container-fluid {
+    max-width: 100vw;
+    overflow-x: hidden;
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+.row {
+    margin-left: 0;
+    margin-right: 0;
+    max-width: 100%;
+}
+
+.col-12, .col-md-8, .col-lg-6 {
+    padding-left: 4px;
+    padding-right: 4px;
+    max-width: 100%;
+}
+
+.card {
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+}
+
 /* Estilos minimalistas */
 .form-control, .form-select {
     background-color: #1a1a1a !important;
@@ -142,6 +178,10 @@
     border-radius: 4px;
     padding: 10px;
     margin-bottom: 10px;
+    font-size: 16px; /* Evita zoom automático en iOS */
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 .form-control:focus, .form-select:focus {
@@ -209,12 +249,14 @@ input[type="file"].form-control::file-selector-button:hover {
 .form-label {
     font-size: 0.9rem;
     margin-bottom: 5px;
+    font-weight: 500;
 }
 
 .btn {
     padding: 10px 20px;
     border-radius: 4px;
     font-weight: 500;
+    min-height: 44px; /* Mejor para uso táctil */
 }
 
 .btn-primary {
@@ -224,6 +266,377 @@ input[type="file"].form-control::file-selector-button:hover {
 
 .btn-primary:hover {
     background-color: #0b5ed7;
+}
+
+/* RESPONSIVIDAD MEJORADA PARA MÓVILES */
+
+/* Para tablets medianas y móviles grandes (768px - 991px) */
+@media (max-width: 991px) {
+    .container {
+        padding-left: 15px;
+        padding-right: 15px;
+    }
+    
+    .col-lg-6 {
+        max-width: 100%;
+    }
+    
+    .card-body {
+        padding: 1.5rem;
+    }
+    
+    h4 {
+        font-size: 1.4rem;
+        margin-bottom: 1.5rem;
+    }
+}
+
+/* Para móviles (576px - 767px) */
+@media (max-width: 767px) {
+    html, body {
+        overflow-x: hidden !important;
+        width: 100% !important;
+        max-width: 100vw !important;
+    }
+    
+    .container-fluid {
+        padding-left: 5px !important;
+        padding-right: 5px !important;
+        max-width: 100vw !important;
+        overflow-x: hidden !important;
+    }
+    
+    .row {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        max-width: 100% !important;
+    }
+    
+    .col-12, .col-md-8 {
+        padding-left: 3px !important;
+        padding-right: 3px !important;
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+    
+    .card {
+        margin: 0 !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        border-radius: 6px;
+    }
+    
+    .card-body {
+        padding: 1rem !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+    }
+    
+    .form-control, .form-select {
+        padding: 12px 14px !important;
+        font-size: 16px !important; /* Evita zoom en iOS */
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+    
+    .form-label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-bottom: 6px;
+    }
+    
+    h4 {
+        font-size: 1.3rem;
+        margin-bottom: 1.25rem;
+    }
+    
+    .btn {
+        padding: 12px 16px;
+        font-size: 15px;
+        margin: 4px 0;
+    }
+    
+    /* Ajustar layout de botones en móvil */
+    .d-flex.justify-content-between {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .d-flex.justify-content-between .btn {
+        width: 100%;
+        text-align: center;
+    }
+    
+    /* Mejorar checkboxes para táctil */
+    .form-check {
+        padding-left: 2rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .form-check-input {
+        width: 1.1em;
+        height: 1.1em;
+        margin-top: 0.1em;
+    }
+    
+    .form-check-label {
+        font-size: 0.9rem;
+        line-height: 1.4;
+    }
+}
+
+/* Para móviles pequeños (hasta 575px) */
+@media (max-width: 575px) {
+    html, body {
+        overflow-x: hidden !important;
+        width: 100% !important;
+        max-width: 100vw !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    .container-fluid {
+        padding-left: 3px !important;
+        padding-right: 3px !important;
+        max-width: 100vw !important;
+        width: 100% !important;
+        margin: 0 !important;
+    }
+    
+    .row {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+    
+    .col-12 {
+        padding-left: 2px !important;
+        padding-right: 2px !important;
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+    
+    .card {
+        border-radius: 8px;
+        margin: 0.25rem 0 !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        overflow: hidden !important;
+    }
+    
+    .card-body {
+        padding: 0.75rem !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        overflow-x: hidden !important;
+    }
+    
+    h4 {
+        font-size: 1.2rem;
+        margin-bottom: 1rem;
+    }
+    
+    .form-control, .form-select {
+        padding: 14px 16px;
+        font-size: 16px;
+        border-radius: 6px;
+    }
+    
+    .form-label {
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    
+    .btn {
+        padding: 14px 18px;
+        font-size: 16px;
+        border-radius: 6px;
+        min-height: 48px; /* Mejor para táctil */
+    }
+    
+    .mb-4 {
+        margin-bottom: 1rem !important;
+    }
+    
+    .mb-3 {
+        margin-bottom: 0.75rem !important;
+    }
+    
+    /* Espaciado específico para campos opcionales */
+    #campo_observaciones,
+    #campo_comprobante {
+        margin-top: 0.5rem;
+    }
+    
+    textarea.form-control {
+        min-height: 90px;
+    }
+    
+    .form-check-input {
+        width: 1.2em;
+        height: 1.2em;
+    }
+    
+    .form-check-label {
+        font-size: 0.85rem;
+    }
+}
+
+/* Para móviles muy pequeños (hasta 375px) */
+@media (max-width: 375px) {
+    html, body {
+        overflow-x: hidden !important;
+        width: 100% !important;
+        max-width: 100vw !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    .container-fluid {
+        padding-left: 2px !important;
+        padding-right: 2px !important;
+        max-width: 100vw !important;
+        width: 100% !important;
+        margin: 0 !important;
+    }
+    
+    .row {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+    
+    .col-12 {
+        padding-left: 1px !important;
+        padding-right: 1px !important;
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+    
+    .card-body {
+        padding: 0.5rem !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        overflow-x: hidden !important;
+    }
+    
+    h4 {
+        font-size: 1.1rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .form-control, .form-select {
+        padding: 12px 14px;
+        font-size: 16px;
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        overflow-x: hidden !important;
+    }
+    
+    .btn {
+        padding: 12px 16px;
+        font-size: 15px;
+        min-height: 44px;
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+    }
+    
+    .mb-4 {
+        margin-bottom: 0.75rem !important;
+    }
+}
+
+/* Orientación landscape en móviles */
+@media (max-height: 500px) and (orientation: landscape) {
+    .container {
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+    
+    .card-body {
+        padding: 0.75rem;
+    }
+    
+    h4 {
+        font-size: 1.1rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .mb-4 {
+        margin-bottom: 0.5rem !important;
+    }
+    
+    .mb-3 {
+        margin-bottom: 0.4rem !important;
+    }
+    
+    .btn {
+        padding: 8px 16px;
+        min-height: 40px;
+    }
+}
+
+/* Mejoras específicas para iOS */
+@supports (-webkit-touch-callout: none) {
+    .form-control, .form-select {
+        font-size: 16px !important; /* Evita zoom en iOS */
+        -webkit-appearance: none;
+        appearance: none;
+    }
+    
+    .btn {
+        -webkit-appearance: none;
+        appearance: none;
+        border-radius: 6px;
+    }
+}
+
+/* Estilos para protección contra envíos duplicados */
+.btn[disabled], .btn:disabled {
+    pointer-events: none !important;
+    opacity: 0.6 !important;
+    cursor: not-allowed !important;
+}
+
+.btn[data-enviando="true"] {
+    pointer-events: none !important;
+    opacity: 0.7 !important;
+    cursor: not-allowed !important;
+    position: relative;
+}
+
+.btn[data-enviando="true"]:after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.1);
+    border-radius: inherit;
+}
+
+/* Mejoras para Android */
+@media (max-width: 767px) and (min-resolution: 2dppx) {
+    .form-control, .form-select {
+        padding: 14px 16px;
+    }
+    
+    .btn {
+        min-height: 48px;
+        font-size: 16px;
+    }
 }
 </style>
 
@@ -373,6 +786,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Configurar cálculos de USD
     configurarCalculosRemesa();
     
+    // Configurar filtrado de monedas por tipo de pago
+    configurarFiltroMonedas();
+    
     // Configurar el formulario
     const form = document.getElementById('formRemesa');
     form.addEventListener('submit', function(e) {
@@ -417,10 +833,37 @@ function configurarCamposOpcionales() {
     });
 }
 
+function configurarFiltroMonedas() {
+    const tipoPagoSelect = document.getElementById('tipo_pago');
+    const monedaSelect = document.getElementById('moneda');
+    
+    if (tipoPagoSelect && monedaSelect) {
+        tipoPagoSelect.addEventListener('change', function() {
+            const tipoPagoSeleccionado = this.value;
+            
+            // Limpiar selección de moneda
+            monedaSelect.value = '';
+            
+            // Cargar monedas filtradas por tipo
+            if (tipoPagoSeleccionado === 'efectivo' || tipoPagoSeleccionado === 'transferencia') {
+                cargarMonedas(tipoPagoSeleccionado);
+            } else {
+                // Si no hay tipo seleccionado, cargar todas las monedas
+                cargarMonedas();
+            }
+        });
+    }
+}
 
-function cargarMonedas() {
+function cargarMonedas(tipoMoneda = null) {
+    // Construir URL con filtro opcional
+    let url = '/remesas/api/monedas/';
+    if (tipoMoneda) {
+        url += `?tipo_moneda=${tipoMoneda}`;
+    }
+    
     // Cargar monedas desde el servidor
-    fetch('/remesas/api/monedas/')
+    fetch(url)
         .then(response => response.json())
         .then(data => {
             const select = document.getElementById('moneda');
@@ -453,7 +896,13 @@ function cargarMonedas() {
                     const select = document.getElementById('moneda');
                     select.innerHTML = '<option value="">Seleccionar moneda...</option>';
                     
-                    monedasData.forEach(moneda => {
+                    // Filtrar por tipo si es necesario
+                    let monedasFiltradas = monedasData;
+                    if (tipoMoneda) {
+                        monedasFiltradas = monedasData.filter(m => m.tipo_moneda === tipoMoneda);
+                    }
+                    
+                    monedasFiltradas.forEach(moneda => {
                         const option = document.createElement('option');
                         option.value = moneda.id;
                         option.textContent = moneda.nombre;
@@ -546,6 +995,15 @@ function enviarRemesa() {
     const icono = document.getElementById('btnIcono');
     const texto = document.getElementById('btnTexto');
     
+    // PROTECCIÓN CONTRA ENVÍOS DUPLICADOS
+    if (boton.disabled || boton.dataset.enviando === 'true') {
+        console.log('Envío bloqueado: formulario ya está siendo enviado');
+        return;
+    }
+    
+    // Marcar que se está enviando
+    boton.dataset.enviando = 'true';
+    
     // Función para cambiar estado del botón
     function cambiarEstadoBoton(estado, textoBoton, iconoClass) {
         boton.disabled = estado === 'loading';
@@ -561,12 +1019,16 @@ function enviarRemesa() {
         } else if (estado === 'error') {
             boton.classList.add('btn-danger');
             boton.classList.remove('btn-success', 'btn-warning');
+            // Liberar el bloqueo después de mostrar el error
+            boton.dataset.enviando = 'false';
             setTimeout(() => {
                 cambiarEstadoBoton('normal', 'Guardar Remesa', 'fas fa-save me-2');
             }, 3000);
         } else {
             boton.classList.add('btn-success');
             boton.classList.remove('btn-warning', 'btn-danger');
+            // Liberar el bloqueo en estado normal
+            boton.dataset.enviando = 'false';
         }
     }
     

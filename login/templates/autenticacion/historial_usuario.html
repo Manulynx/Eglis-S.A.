@@ -448,7 +448,7 @@
                         <select class="form-select bg-dark text-white border-secondary" name="estado_pagos">
                             <option value="">Todos los estados</option>
                             <option value="pendiente" {% if request.GET.estado_pagos == 'pendiente' %}selected{% endif %}>Pendiente</option>
-                            <option value="completado" {% if request.GET.estado_pagos == 'completado' %}selected{% endif %}>Completado</option>
+                            <option value="confirmado" {% if request.GET.estado_pagos == 'confirmado' %}selected{% endif %}>Confirmado</option>
                             <option value="cancelado" {% if request.GET.estado_pagos == 'cancelado' %}selected{% endif %}>Cancelado</option>
                         </select>
                     </div>
@@ -672,11 +672,11 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        <span class="text-success">${{ remesa.importe|floatformat:2 }} 
+                                        <span class="{% if remesa.estado == 'completada' %}text-success{% else %}text-muted{% endif %}">${{ remesa.importe|floatformat:2 }} 
                                         {% if remesa.moneda %}{{ remesa.moneda.codigo }}{% else %}USD{% endif %}</span>
                                     </td>
                                     <td>
-                                        <span class="text-success">${{ remesa.importe_usd|floatformat:2 }}</span>
+                                        <span class="{% if remesa.estado == 'completada' %}text-success{% else %}text-muted{% endif %}">${{ remesa.importe_usd|floatformat:2 }}</span>
                                     </td>
                                     <td>{{ remesa.fecha|date:"d/m/Y H:i" }}</td>
                                     <td class="text-center">
@@ -728,7 +728,7 @@
                                 </div>
                                 <div class="col-6">
                                     <small class="text-muted">Importe:</small><br>
-                                    <span class="text-success">
+                                    <span class="{% if remesa.estado == 'completada' %}text-success{% else %}text-muted{% endif %}">
                                         ${{ remesa.importe|floatformat:2 }} 
                                         {% if remesa.moneda %}{{ remesa.moneda.codigo }}{% else %}USD{% endif %}
                                     </span>
@@ -803,8 +803,8 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if pago.estado == 'completado' %}
-                                            <span class="badge bg-success">Completado</span>
+                                        {% if pago.estado == 'confirmado' %}
+                                            <span class="badge bg-success">Confirmado</span>
                                         {% elif pago.estado == 'pendiente' %}
                                             <span class="badge bg-warning text-dark">Pendiente</span>
                                         {% elif pago.estado == 'cancelado' %}
@@ -814,11 +814,11 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        <span class="text-danger">-${{ pago.cantidad|floatformat:2 }} 
+                                        <span class="{% if pago.estado == 'confirmado' %}text-danger{% else %}text-muted{% endif %}">-${{ pago.cantidad|floatformat:2 }} 
                                         {% if pago.moneda %}{{ pago.moneda.codigo }}{% else %}USD{% endif %}</span>
                                     </td>
                                     <td>
-                                        <span class="text-danger">-${{ pago.cantidad_usd|floatformat:2 }}</span>
+                                        <span class="{% if pago.estado == 'confirmado' %}text-danger{% else %}text-muted{% endif %}">-${{ pago.cantidad_usd|floatformat:2 }}</span>
                                     </td>
                                     <td>{{ pago.fecha_creacion|date:"d/m/Y H:i" }}</td>
                                     <td class="text-center">
@@ -853,8 +853,8 @@
                         <div class="card-body p-3">
                             <div class="d-flex justify-content-between align-items-start mb-2">
                                 <h6 class="text-warning mb-0">{{ pago.numero_pago }}</h6>
-                                {% if pago.estado == 'completado' %}
-                                    <span class="badge bg-success">Completado</span>
+                                {% if pago.estado == 'confirmado' %}
+                                    <span class="badge bg-success">Confirmado</span>
                                 {% elif pago.estado == 'pendiente' %}
                                     <span class="badge bg-warning text-dark">Pendiente</span>
                                 {% elif pago.estado == 'cancelado' %}
@@ -868,7 +868,7 @@
                                 </div>
                                 <div class="col-6">
                                     <small class="text-muted">Cantidad:</small><br>
-                                    <span class="text-danger">
+                                    <span class="{% if pago.estado == 'confirmado' %}text-danger{% else %}text-muted{% endif %}">
                                         -${{ pago.cantidad|floatformat:2 }} 
                                         {% if pago.moneda %}{{ pago.moneda.codigo }}{% else %}USD{% endif %}
                                     </span>
@@ -958,10 +958,12 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if transaccion.estado == 'completada' or transaccion.estado == 'completado' %}
-                                            <span class="badge bg-success">Completado</span>
+                                        {% if transaccion.estado == 'completada' or transaccion.estado == 'confirmado' %}
+                                            <span class="badge bg-success">
+                                                {% if transaccion.tipo == 'remesa' %}Completada{% else %}Confirmado{% endif %}
+                                            </span>
                                         {% elif transaccion.estado == 'confirmada' %}
-                                            <span class="badge bg-info">Confirmado</span>
+                                            <span class="badge bg-info">Confirmada</span>
                                         {% elif transaccion.estado == 'pendiente' %}
                                             <span class="badge bg-warning text-dark">Pendiente</span>
                                         {% elif transaccion.estado == 'cancelada' or transaccion.estado == 'cancelado' %}
@@ -972,12 +974,12 @@
                                     </td>
                                     <td>
                                         {% if transaccion.tipo == 'remesa' %}
-                                            <span class="text-success">
+                                            <span class="{% if transaccion.estado == 'completada' %}text-success{% else %}text-muted{% endif %}">
                                                 ${{ transaccion.importe|floatformat:2 }} 
                                                 {% if transaccion.moneda %}{{ transaccion.moneda.codigo }}{% else %}USD{% endif %}
                                             </span>
                                         {% else %}
-                                            <span class="text-danger">
+                                            <span class="{% if transaccion.estado == 'confirmado' %}text-danger{% else %}text-muted{% endif %}">
                                                 -${{ transaccion.cantidad|floatformat:2 }} 
                                                 {% if transaccion.moneda %}{{ transaccion.moneda.codigo }}{% else %}USD{% endif %}
                                             </span>
@@ -985,9 +987,9 @@
                                     </td>
                                     <td>
                                         {% if transaccion.tipo == 'remesa' %}
-                                            <span class="text-success">${{ transaccion.importe_usd|floatformat:2 }}</span>
+                                            <span class="{% if transaccion.estado == 'completada' %}text-success{% else %}text-muted{% endif %}">${{ transaccion.importe_usd|floatformat:2 }}</span>
                                         {% else %}
-                                            <span class="text-danger">-${{ transaccion.cantidad_usd|floatformat:2 }}</span>
+                                            <span class="{% if transaccion.estado == 'confirmado' %}text-danger{% else %}text-muted{% endif %}">-${{ transaccion.cantidad_usd|floatformat:2 }}</span>
                                         {% endif %}
                                     </td>
                                     <td>{{ transaccion.fecha_creacion|date:"d/m/Y H:i" }}</td>
@@ -1041,10 +1043,12 @@
                                         <h6 class="text-warning mb-0">{{ transaccion.numero_pago }}</h6>
                                     {% endif %}
                                 </div>
-                                {% if transaccion.estado == 'completada' or transaccion.estado == 'completado' %}
-                                    <span class="badge bg-success">Completado</span>
+                                {% if transaccion.estado == 'completada' or transaccion.estado == 'confirmado' %}
+                                    <span class="badge bg-success">
+                                        {% if transaccion.tipo == 'remesa' %}Completada{% else %}Confirmado{% endif %}
+                                    </span>
                                 {% elif transaccion.estado == 'confirmada' %}
-                                    <span class="badge bg-info">Confirmado</span>
+                                    <span class="badge bg-info">Confirmada</span>
                                 {% elif transaccion.estado == 'pendiente' %}
                                     <span class="badge bg-warning text-dark">Pendiente</span>
                                 {% elif transaccion.estado == 'cancelada' or transaccion.estado == 'cancelado' %}
@@ -1067,12 +1071,12 @@
                                 <div class="col-6">
                                     <small class="text-muted">Cantidad:</small><br>
                                     {% if transaccion.tipo == 'remesa' %}
-                                        <span class="text-success">
+                                        <span class="{% if transaccion.estado == 'completada' %}text-success{% else %}text-muted{% endif %}">
                                             ${{ transaccion.importe|floatformat:2 }} 
                                             {% if transaccion.moneda %}{{ transaccion.moneda.codigo }}{% else %}USD{% endif %}
                                         </span>
                                     {% else %}
-                                        <span class="text-danger">
+                                        <span class="{% if transaccion.estado == 'confirmado' %}text-danger{% else %}text-muted{% endif %}">
                                             -${{ transaccion.cantidad|floatformat:2 }} 
                                             {% if transaccion.moneda %}{{ transaccion.moneda.codigo }}{% else %}USD{% endif %}
                                         </span>
@@ -1242,43 +1246,6 @@ document.getElementById('toggleFilters').addEventListener('click', function() {
     }
 });
 
-// Función para limpiar filtros al cambiar de pestaña
-function limpiarFiltrosAlCambiarTab(nuevoTab) {
-    // Limpiar todos los formularios de filtros
-    document.querySelectorAll('.filter-form').forEach(form => {
-        form.reset();
-    });
-    
-    // Mostrar indicador de carga
-    mostrarCargando(true);
-    
-    // Hacer petición AJAX para cargar datos sin filtros
-    fetch(`${window.location.pathname}?vista=${nuevoTab}`, {
-        method: 'GET',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-        }
-    })
-    .then(response => response.text())
-    .then(html => {
-        // Crear un parser temporal para extraer el contenido
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-        
-        // Actualizar el contenido de las tablas
-        actualizarContenidoTablas(doc, nuevoTab);
-        
-        mostrarCargando(false);
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        mostrarCargando(false);
-        
-        // En caso de error, proceder sin AJAX
-        console.log('Fallback: cambiando sin AJAX');
-    });
-}
-
 // Función para mostrar diferentes formularios de filtro
 function showFilterTab(tab) {
     // Mostrar solo el formulario correspondiente a la vista activa
@@ -1294,11 +1261,153 @@ function showFilterTab(tab) {
     currentView = tab;
 }
 
+// Función para actualizar el contenido de las tablas
+function actualizarContenidoTablas(doc, tipo) {
+    // Actualizar contenido específico según el tipo
+    const contenidoId = `contenido${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`;
+    const nuevoContenido = doc.querySelector(`#${contenidoId}`);
+    
+    if (nuevoContenido) {
+        const contenidoActual = document.getElementById(contenidoId);
+        if (contenidoActual) {
+            contenidoActual.innerHTML = nuevoContenido.innerHTML;
+        }
+    }
+    
+    // Actualizar formularios de filtros (limpios)
+    const formularioId = `filterForm${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`;
+    const nuevoFormulario = doc.querySelector(`#${formularioId}`);
+    
+    if (nuevoFormulario) {
+        const formularioActual = document.getElementById(formularioId);
+        if (formularioActual) {
+            // Reemplazar con formulario limpio
+            formularioActual.innerHTML = nuevoFormulario.innerHTML;
+        }
+    }
+    
+    // Mostrar solo el contenido y formulario correspondientes
+    document.querySelectorAll('.contenido-tab').forEach(content => {
+        content.style.display = 'none';
+    });
+    
+    document.querySelectorAll('.filter-form').forEach(form => {
+        form.style.display = 'none';
+    });
+    
+    // Mostrar los elementos correctos
+    const contenidoMostrar = document.getElementById(contenidoId);
+    const formularioMostrar = document.getElementById(formularioId);
+    
+    if (contenidoMostrar) {
+        contenidoMostrar.style.display = 'block';
+    }
+    
+    if (formularioMostrar) {
+        formularioMostrar.style.display = 'block';
+    }
+}
+
+// Función para cargar contenido con AJAX
+function cargarContenidoConAjax(tab) {
+    // Limpiar todos los formularios de filtros al cambiar de pestaña
+    document.querySelectorAll('.filter-form').forEach(form => {
+        form.reset();
+    });
+    
+    // Mostrar indicador de carga
+    mostrarCargando(true);
+    
+    // Hacer petición AJAX para cargar datos de la pestaña seleccionada (sin filtros)
+    const url = new URL(window.location);
+    url.search = '';  // Limpiar todos los parámetros de búsqueda
+    url.searchParams.set('vista', tab);
+    
+    fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+        }
+    })
+    .then(response => response.text())
+    .then(html => {
+        // Crear un parser temporal para extraer el contenido
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        
+        // Actualizar el contenido de las pestañas
+        actualizarContenidoTablas(doc, tab);
+        
+        // Actualizar contadores en las pestañas
+        actualizarContadoresPestanas(doc);
+        
+        mostrarCargando(false);
+        
+        // Mostrar mensaje de éxito
+        Swal.fire({
+            icon: 'success',
+            title: 'Contenido cargado',
+            text: `Se ha cargado la vista de ${tab}`,
+            timer: 1500,
+            showConfirmButton: false,
+            toast: true,
+            position: 'top-end'
+        });
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        mostrarCargando(false);
+        
+        // En caso de error, usar navegación normal
+        console.log('Fallback: cambiando sin AJAX');
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Hubo un error al cargar el contenido',
+            timer: 3000,
+            showConfirmButton: false,
+            toast: true,
+            position: 'top-end'
+        });
+    });
+}
+
+// Función para actualizar contadores en las pestañas
+function actualizarContadoresPestanas(doc) {
+    // Actualizar pestañas de contenido con nuevos contadores
+    const contentTabs = doc.querySelector('#contentTabs');
+    if (contentTabs) {
+        const currentTabs = document.getElementById('contentTabs');
+        const newTabsHTML = contentTabs.innerHTML;
+        currentTabs.innerHTML = newTabsHTML;
+        
+        // Reagregar event listeners a las nuevas pestañas
+        document.querySelectorAll('#contentTabs .nav-link').forEach(tab => {
+            tab.addEventListener('click', function(e) {
+                e.preventDefault();
+                const contentType = this.getAttribute('data-content');
+                showContentTab(contentType);
+            });
+        });
+        
+        // Asegurar que la pestaña activa se mantenga marcada correctamente
+        const activeTab = currentTabs.querySelector(`[data-content="${currentView}"]`);
+        if (activeTab) {
+            // Quitar active de todas
+            currentTabs.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            // Agregar active a la correcta
+            activeTab.classList.add('active');
+        }
+    }
+}
+
 // Función para mostrar diferentes pestañas de contenido
 function showContentTab(tab) {
-    // Si estamos cambiando a una pestaña diferente, limpiar filtros automáticamente
+    // Si estamos cambiando a una pestaña diferente, cargar con AJAX
     if (currentView !== tab) {
-        limpiarFiltrosAlCambiarTab(tab);
+        cargarContenidoConAjax(tab);
     }
     
     // Actualizar pestañas activas de contenido
@@ -1326,8 +1435,7 @@ function showContentTab(tab) {
     
     // Actualizar URL sin recargar la página
     const url = new URL(window.location);
-    url.searchParams.clear(); // Limpiar todos los parámetros anteriores
-    url.searchParams.set('vista', tab);
+    url.searchParams.set('vista', tab);  // Solo actualizar el parámetro vista
     window.history.replaceState({}, '', url);
     
     // Actualizar variable global

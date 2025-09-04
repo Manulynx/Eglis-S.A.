@@ -15,69 +15,82 @@ class WhatsAppService:
     def __init__(self):
         self.config = ConfiguracionNotificacion.get_config()
     
-    def enviar_notificacion(self, tipo, remesa=None, pago=None, estado_anterior=None):
+    def enviar_notificacion(self, tipo, remesa=None, pago=None, estado_anterior=None, **kwargs):
         """
         Envía notificaciones a todos los destinatarios activos
         
         Args:
-            tipo: Tipo de notificación ('remesa_nueva', 'remesa_estado', 'pago_nuevo', 'pago_estado')
+            tipo: Tipo de notificación ('remesa_nueva', 'remesa_estado', 'pago_nuevo', 'pago_estado', 'remesa_eliminada', 'pago_eliminado')
             remesa: Objeto Remesa (opcional)
             pago: Objeto Pago (opcional)
-            estado_anterior: Estado anterior para cambios de estado (opcional)
+            estado_anterior: Estado anterior para cambios de estado
+            **kwargs: Argumentos adicionales para tipos específicos
         """
+        print(f"DEBUG: WhatsAppService.enviar_notificacion llamado con tipo='{tipo}', kwargs={kwargs}")
+        
+        # Verificar si las notificaciones están habilitadas globalmente
         if not self.config.activo:
-            logger.info("Notificaciones desactivadas")
+            print(f"DEBUG: Notificaciones globalmente desactivadas")
             return
         
         # Verificar si debe enviar este tipo de notificación
-        if tipo in ['remesa_nueva', 'remesa_estado'] and not self.config.notificar_remesas:
+        if tipo in ['remesa_nueva', 'remesa_estado', 'remesa_eliminada'] and not self.config.notificar_remesas:
+            print(f"DEBUG: Notificaciones de remesas desactivadas")
             return
-        if tipo in ['pago_nuevo', 'pago_estado'] and not self.config.notificar_pagos:
+        if tipo in ['pago_nuevo', 'pago_estado', 'pago_eliminado'] and not self.config.notificar_pagos:
+            print(f"DEBUG: Notificaciones de pagos desactivadas")
             return
         if tipo in ['remesa_estado', 'pago_estado'] and not self.config.notificar_cambios_estado:
+            print(f"DEBUG: Notificaciones de cambios de estado desactivadas")
             return
         
         # Generar mensaje
-        mensaje = self._generar_mensaje(tipo, remesa, pago, estado_anterior)
+        print(f"DEBUG: Generando mensaje para tipo '{tipo}'")
+        mensaje = self._generar_mensaje(tipo, remesa, pago, estado_anterior, **kwargs)
+        print(f"DEBUG: Mensaje generado: {mensaje[:100]}...")
         
         # Obtener destinatarios activos
+        print(f"DEBUG: Obteniendo destinatarios para tipo '{tipo}'")
         destinatarios = self._obtener_destinatarios(tipo)
+        print(f"DEBUG: Destinatarios encontrados: {destinatarios.count()}")
         
         # Enviar a cada destinatario
         for destinatario in destinatarios:
+            print(f"DEBUG: Enviando a {destinatario.nombre}")
             self._enviar_mensaje_individual(destinatario, mensaje, tipo, remesa, pago)
     
-    def _generar_mensaje(self, tipo, remesa, pago, estado_anterior):
+    def _generar_mensaje(self, tipo, remesa, pago, estado_anterior, **kwargs):
         """Genera el mensaje según el tipo de notificación"""
         
         if tipo == 'remesa_nueva' and remesa:
-            return f"""🚀 *NUEVA REMESA CREADA*
+            return f"""NUEVA REMESA CREADA
 
-🎯 *Destinatario:* {remesa.moneda.nombre if remesa.moneda else 'Dólar Americano'}
-💰 *Importe:* ${remesa.importe} {remesa.moneda.codigo if remesa.moneda else 'USD'}
+Destinatario: {remesa.moneda.nombre if remesa.moneda else 'Dólar Americano'}
+Importe: ${remesa.importe} {remesa.moneda.codigo if remesa.moneda else 'USD'}
 
-📞 *Remitente:* {remesa.receptor_nombre or 'N/A'}
+Remitente: {remesa.receptor_nombre or 'N/A'}
 
-📊 *Estado:* Pendiente
+Estado: Pendiente
 
-📋 *ID:* {remesa.remesa_id}
-👤 *Gestor:* {remesa.gestor.get_full_name() if remesa.gestor else 'N/A'}
+ID: {remesa.remesa_id}
+Gestor: {remesa.gestor.get_full_name() if remesa.gestor else 'N/A'}
 
-📅 *Fecha:* {remesa.fecha.strftime('%d/%m/%Y %H:%M')}
+Fecha: {remesa.fecha.strftime('%d/%m/%Y %H:%M')}
 
-Sistema EGLIS - Notificación automática"""
+Sistema EGLIS - Notificacion automatica"""
 
         elif tipo == 'remesa_estado' and remesa:
-            return f"""🔄 *CAMBIO DE ESTADO - REMESA*
+            return f"""CAMBIO DE ESTADO - REMESA
 
-📋 *ID:* {remesa.remesa_id}
-👤 *Gestor:* {remesa.gestor.get_full_name() if remesa.gestor else 'N/A'}
-💰 *Importe:* ${remesa.importe} {remesa.moneda.codigo if remesa.moneda else 'USD'}
-📊 *Estado anterior:* {estado_anterior or 'N/A'}
-✅ *Estado actual:* {remesa.get_estado_display()}
-📅 *Actualizado:* {timezone.now().strftime('%d/%m/%Y %H:%M')}
+ID: {remesa.remesa_id}
+Gestor: {remesa.gestor.get_full_name() if remesa.gestor else 'N/A'}
+Importe: ${remesa.importe} {remesa.moneda.codigo if remesa.moneda else 'USD'}
+Receptor: {remesa.receptor_nombre or 'N/A'}
+Estado anterior: {estado_anterior or 'N/A'}
+Estado actual: {remesa.estado.title()}
+Actualizado: {timezone.now().strftime('%d/%m/%Y %H:%M')}
 
-Sistema EGLIS - Notificación automática"""
+Sistema EGLIS - Notificacion automatica"""
 
         elif tipo == 'pago_nuevo' and pago:
             # Verificar el tipo de pago y generar mensaje específico
@@ -89,73 +102,128 @@ Sistema EGLIS - Notificación automática"""
                 if hasattr(pago, 'tarjeta') and pago.tarjeta:
                     mensaje += f"*{pago.tarjeta}*\n\n"
                 
-                mensaje += f"""💳 *Nuevo pago creado*
+                mensaje += f"""NUEVO PAGO CREADO
 
-💰 *Cantidad:* ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'}
+ID: {pago.pago_id}
+Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'}
+Estado: {pago.get_estado_display()}
 
-👤 *Gestor:* {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
-💳 *Tipo:* Transferencia
-🎯 *Destinatario:* {'N/A'}
-📞 *Teléfono:* {pago.telefono or 'N/A'}
-📍 *Dirección:* {pago.direccion or 'N/A'}
-📅 *Fecha:* {pago.fecha_creacion.strftime('%d/%m/%Y %H:%M')}
+Gestor: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
+Tipo: Transferencia
+Destinatario: {pago.destinatario}
+Telefono: {pago.telefono or 'N/A'}
+CI: {pago.carnet_identidad or 'N/A'}
+Direccion: {pago.direccion or 'N/A'}
+Fecha: {pago.fecha_creacion.strftime('%d/%m/%Y %H:%M')}
 
-Sistema EGLIS - Notificación automática"""
+Nota: El balance se descontara cuando el pago sea confirmado.
+
+Sistema EGLIS - Notificacion automatica"""
                 
             elif pago.tipo_pago == 'efectivo':
                 # Mensaje para efectivo
-                mensaje = f"""💳 *Nuevo pago creado*
+                mensaje = f"""NUEVO PAGO CREADO
 
-💰 *Cantidad:* ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'}
+ID: {pago.pago_id}
+Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'}
+Estado: {pago.get_estado_display()}
 
-👤 *Gestor:* {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
-💳 *Tipo:* Efectivo
-🎯 *Destinatario:* {pago.destinatario}
-📞 *Teléfono:* {pago.telefono or 'N/A'}
-📍 *Dirección:* {pago.direccion or 'N/A'}
-📅 *Fecha:* {pago.fecha_creacion.strftime('%d/%m/%Y %H:%M')}
+Gestor: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
+Tipo: Efectivo
+Destinatario: {pago.destinatario}
+Telefono: {pago.telefono or 'N/A'}
+CI: {pago.carnet_identidad or 'N/A'}
+Direccion: {pago.direccion or 'N/A'}
+Fecha: {pago.fecha_creacion.strftime('%d/%m/%Y %H:%M')}
 
-Sistema EGLIS - Notificación automática"""
+Nota: El balance se descontara cuando el pago sea confirmado.
+
+Sistema EGLIS - Notificacion automatica"""
             
             else:
                 # Mensaje genérico para otros tipos
-                mensaje = f"""💳 *Nuevo pago creado*
+                mensaje = f"""NUEVO PAGO CREADO
 
-💰 *Cantidad:* ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'}
+ID: {pago.pago_id}
+Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'}
+Estado: {pago.get_estado_display()}
 
-👤 *Gestor:* {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
-💳 *Tipo:* {pago.get_tipo_pago_display()}
-🎯 *Destinatario:* {pago.destinatario}
-📞 *Teléfono:* {pago.telefono or 'N/A'}
-📍 *Dirección:* {pago.direccion or 'N/A'}
-📅 *Fecha:* {pago.fecha_creacion.strftime('%d/%m/%Y %H:%M')}
+Gestor: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
+Tipo: {pago.get_tipo_pago_display()}
+Destinatario: {pago.destinatario}
+Telefono: {pago.telefono or 'N/A'}
+CI: {pago.carnet_identidad or 'N/A'}
+Direccion: {pago.direccion or 'N/A'}
+Fecha: {pago.fecha_creacion.strftime('%d/%m/%Y %H:%M')}
 
-Sistema EGLIS - Notificación automática"""
+Nota: El balance se descontara cuando el pago sea confirmado.
+
+Sistema EGLIS - Notificacion automatica"""
             
             return mensaje
 
         elif tipo == 'pago_estado' and pago:
-            return f"""🔄 *CAMBIO DE ESTADO - PAGO*
+            # Mensaje específico según el estado
+            if pago.estado == 'confirmado':
+                mensaje_estado = "El pago ha sido CONFIRMADO y el balance ha sido descontado."
+            elif pago.estado == 'cancelado':
+                mensaje_estado = "El pago ha sido CANCELADO. No se desconto balance."
+            else:
+                mensaje_estado = f"El pago cambio al estado: {pago.get_estado_display()}"
+            
+            return f"""CAMBIO DE ESTADO - PAGO
 
-💳 *ID Pago:* {pago.id}
-👤 *Usuario:* {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
-💰 *Cantidad:* ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'}
-🎯 *Destinatario:* {pago.destinatario}
-📊 *Estado anterior:* {estado_anterior or 'N/A'}
-✅ *Estado actual:* Actualizado
-📅 *Actualizado:* {timezone.now().strftime('%d/%m/%Y %H:%M')}
+ID Pago: {pago.pago_id}
+Usuario: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
+Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'}
+Destinatario: {pago.destinatario}
+Tipo: {pago.get_tipo_pago_display()}
 
-Sistema EGLIS - Notificación automática"""
+Estado anterior: {estado_anterior or 'N/A'}
+Estado actual: {pago.get_estado_display()}
 
-        return "Notificación del sistema EGLIS"
+{mensaje_estado}
+
+Actualizado: {timezone.now().strftime('%d/%m/%Y %H:%M')}
+
+Sistema EGLIS - Notificacion automatica"""
+
+        elif tipo == 'remesa_eliminada':
+            return f"""REMESA ELIMINADA
+
+ID: {kwargs.get('remesa_id', 'N/A')}
+Monto: {kwargs.get('monto', 'N/A')}
+Administrador: {kwargs.get('admin_name', 'N/A')}
+Balance actualizado: {kwargs.get('balance_change', 'N/A')}
+Fecha eliminacion: {timezone.now().strftime('%d/%m/%Y %H:%M')}
+
+ATENCION: Esta remesa ha sido eliminada del sistema y el balance ha sido ajustado automaticamente.
+
+Sistema EGLIS - Notificacion automatica"""
+
+        elif tipo == 'pago_eliminado':
+            return f"""PAGO ELIMINADO
+
+ID: {kwargs.get('pago_id', 'N/A')}
+Monto: {kwargs.get('monto', 'N/A')}
+Destinatario: {kwargs.get('destinatario', 'N/A')}
+Administrador: {kwargs.get('admin_name', 'N/A')}
+Balance actualizado: {kwargs.get('balance_change', 'N/A')}
+Fecha eliminacion: {timezone.now().strftime('%d/%m/%Y %H:%M')}
+
+ATENCION: Este pago ha sido eliminado del sistema y el balance ha sido ajustado automaticamente.
+
+Sistema EGLIS - Notificacion automatica"""
+
+        return "Notificacion del sistema EGLIS"
     
     def _obtener_destinatarios(self, tipo):
         """Obtiene los destinatarios que deben recibir este tipo de notificación"""
         destinatarios = DestinatarioNotificacion.objects.filter(activo=True)
         
-        if tipo in ['remesa_nueva', 'remesa_estado']:
+        if tipo in ['remesa_nueva', 'remesa_estado', 'remesa_eliminada']:
             destinatarios = destinatarios.filter(recibir_remesas=True)
-        elif tipo in ['pago_nuevo', 'pago_estado']:
+        elif tipo in ['pago_nuevo', 'pago_estado', 'pago_eliminado']:
             destinatarios = destinatarios.filter(recibir_pagos=True)
         
         if tipo in ['remesa_estado', 'pago_estado']:
@@ -164,109 +232,66 @@ Sistema EGLIS - Notificación automática"""
         return destinatarios
     
     def _enviar_mensaje_individual(self, destinatario, mensaje, tipo, remesa, pago):
-        """Envía un mensaje a un destinatario específico"""
+        """Envía mensaje a un destinatario específico"""
+        print(f"DEBUG: _enviar_mensaje_individual a {destinatario.nombre}")
         
-        # Crear log de notificación
-        log = LogNotificacion.objects.create(
-            tipo=tipo,
-            destinatario=destinatario,
-            mensaje=mensaje,
-            remesa_id=remesa.remesa_id if remesa else None,
-            pago_id=pago.id if pago else None,
-        )
+        # Crear log inicial
+        log_data = {
+            'tipo': tipo,
+            'destinatario': destinatario,
+            'mensaje': mensaje,
+            'estado': 'pendiente'
+        }
+        
+        # Agregar referencia según el tipo
+        if remesa:
+            log_data['remesa_id'] = remesa.remesa_id
+        if pago:
+            log_data['pago_id'] = pago.id
+            
+        log = LogNotificacion.objects.create(**log_data)
+        print(f"DEBUG: Log creado con ID {log.id}")
         
         try:
-            # Usar CallMeBot con API Key individual del destinatario (prioridad)
-            if hasattr(destinatario, 'callmebot_api_key') and destinatario.callmebot_api_key:
-                success, response = self._enviar_con_callmebot_individual(destinatario, mensaje)
-            # Usar CallMeBot global como fallback
+            # Intentar envío según la configuración
+            if destinatario.callmebot_api_key:
+                print(f"DEBUG: Usando CallMeBot individual para {destinatario.nombre}")
+                exito, respuesta = self._enviar_con_callmebot_individual(destinatario, mensaje)
             elif hasattr(self.config, 'callmebot_api_key') and self.config.callmebot_api_key:
-                success, response = self._enviar_con_callmebot(destinatario.telefono, mensaje)
-            # Fallback a Twilio
+                print(f"DEBUG: Usando CallMeBot global para {destinatario.nombre}")
+                exito, respuesta = self._enviar_con_callmebot_global(destinatario, mensaje)
             elif self.config.twilio_account_sid and self.config.twilio_auth_token:
-                success, response = self._enviar_con_twilio(destinatario.telefono, mensaje)
-            # Fallback a WhatsApp Business API
+                print(f"DEBUG: Usando Twilio para {destinatario.nombre}")
+                exito, respuesta = self._enviar_con_twilio(destinatario, mensaje)
             elif self.config.whatsapp_business_token:
-                success, response = self._enviar_con_whatsapp_business(destinatario.telefono, mensaje)
+                print(f"DEBUG: Usando WhatsApp Business para {destinatario.nombre}")
+                exito, respuesta = self._enviar_con_whatsapp_business(destinatario, mensaje)
             else:
-                success = False
-                response = "No hay configuración válida de API"
+                exito = False
+                respuesta = "No hay configuración de API disponible"
             
             # Actualizar log
-            if success:
+            if exito:
                 log.estado = 'enviado'
-                log.fecha_envio = timezone.now()
-                log.respuesta_api = str(response)
-                logger.info(f"Notificación enviada a {destinatario.nombre}: {tipo}")
+                log.respuesta_api = respuesta
+                print(f"DEBUG: Mensaje enviado exitosamente a {destinatario.nombre}")
             else:
                 log.estado = 'fallido'
-                log.error_mensaje = str(response)
-                logger.error(f"Error enviando notificación a {destinatario.nombre}: {response}")
-            
-            log.save()
-            
-        except Exception as e:
-            log.estado = 'fallido'
-            log.error_mensaje = str(e)
-            log.save()
-            logger.error(f"Excepción enviando notificación a {destinatario.nombre}: {e}")
-    
-    def _enviar_con_twilio(self, telefono, mensaje):
-        """Envía mensaje usando Twilio WhatsApp API"""
-        try:
-            client = Client(self.config.twilio_account_sid, self.config.twilio_auth_token)
-            
-            message = client.messages.create(
-                body=mensaje,
-                from_=f'whatsapp:{self.config.twilio_phone_number}',
-                to=f'whatsapp:{telefono}'
-            )
-            
-            return True, f"SID: {message.sid}"
-            
-        except Exception as e:
-            return False, str(e)
-    
-    def _enviar_con_whatsapp_business(self, telefono, mensaje):
-        """Envía mensaje usando WhatsApp Business API"""
-        try:
-            url = f"https://graph.facebook.com/v18.0/{self.config.whatsapp_business_phone_id}/messages"
-            
-            headers = {
-                'Authorization': f'Bearer {self.config.whatsapp_business_token}',
-                'Content-Type': 'application/json',
-            }
-            
-            # Limpiar número de teléfono (remover + y espacios)
-            telefono_limpio = telefono.replace('+', '').replace(' ', '').replace('-', '')
-            
-            data = {
-                'messaging_product': 'whatsapp',
-                'to': telefono_limpio,
-                'type': 'text',
-                'text': {
-                    'body': mensaje
-                }
-            }
-            
-            response = requests.post(url, headers=headers, json=data)
-            
-            if response.status_code == 200:
-                return True, response.json()
-            else:
-                return False, f"HTTP {response.status_code}: {response.text}"
+                log.respuesta_api = respuesta
+                print(f"DEBUG: Error enviando mensaje a {destinatario.nombre}: {respuesta}")
                 
         except Exception as e:
-            return False, str(e)
+            log.estado = 'error'
+            log.respuesta_api = str(e)
+            print(f"DEBUG: Excepción enviando mensaje a {destinatario.nombre}: {e}")
+        
+        log.save()
     
-    def _enviar_con_callmebot(self, telefono, mensaje):
-        """Envía mensaje usando CallMeBot API (GRATIS y SIMPLE)"""
+    def _enviar_con_callmebot_global(self, destinatario, mensaje):
+        """Envía mensaje usando la API Key global"""
         try:
-            # CallMeBot es una API gratuita para WhatsApp
-            # Documentación: https://www.callmebot.com/blog/free-api-whatsapp-messages/
-            
             # Limpiar número de teléfono
-            telefono_limpio = telefono.replace('+', '').replace(' ', '').replace('-', '')
+            telefono_limpio = destinatario.telefono.replace('+', '').replace(' ', '').replace('-', '')
             
             # URL de CallMeBot
             url = "https://api.callmebot.com/whatsapp.php"
@@ -312,53 +337,44 @@ Sistema EGLIS - Notificación automática"""
         except Exception as e:
             return False, str(e)
     
-    def test_conexion(self):
-        """Prueba la conexión con la API configurada"""
-        if hasattr(self.config, 'callmebot_api_key') and self.config.callmebot_api_key:
-            return self._test_callmebot()
-        elif self.config.twilio_account_sid and self.config.twilio_auth_token:
-            return self._test_twilio()
-        elif self.config.whatsapp_business_token:
-            return self._test_whatsapp_business()
-        else:
-            return False, "No hay configuración de API"
-    
-    def _test_twilio(self):
-        """Prueba la conexión con Twilio"""
+    def _enviar_con_twilio(self, destinatario, mensaje):
+        """Envía mensaje usando Twilio"""
         try:
             client = Client(self.config.twilio_account_sid, self.config.twilio_auth_token)
-            # Obtener información de la cuenta para verificar credenciales
-            account = client.api.accounts(self.config.twilio_account_sid).fetch()
-            return True, f"Conexión exitosa. Cuenta: {account.friendly_name}"
+            
+            message = client.messages.create(
+                body=mensaje,
+                from_=f'whatsapp:{self.config.twilio_from_number}',
+                to=f'whatsapp:{destinatario.telefono}'
+            )
+            
+            return True, f"Mensaje enviado con SID: {message.sid}"
+            
         except Exception as e:
             return False, str(e)
     
-    def _test_whatsapp_business(self):
-        """Prueba la conexión con WhatsApp Business API"""
+    def _enviar_con_whatsapp_business(self, destinatario, mensaje):
+        """Envía mensaje usando WhatsApp Business API"""
         try:
-            url = f"https://graph.facebook.com/v18.0/{self.config.whatsapp_business_phone_id}"
+            url = f"https://graph.facebook.com/v18.0/{self.config.whatsapp_business_phone_id}/messages"
             headers = {
                 'Authorization': f'Bearer {self.config.whatsapp_business_token}',
+                'Content-Type': 'application/json'
             }
             
-            response = requests.get(url, headers=headers)
+            data = {
+                'messaging_product': 'whatsapp',
+                'to': destinatario.telefono.replace('+', ''),
+                'type': 'text',
+                'text': {'body': mensaje}
+            }
+            
+            response = requests.post(url, headers=headers, json=data)
             
             if response.status_code == 200:
-                return True, "Conexión exitosa con WhatsApp Business API"
+                return True, response.text
             else:
                 return False, f"HTTP {response.status_code}: {response.text}"
                 
-        except Exception as e:
-            return False, str(e)
-    
-    def _test_callmebot(self):
-        """Prueba la conexión con CallMeBot API"""
-        try:
-            # CallMeBot no tiene endpoint de verificación, 
-            # pero podemos verificar que la API key esté configurada
-            if hasattr(self.config, 'callmebot_api_key') and self.config.callmebot_api_key:
-                return True, "CallMeBot API configurada correctamente"
-            else:
-                return False, "API Key de CallMeBot no configurada"
         except Exception as e:
             return False, str(e)

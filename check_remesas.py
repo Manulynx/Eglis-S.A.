@@ -12,7 +12,7 @@ from remesas.models import Remesa
 # Verificar datos en la base de datos
 total_remesas = Remesa.objects.count()
 pendientes = Remesa.objects.filter(estado='pendiente').count()
-confirmadas = Remesa.objects.filter(estado='confirmada').count()
+confirmadas = 0  # Ya no tenemos estado confirmada como intermedio
 completadas = Remesa.objects.filter(estado='completada').count()
 canceladas = Remesa.objects.filter(estado='cancelada').count()
 

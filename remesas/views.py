@@ -1,6 +1,7 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
+from django.utils import timezone
 from . import models
 from .models import Pago
 from .forms import PagoForm
@@ -17,26 +18,44 @@ logger = logging.getLogger(__name__)
 @login_required
 def registro_transacciones(request):
     """Vista para el registro de transacciones"""
-    # Calcular estadísticas
-    remesas = models.Remesa.objects.all()
-    pagos = models.Pago.objects.all()
+    # Determinar el tipo de usuario
+    user_tipo = None
+    if request.user.is_authenticated:
+        if request.user.is_superuser:
+            user_tipo = 'admin'
+        elif hasattr(request.user, 'perfil'):
+            user_tipo = request.user.perfil.tipo_usuario
+        else:
+            user_tipo = 'gestor'  # Default
+    
+    # Filtrar transacciones según el tipo de usuario
+    if user_tipo == 'admin':
+        # Admin ve todas las transacciones
+        remesas = models.Remesa.objects.all()
+        pagos = models.Pago.objects.all()
+    elif user_tipo == 'contable':
+        # Contable ve todas excepto las de administradores
+        from django.contrib.auth.models import User
+        non_admin_users = User.objects.filter(is_superuser=False)
+        remesas = models.Remesa.objects.filter(gestor__in=non_admin_users)
+        pagos = models.Pago.objects.filter(usuario__in=non_admin_users)
+    else:
+        # Gestor solo ve sus propias transacciones
+        remesas = models.Remesa.objects.filter(gestor=request.user)
+        pagos = models.Pago.objects.filter(usuario=request.user)
     
     # Conteos
     remesas_count = remesas.count()
     pagos_count = pagos.count()
     
-    # Totales en USD - Solo sumar remesas confirmadas y completadas
-    remesas_confirmadas_completadas = remesas.filter(estado__in=['confirmada', 'completada'])
+    # Totales en USD - Solo sumar remesas completadas y pagos confirmados
+    remesas_confirmadas_completadas = remesas.filter(estado='completada')
+    pagos_confirmados = pagos.filter(estado='confirmado')
     total_remesas = sum(remesa.calcular_monto_en_usd() for remesa in remesas_confirmadas_completadas)
-    total_pagos = sum(pago.calcular_monto_en_usd() for pago in pagos)
+    total_pagos = sum(pago.calcular_monto_en_usd() for pago in pagos_confirmados)
     
     # Obtener monedas para filtros
     monedas = models.Moneda.objects.filter(activa=True)
-
-    # Obtener el tipo de usuario si está autenticado
-    user_tipo = None
-    if request.user.is_authenticated and hasattr(request.user, 'perfil'):
-        user_tipo = request.user.perfil.tipo_usuario
 
     context = {
         'remesas': remesas.order_by('-fecha'),
@@ -199,23 +218,8 @@ def remesas(request):
                     print(f"  Tipo de pago: '{remesa.tipo_pago}'")
                     print(f"  Moneda: {remesa.moneda}")
                     
-                    # Actualizar balance del usuario (agregar el monto en USD)
-                    if request.user.is_authenticated:
-                        try:
-                            # Calcular monto en USD
-                            if moneda.codigo == 'USD':
-                                monto_usd = float(importe_decimal)
-                            else:
-                                monto_usd = float(importe_decimal) / float(moneda.valor_actual)
-                            
-                            # Actualizar balance
-                            if hasattr(request.user, 'perfil'):
-                                perfil = request.user.perfil
-                                perfil.balance += monto_usd
-                                perfil.save()
-                                print(f"Balance actualizado: +${monto_usd:.2f} USD")
-                        except Exception as e:
-                            print(f"Error actualizando balance: {e}")
+                    # El balance se actualiza automáticamente mediante cálculo dinámico
+                    # No es necesario actualizar manualmente
                     
                     # Enviar notificación
                     try:
@@ -279,13 +283,17 @@ def remesas(request):
             'valor_actual': float(moneda.valor_actual)
         })
     
-    # Obtener balance del usuario
+    # Obtener balance del usuario usando cálculo dinámico
     user_balance = 0
     if request.user.is_authenticated:
         try:
             # Intentar obtener el perfil del usuario
             if hasattr(request.user, 'perfil'):
-                user_balance = float(request.user.perfil.balance)
+                balance_calculado = request.user.perfil.calcular_balance_real()
+                # Actualizar balance almacenado si difiere del calculado
+                if request.user.perfil.balance != balance_calculado:
+                    request.user.perfil.actualizar_balance()
+                user_balance = float(balance_calculado)
             else:
                 # Si no hay perfil, buscar en el modelo Balance
                 from login.models import PerfilUsuario
@@ -293,7 +301,8 @@ def remesas(request):
                     user=request.user,
                     defaults={'balance': 0.0}
                 )
-                user_balance = float(perfil.balance)
+                balance_calculado = perfil.calcular_balance_real()
+                user_balance = float(balance_calculado)
         except Exception as e:
             print(f"Error obteniendo balance del usuario: {e}")
             user_balance = 0
@@ -308,13 +317,23 @@ def remesas(request):
 # API endpoints para formularios dinámicos
 @login_required
 def api_monedas(request):
-    monedas = models.Moneda.objects.filter(activa=True).values('id', 'nombre', 'codigo', 'valor_actual')
+    tipo_moneda = request.GET.get('tipo_moneda', None)
+    
+    # Filtrar monedas activas
+    monedas_query = models.Moneda.objects.filter(activa=True)
+    
+    # Si se especifica un tipo de moneda, filtrar por él
+    if tipo_moneda and tipo_moneda in ['efectivo', 'transferencia']:
+        monedas_query = monedas_query.filter(tipo_moneda=tipo_moneda)
+    
+    monedas = monedas_query.values('id', 'nombre', 'codigo', 'valor_actual', 'tipo_moneda')
     monedas_list = [
         {
             'id': m['id'], 
             'nombre': f"{m['nombre']} - {m['valor_actual']}", 
             'codigo': m['codigo'],
-            'valor_actual': float(m['valor_actual']) if m['valor_actual'] else 1.0
+            'valor_actual': float(m['valor_actual']) if m['valor_actual'] else 1.0,
+            'tipo_moneda': m['tipo_moneda']
         }
         for m in monedas
     ]
@@ -363,26 +382,23 @@ def confirmar_remesa(request, remesa_id):
                     'message': f'La remesa {remesa.remesa_id} no puede ser confirmada porque está en estado: {remesa.get_estado_display()}'
                 })
             
-            # Usar el método del modelo para confirmar
-            if remesa.confirmar():
-                # Registrar el cambio
-                models.RegistroRemesas.objects.create(
-                    remesa=remesa,
-                    tipo='procesada',  # Puedes cambiar esto si quieres un tipo específico para confirmación
-                    usuario_registro=request.user if request.user.is_authenticated else None,
-                    detalles=f'Remesa {remesa.remesa_id} confirmada exitosamente',
-                    monto=remesa.importe or 0
-                )
-                
-                return JsonResponse({
-                    'success': True, 
-                    'message': f'Remesa {remesa.remesa_id} confirmada exitosamente'
-                })
-            else:
-                return JsonResponse({
-                    'success': False, 
-                    'message': f'No se pudo confirmar la remesa {remesa.remesa_id}'
-                })
+            # Cambiar directamente de pendiente a completada (eliminando el estado intermedio confirmada)
+            remesa.estado = 'completada'
+            remesa.save()
+            
+            # Registrar el cambio como procesada exitosamente
+            models.RegistroRemesas.objects.create(
+                remesa=remesa,
+                tipo='procesada',
+                usuario_registro=request.user if request.user.is_authenticated else None,
+                detalles=f'Remesa {remesa.remesa_id} confirmada y completada exitosamente',
+                monto=remesa.importe or 0
+            )
+            
+            return JsonResponse({
+                'success': True, 
+                'message': f'Remesa {remesa.remesa_id} confirmada y completada exitosamente'
+            })
             
         except Exception as e:
             return JsonResponse({
@@ -392,47 +408,198 @@ def confirmar_remesa(request, remesa_id):
     
     return JsonResponse({'success': False, 'message': 'Método no permitido'})
 
-# Modificar la vista existente donde se procesa la remesa
+# FUNCIÓN ELIMINADA - La lógica de completar remesa se movió a confirmar_remesa
+# La acción de completar remesa ya no es necesaria como paso separado
+
 @login_required
-def procesar_remesa(request, remesa_id):
+def eliminar_remesa(request, remesa_id):
+    """
+    Vista para eliminar una remesa - Solo administradores
+    """
     if request.method == 'POST':
+        # Verificar que el usuario es administrador o contable
+        user_tipo = 'admin' if request.user.is_superuser else (
+            request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
+        )
+        if user_tipo not in ['admin', 'contable']:
+            return JsonResponse({
+                'success': False,
+                'message': 'No tienes permisos para eliminar remesas. Solo los administradores y contables pueden realizar esta acción.'
+            })
+        
         try:
             remesa = get_object_or_404(models.Remesa, id=remesa_id)
             
-            if not remesa.puede_completar():
+            # Verificar que la remesa esté completada
+            if remesa.estado != 'completada':
                 return JsonResponse({
-                    'success': False, 
-                    'message': f'La remesa {remesa.remesa_id} no puede ser procesada porque está en estado: {remesa.get_estado_display()}. Debe estar confirmada para poder procesarla.'
+                    'success': False,
+                    'message': f'Solo se pueden eliminar remesas completadas. Esta remesa está en estado: {remesa.get_estado_display()}'
                 })
             
-            # Usar el método del modelo para completar
-            if remesa.completar():
-                # Registrar el cambio
-                models.RegistroRemesas.objects.create(
-                    remesa=remesa,
-                    tipo='procesada',
-                    usuario_registro=request.user if request.user.is_authenticated else None,
-                    detalles=f'Remesa {remesa.remesa_id} procesada exitosamente',
-                    monto=remesa.importe or 0
-                )
+            # Guardar información para la notificación y balance
+            remesa_info = {
+                'id': remesa.remesa_id,
+                'importe': remesa.importe,
+                'moneda': remesa.moneda,
+                'receptor': remesa.receptor_nombre,
+                'gestor': remesa.gestor,
+                'fecha': remesa.fecha
+            }
+            
+            # Calcular monto en USD para revertir el balance
+            monto_usd = remesa.calcular_monto_en_usd()
+            
+            # Revertir el balance del gestor (restar el monto que se había agregado)
+            if remesa.gestor and remesa.gestor.perfil:
+                perfil_gestor = remesa.gestor.perfil
+                perfil_gestor.balance -= monto_usd
+                perfil_gestor.save()
+            
+            # Eliminar la remesa
+            remesa.delete()
+            
+            # Crear notificación
+            try:
+                print(f"DEBUG: Iniciando creación de notificación para remesa eliminada #{remesa_info['id']}")
+                from notificaciones.models import LogNotificacion, DestinatarioNotificacion
+                from notificaciones.services import WhatsAppService
                 
-                return JsonResponse({
-                    'success': True, 
-                    'message': f'Remesa {remesa.remesa_id} procesada exitosamente'
-                })
-            else:
-                return JsonResponse({
-                    'success': False, 
-                    'message': f'No se pudo procesar la remesa {remesa.remesa_id}'
-                })
+                # Mensaje de notificación
+                mensaje_notificacion = f"🗑️ REMESA ELIMINADA: La remesa #{remesa_info['id']} por ${remesa_info['importe']} {remesa_info['moneda'].codigo if remesa_info['moneda'] else 'USD'} ha sido eliminada por el administrador {request.user.get_full_name() or request.user.username}. Balance actualizado: -${monto_usd:.2f} USD"
+                
+                # Crear logs de notificación para destinatarios activos
+                destinatarios = DestinatarioNotificacion.objects.filter(activo=True, recibir_remesas=True)
+                print(f"DEBUG: Destinatarios encontrados: {destinatarios.count()}")
+                
+                for destinatario in destinatarios:
+                    log_created = LogNotificacion.objects.create(
+                        tipo='remesa_eliminada',
+                        destinatario=destinatario,
+                        mensaje=mensaje_notificacion,
+                        remesa_id=remesa_info['id'],
+                        estado='pendiente'
+                    )
+                    print(f"DEBUG: Log creado ID {log_created.id} para {destinatario.nombre}")
+                
+                # Intentar enviar por WhatsApp
+                print(f"DEBUG: Iniciando envío de WhatsApp...")
+                whatsapp_service = WhatsAppService()
+                whatsapp_service.enviar_notificacion(
+                    'remesa_eliminada',
+                    remesa=None,  # La remesa ya fue eliminada
+                    pago=None,
+                    estado_anterior=None,
+                    remesa_id=remesa_info['id'],
+                    monto=f"{remesa_info['importe']} {remesa_info['moneda'].codigo if remesa_info['moneda'] else 'USD'}",
+                    admin_name=request.user.get_full_name() or request.user.username,
+                    balance_change=f"-${monto_usd:.2f} USD"
+                )
+                print(f"DEBUG: Notificación WhatsApp completada")
+                
+            except Exception as e:
+                print(f"Error enviando notificación de eliminación de remesa: {e}")
+                import traceback
+                traceback.print_exc()
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Remesa #{remesa_info["id"]} eliminada exitosamente. Balance actualizado: -${monto_usd:.2f} USD'
+            })
             
         except Exception as e:
             return JsonResponse({
-                'success': False, 
-                'message': f'Error al procesar la remesa: {str(e)}'
+                'success': False,
+                'message': f'Error al eliminar la remesa: {str(e)}'
             })
     
-    return JsonResponse({'success': False, 'message': 'Método no permitido'})
+    return JsonResponse({
+        'success': False,
+        'message': 'Método no permitido'
+    }, status=405)
+
+@login_required
+def eliminar_pago(request, pago_id):
+    """
+    Vista para eliminar un pago - Solo administradores
+    """
+    if request.method == 'POST':
+        # Verificar que el usuario es administrador o contable
+        user_tipo = 'admin' if request.user.is_superuser else (
+            request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
+        )
+        if user_tipo not in ['admin', 'contable']:
+            return JsonResponse({
+                'success': False,
+                'message': 'No tienes permisos para eliminar pagos. Solo los administradores y contables pueden realizar esta acción.'
+            })
+        
+        try:
+            pago = get_object_or_404(models.Pago, id=pago_id)
+            
+            # Guardar información para la notificación y balance
+            pago_info = {
+                'id': pago.pago_id,
+                'cantidad': pago.cantidad,
+                'moneda': pago.tipo_moneda,
+                'destinatario': pago.destinatario,
+                'usuario': pago.usuario,
+                'fecha': pago.fecha_creacion
+            }
+            
+            # Calcular monto en USD para revertir el balance
+            monto_usd = pago.calcular_monto_en_usd()
+            
+            # Revertir el balance del usuario (agregar el monto que se había descontado)
+            if pago.usuario and pago.usuario.perfil:
+                perfil_usuario = pago.usuario.perfil
+                perfil_usuario.balance += monto_usd
+                perfil_usuario.save()
+            
+            # Eliminar el pago
+            pago.delete()
+            
+            # SIEMPRE enviar notificación
+            print(f"DEBUG: Enviando notificación para pago eliminado #{pago_info['id']}")
+            try:
+                from notificaciones.services import WhatsAppService
+                
+                # Mensaje de notificación
+                moneda_codigo = pago_info['moneda'].codigo if pago_info['moneda'] else 'USD'
+                
+                # Enviar por WhatsApp
+                whatsapp_service = WhatsAppService()
+                monto_str = f"{pago_info['cantidad']} {moneda_codigo}"
+                whatsapp_service.enviar_notificacion(
+                    'pago_eliminado',
+                    pago_id=pago_info['id'],
+                    monto=monto_str,
+                    destinatario=pago_info['destinatario'],
+                    admin_name=request.user.get_full_name() or request.user.username,
+                    balance_change=f"+${monto_usd:.2f} USD"
+                )
+                print(f"DEBUG: Notificación WhatsApp enviada exitosamente")
+                
+            except Exception as e:
+                print(f"Error enviando notificación de eliminación de pago: {e}")
+                import traceback
+                traceback.print_exc()
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Pago #{pago_info["id"]} eliminado exitosamente. Balance actualizado: +${monto_usd:.2f} USD'
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': f'Error al eliminar el pago: {str(e)}'
+            })
+    
+    return JsonResponse({
+        'success': False,
+        'message': 'Método no permitido'
+    }, status=405)
 
 # FUNCIÓN ELIMINADA - Reemplazada por registro_transacciones en views_transacciones.py
 # @login_required
@@ -587,10 +754,17 @@ def detalle_remesa(request, remesa_id):
         # Obtener la remesa y sus registros relacionados
         remesa = get_object_or_404(models.Remesa, id=remesa_id)
         registros = models.RegistroRemesas.objects.filter(remesa=remesa).order_by('-fecha_registro')
+        
+        # Determinar el tipo de usuario
+        user_tipo = 'admin' if request.user.is_superuser else (
+            request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
+        )
 
         context = {
             'remesa': remesa,
             'registros': registros,
+            'user_tipo': user_tipo,
+            'title': f'Detalle de la Remesa #{remesa.remesa_id}'
         }
         
         return render(request, 'remesas/detalle_remesa.html', context)
@@ -688,7 +862,11 @@ def editar_remesa(request, remesa_id):
                     return redirect('remesas:registro_transacciones')
         
         # GET request - mostrar formulario
-        monedas = models.Moneda.objects.filter(activa=True).order_by('nombre')
+        # Filtrar monedas según el tipo de pago de la remesa actual
+        monedas = models.Moneda.objects.filter(
+            activa=True, 
+            tipo_moneda=remesa.tipo_pago
+        ).order_by('nombre')
         
         context = {
             'remesa': remesa,
@@ -731,6 +909,7 @@ def crear_moneda(request):
             nombre = request.POST.get('nombre', '')
             valor_actual = request.POST.get('valor_actual')
             valor_comercial = request.POST.get('valor_comercial')
+            tipo_moneda = request.POST.get('tipo_moneda', 'transferencia')
             activa = request.POST.get('activa') == 'on'
             
             if not codigo or not nombre or not valor_actual or not valor_comercial:
@@ -745,6 +924,7 @@ def crear_moneda(request):
                 nombre=nombre,
                 valor_actual=valor_actual,
                 valor_comercial=valor_comercial,
+                tipo_moneda=tipo_moneda,
                 activa=activa
             )
             
@@ -790,9 +970,10 @@ def editar_moneda(request, moneda_id):
             moneda.nombre = request.POST.get('nombre', '')
             moneda.valor_actual = request.POST.get('valor_actual')
             moneda.valor_comercial = request.POST.get('valor_comercial')
+            moneda.tipo_moneda = request.POST.get('tipo_moneda', 'transferencia')
             moneda.activa = request.POST.get('activa') == 'on'
             
-            if not moneda.codigo or not moneda.nombre or not moneda.valor_actual or not moneda.valor_comercial:
+            if not moneda.codigo or not moneda.nombre or not moneda.valor_actual or not moneda.valor_comercial or not moneda.tipo_moneda:
                 return redirect(f'/remesas/monedas/?error=edit&message={quote("Todos los campos obligatorios deben ser completados")}')
             
             moneda.save()
@@ -980,23 +1161,24 @@ def crear_pago(request):
         if form.is_valid():
             pago = form.save(commit=False)
             pago.usuario = request.user  # Asignar el usuario actual
+            pago.estado = 'pendiente'  # Los pagos inician en estado pendiente
             
             # Calcular el monto para mostrar en el mensaje
             monto_usd = pago.calcular_monto_en_usd()
             
-            # Guardar el pago (permite balance negativo)
-            pago.save()  # Al guardar, el signal se encargará de descontar el saldo
+            # Guardar el pago sin afectar el balance (pendiente)
+            pago.save()
             
-            # Obtener el balance final para el mensaje
+            # Enviar notificación de nuevo pago
             try:
-                perfil = request.user.perfil
-                balance_final = perfil.balance
-                if balance_final < 0:
-                    messages.warning(request, f'Pago creado exitosamente. ID: {pago.pago_id}. Se descontaron ${monto_usd:.2f} USD. Tu balance ahora es ${balance_final:.2f} USD (negativo).')
-                else:
-                    messages.success(request, f'Pago creado exitosamente. ID: {pago.pago_id}. Se descontaron ${monto_usd:.2f} USD de tu balance.')
-            except:
-                messages.success(request, f'Pago creado exitosamente. ID: {pago.pago_id}. Se descontaron ${monto_usd:.2f} USD de tu balance.')
+                from notificaciones.services import WhatsAppService
+                servicio = WhatsAppService()
+                servicio.enviar_notificacion('pago_nuevo', pago=pago)
+            except Exception as e:
+                print(f"Error enviando notificación de nuevo pago: {e}")
+            
+            # Mensaje informativo sobre el estado pendiente
+            messages.success(request, f'Pago creado exitosamente. ID: {pago.pago_id}. Estado: Pendiente. El balance se descontará cuando se confirme el pago.')
             
             return redirect('remesas:registro_transacciones')
         else:
@@ -1088,7 +1270,7 @@ def editar_pago(request, pago_id):
                     messages.error(request, error_msg)
                     return redirect(request.path)
             
-            # Calcular diferencia de monto en USD
+            # Calcular diferencia de monto en USD para mensaje informativo
             monto_original_usd = Decimal('0')
             if cantidad_original and moneda_original:
                 if moneda_original.codigo == 'USD':
@@ -1102,13 +1284,8 @@ def editar_pago(request, pago_id):
             else:
                 monto_nuevo_usd = cantidad / tipo_moneda.valor_actual
             
-            # Calcular diferencia
+            # Calcular diferencia para mensaje informativo
             diferencia_usd = monto_nuevo_usd - monto_original_usd
-            
-            # Actualizar balance manualmente
-            perfil = request.user.perfil
-            perfil.balance -= diferencia_usd  # Restar la diferencia
-            perfil.save()
             
             # Actualizar el pago
             pago.destinatario = destinatario
@@ -1127,8 +1304,11 @@ def editar_pago(request, pago_id):
             
             pago.save()
             
-            # Mensaje de éxito
-            balance_final = perfil.balance
+            # Calcular balance final real después de la actualización
+            perfil = request.user.perfil
+            balance_calculado = perfil.calcular_balance_real()
+            perfil.actualizar_balance()  # Sincronizar el balance almacenado
+            balance_final = balance_calculado
             if diferencia_usd > 0:
                 if balance_final < 0:
                     success_msg = f'Pago actualizado exitosamente. Se descontaron ${diferencia_usd:.2f} USD adicionales. Tu balance ahora es ${balance_final:.2f} USD (negativo).'
@@ -1154,7 +1334,11 @@ def editar_pago(request, pago_id):
                 return redirect('remesas:registro_transacciones')
     
     # GET request - mostrar formulario
-    monedas = models.Moneda.objects.filter(activa=True).order_by('nombre')
+    # Filtrar monedas según el tipo de pago del pago actual
+    monedas = models.Moneda.objects.filter(
+        activa=True, 
+        tipo_moneda=pago.tipo_pago
+    ).order_by('nombre')
     
     context = {
         'pago': pago,
@@ -1168,40 +1352,138 @@ def detalle_pago(request, pago_id):
     """Vista para ver los detalles de un pago"""
     pago = get_object_or_404(Pago, id=pago_id)
     
+    # Determinar el tipo de usuario
+    user_tipo = 'admin' if request.user.is_superuser else (
+        request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
+    )
+    
     context = {
         'pago': pago,
+        'user_tipo': user_tipo,
         'title': f'Detalle del Pago #{pago.id}'
     }
     return render(request, 'remesas/pagos/detalle_pago.html', context)
 
+
 @login_required
-def eliminar_pago(request, pago_id):
-    """Vista para eliminar un pago"""
+def confirmar_pago(request, pago_id):
+    """
+    Vista para confirmar un pago (cambia de pendiente a confirmado)
+    """
     if request.method == 'POST':
         try:
-            pago = get_object_or_404(Pago, id=pago_id)
-            pago_info = f"#{pago.id} - {pago.destinatario}"
-            monto_usd = pago.calcular_monto_en_usd()
+            pago = get_object_or_404(models.Pago, id=pago_id)
             
-            pago.delete()  # Al eliminar, el signal se encargará de reembolsar el saldo
-            
-            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-                return JsonResponse({
-                    'success': True,
-                    'message': f'Pago {pago_info} eliminado exitosamente. Se reembolsaron ${monto_usd:.2f} USD a tu balance.'
-                })
-            else:
-                messages.success(request, f'Pago {pago_info} eliminado exitosamente. Se reembolsaron ${monto_usd:.2f} USD a tu balance.')
-                return redirect('remesas:registro_transacciones')
-                
-        except Exception as e:
-            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            # Verificar que el usuario tenga permisos
+            if not (request.user == pago.usuario or 
+                    request.user.is_superuser or 
+                    (hasattr(request.user, 'perfil') and request.user.perfil.tipo_usuario in ['admin', 'contable'])):
                 return JsonResponse({
                     'success': False,
-                    'message': f'Error al eliminar el pago: {str(e)}'
+                    'message': 'No tienes permisos para confirmar este pago.'
+                })
+            
+            if not pago.puede_confirmar():
+                return JsonResponse({
+                    'success': False,
+                    'message': f'El pago no puede ser confirmado desde el estado actual: {pago.get_estado_display()}'
+                })
+            
+            # Confirmar el pago (esto descuenta del balance)
+            if pago.confirmar():
+                # Enviar notificación de cambio de estado
+                try:
+                    from notificaciones.services import WhatsAppService
+                    servicio = WhatsAppService()
+                    servicio.enviar_notificacion('pago_estado', pago=pago, estado_anterior='pendiente')
+                except Exception as e:
+                    print(f"Error enviando notificación de cambio de estado: {e}")
+                
+                # Obtener balance actualizado dinámicamente
+                if hasattr(pago.usuario, 'perfil'):
+                    balance_calculado = pago.usuario.perfil.calcular_balance_real()
+                    pago.usuario.perfil.actualizar_balance()  # Sincronizar balance almacenado
+                    balance_final = balance_calculado
+                else:
+                    balance_final = 0
+                monto_usd = pago.calcular_monto_en_usd()
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Pago #{pago.pago_id} confirmado exitosamente. Se descontaron ${monto_usd:.2f} USD. Balance actual: ${balance_final:.2f} USD'
                 })
             else:
-                messages.error(request, f'Error al eliminar el pago: {str(e)}')
-                return redirect('remesas:registro_transacciones')
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Error al confirmar el pago. Por favor intenta de nuevo.'
+                })
+                
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': f'Error al confirmar el pago: {str(e)}'
+            })
     
-    return JsonResponse({'success': False, 'message': 'Método no permitido'})
+    return JsonResponse({
+        'success': False,
+        'message': 'Método no permitido'
+    }, status=405)
+
+
+@login_required
+def cancelar_pago(request, pago_id):
+    """
+    Vista para cancelar un pago (cambia de pendiente a cancelado)
+    """
+    if request.method == 'POST':
+        try:
+            pago = get_object_or_404(models.Pago, id=pago_id)
+            
+            # Verificar que el usuario tenga permisos
+            if not (request.user == pago.usuario or 
+                    request.user.is_superuser or 
+                    (hasattr(request.user, 'perfil') and request.user.perfil.tipo_usuario in ['admin', 'contable'])):
+                return JsonResponse({
+                    'success': False,
+                    'message': 'No tienes permisos para cancelar este pago.'
+                })
+            
+            if not pago.puede_cancelar():
+                return JsonResponse({
+                    'success': False,
+                    'message': f'El pago no puede ser cancelado desde el estado actual: {pago.get_estado_display()}'
+                })
+            
+            # Cancelar el pago
+            if pago.cancelar():
+                # Enviar notificación de cambio de estado
+                try:
+                    from notificaciones.services import WhatsAppService
+                    servicio = WhatsAppService()
+                    servicio.enviar_notificacion('pago_estado', pago=pago, estado_anterior='pendiente')
+                except Exception as e:
+                    print(f"Error enviando notificación de cambio de estado: {e}")
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Pago #{pago.pago_id} cancelado exitosamente.'
+                })
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Error al cancelar el pago. Por favor intenta de nuevo.'
+                })
+                
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': f'Error al cancelar el pago: {str(e)}'
+            })
+    
+    return JsonResponse({
+        'success': False,
+        'message': 'Método no permitido'
+    }, status=405)
+
+
+# FUNCIÓN ELIMINADA - Reemplazada por la nueva función eliminar_pago con restricciones de admin

@@ -5,6 +5,45 @@
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
+<style>
+/* Estilos para protección contra envíos duplicados */
+.btn[disabled], .btn:disabled {
+    pointer-events: none !important;
+    opacity: 0.6 !important;
+    cursor: not-allowed !important;
+}
+
+form[data-enviando="true"] .btn[type="submit"] {
+    pointer-events: none !important;
+    opacity: 0.7 !important;
+    cursor: not-allowed !important;
+    position: relative;
+}
+
+form[data-enviando="true"] .btn[type="submit"]:after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.1);
+    border-radius: inherit;
+}
+
+/* Prevenir doble click a nivel de formulario */
+form[data-enviando="true"] {
+    pointer-events: none;
+}
+
+form[data-enviando="true"] input,
+form[data-enviando="true"] select,
+form[data-enviando="true"] textarea {
+    pointer-events: auto;
+    opacity: 0.7;
+}
+</style>
+
 <div class="container py-4">
     <div class="row justify-content-center">
         <div class="col-12 col-md-6">
@@ -71,7 +110,12 @@
                                 <label for="{{ form.tipo_moneda.id_for_label }}" class="form-label text-white">
                                     Moneda *
                                 </label>
-                                {{ form.tipo_moneda }}
+                                <select class="form-select bg-dark text-white border-secondary" 
+                                        id="{{ form.tipo_moneda.id_for_label }}" 
+                                        name="tipo_moneda">
+                                    <option value="">Seleccionar moneda...</option>
+                                    <!-- Las opciones se cargan dinámicamente con JavaScript -->
+                                </select>
                                 {% if form.tipo_moneda.errors %}
                                     <div class="invalid-feedback d-block">
                                         {{ form.tipo_moneda.errors.0 }}
@@ -156,9 +200,7 @@
                                         id="{{ form.tipo_moneda.id_for_label }}_efectivo" 
                                         name="tipo_moneda_efectivo">
                                     <option value="">Seleccionar moneda...</option>
-                                    {% for moneda in form.tipo_moneda.field.queryset %}
-                                        <option value="{{ moneda.id }}">{{ moneda.nombre }}</option>
-                                    {% endfor %}
+                                    <!-- Las opciones se cargan dinámicamente con JavaScript -->
                                 </select>
                             </div>
 
@@ -347,6 +389,54 @@ document.addEventListener('DOMContentLoaded', function() {
         balanceActual = 0;
     }
 
+    function cargarMonedasPago(tipoMoneda) {
+        // Construir URL con filtro
+        const url = `/remesas/api/monedas/?tipo_moneda=${tipoMoneda}`;
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                // Actualizar select de transferencia
+                if (tipoMoneda === 'transferencia') {
+                    const selectTransferencia = document.getElementById('{{ form.tipo_moneda.id_for_label }}');
+                    if (selectTransferencia) {
+                        selectTransferencia.innerHTML = '<option value="">Seleccionar moneda...</option>';
+                        data.forEach(moneda => {
+                            const option = document.createElement('option');
+                            option.value = moneda.id;
+                            option.textContent = moneda.nombre;
+                            selectTransferencia.appendChild(option);
+                        });
+                    }
+                }
+                
+                // Actualizar select de efectivo
+                if (tipoMoneda === 'efectivo') {
+                    const selectEfectivo = document.getElementById('{{ form.tipo_moneda.id_for_label }}_efectivo');
+                    if (selectEfectivo) {
+                        selectEfectivo.innerHTML = '<option value="">Seleccionar moneda...</option>';
+                        data.forEach(moneda => {
+                            const option = document.createElement('option');
+                            option.value = moneda.id;
+                            option.textContent = moneda.nombre;
+                            selectEfectivo.appendChild(option);
+                        });
+                    }
+                }
+                
+                // Actualizar datos de monedas para cálculos
+                if (data.length > 0) {
+                    // Convertir array a objeto por ID para fácil acceso
+                    data.forEach(moneda => {
+                        monedasData[moneda.id] = moneda;
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error cargando monedas:', error);
+            });
+    }
+
     function configurarTipoPago() {
         const tiposPagoChecks = document.querySelectorAll('.tipo-pago-check');
         const camposTransferencia = document.getElementById('campos_transferencia');
@@ -368,6 +458,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         camposEfectivo.style.display = 'none';
                         limpiarCamposEfectivo();
                         
+                        // Cargar monedas de transferencia
+                        cargarMonedasPago('transferencia');
+                        
                         // Establecer valor por defecto para destinatario en transferencias
                         const destinatarioTransferencia = document.getElementById('destinatario_transferencia');
                         if (destinatarioTransferencia) {
@@ -377,6 +470,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         camposEfectivo.style.display = 'block';
                         camposTransferencia.style.display = 'none';
                         limpiarCamposTransferencia();
+                        
+                        // Cargar monedas de efectivo
+                        cargarMonedasPago('efectivo');
                     }
                 } else {
                     // Si se desmarca, ocultar todos los campos
@@ -736,6 +832,13 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Confirmación antes de enviar
     form.addEventListener('submit', function(e) {
+        // PROTECCIÓN CONTRA ENVÍOS DUPLICADOS
+        if (form.dataset.enviando === 'true') {
+            console.log('Envío bloqueado: formulario ya está siendo enviado');
+            e.preventDefault();
+            return;
+        }
+        
         const tipoPagoSeleccionado = document.querySelector('.tipo-pago-check:checked');
         
         if (!tipoPagoSeleccionado) {
@@ -777,6 +880,42 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
         }
+        
+        // Si llegamos aquí, el formulario es válido
+        // Marcar como enviando y deshabilitar botón
+        form.dataset.enviando = 'true';
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Enviando...';
+            submitBtn.classList.add('btn-warning');
+            submitBtn.classList.remove('btn-primary');
+            
+            // Timeout de seguridad - liberar después de 30 segundos
+            setTimeout(() => {
+                if (form.dataset.enviando === 'true') {
+                    console.log('Timeout de seguridad: liberando formulario');
+                    liberarFormulario();
+                }
+            }, 30000);
+        }
+    });
+    
+    // Función para liberar el formulario después del envío
+    function liberarFormulario() {
+        form.dataset.enviando = 'false';
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Enviar Pago';
+            submitBtn.classList.remove('btn-warning');
+            submitBtn.classList.add('btn-primary');
+        }
+    }
+    
+    // Liberar formulario si hay un error de servidor o navegación
+    window.addEventListener('beforeunload', function() {
+        liberarFormulario();
     });
     
     function mostrarError(mensaje) {

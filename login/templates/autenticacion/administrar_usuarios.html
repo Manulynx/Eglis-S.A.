@@ -115,6 +115,7 @@
                     <thead>
                         <tr>
                             <th>Usuario</th>
+                            <th>Tipo</th>
                             <th>Balance</th>
                             <th>Remesas</th>
                             <th>Pagos</th>
@@ -131,9 +132,19 @@
                                 {{ usuario.username }}
                                 <br>
                                 <small class="text-muted">{{ usuario.first_name }} {{ usuario.last_name }}</small>
+                            </td>
+                            <td>
                                 {% if usuario.is_superuser %}
-                                    <span class="badge bg-warning text-dark ms-2">
-                                        <i class="fas fa-crown"></i> Admin
+                                    <span class="badge bg-danger">
+                                        <i class="fas fa-crown me-1"></i>Administrador
+                                    </span>
+                                {% elif usuario.perfil.tipo_usuario == 'contable' %}
+                                    <span class="badge bg-info">
+                                        <i class="fas fa-calculator me-1"></i>Contable
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">
+                                        <i class="fas fa-user me-1"></i>Gestor
                                     </span>
                                 {% endif %}
                             </td>
@@ -207,6 +218,21 @@
                         <div>
                             <h5 class="mb-0 text-white">{{ usuario.username }}</h5>
                             <small class="text-muted">{{ usuario.first_name }} {{ usuario.last_name }}</small>
+                            <div class="mt-1">
+                                {% if usuario.is_superuser %}
+                                    <span class="badge bg-danger">
+                                        <i class="fas fa-crown me-1"></i>Administrador
+                                    </span>
+                                {% elif usuario.perfil.tipo_usuario == 'contable' %}
+                                    <span class="badge bg-info">
+                                        <i class="fas fa-calculator me-1"></i>Contable
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">
+                                        <i class="fas fa-user me-1"></i>Gestor
+                                    </span>
+                                {% endif %}
+                            </div>
                         </div>
                         <button onclick="toggleEstadoUsuario('{{ usuario.id }}', this)" 
                                 class="btn btn-sm {% if usuario.is_active %}btn-success{% else %}btn-danger{% endif %}">
@@ -359,22 +385,49 @@
                 {% csrf_token %}
                 <div class="modal-body">
                     <input type="hidden" name="user_id" id="editUserId">
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Nota:</strong> Los campos que se dejen en blanco mantendrán su valor actual.
+                    </div>
+                    
                     <div class="mb-3">
                         <label class="form-label">Usuario</label>
-                        <input type="text" name="username" id="editUsername" class="form-control" required>
+                        <input type="text" name="username" id="editUsername" class="form-control" 
+                               placeholder="Dejar en blanco para mantener actual">
+                        <small class="text-muted">Nombre de usuario actual: <span id="currentUsername"></span></small>
                     </div>
+                    
                     <div class="mb-3">
                         <label class="form-label">Nombre</label>
-                        <input type="text" name="first_name" id="editFirstName" class="form-control" required>
+                        <input type="text" name="first_name" id="editFirstName" class="form-control" 
+                               placeholder="Dejar en blanco para mantener actual">
+                        <small class="text-muted">Nombre actual: <span id="currentFirstName"></span></small>
                     </div>
+                    
                     <div class="mb-3">
                         <label class="form-label">Apellidos</label>
-                        <input type="text" name="last_name" id="editLastName" class="form-control" required>
+                        <input type="text" name="last_name" id="editLastName" class="form-control" 
+                               placeholder="Dejar en blanco para mantener actual">
+                        <small class="text-muted">Apellidos actuales: <span id="currentLastName"></span></small>
                     </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de Usuario</label>
+                        <select name="tipo_usuario" id="editTipoUsuario" class="form-select">
+                            <option value="">Mantener tipo actual</option>
+                            <option value="gestor">Gestor</option>
+                            <option value="admin">Administrador</option>
+                            <option value="contable">Contable</option>
+                        </select>
+                        <small class="text-muted">Tipo actual: <span id="currentTipoUsuario"></span></small>
+                    </div>
+                    
                     <div class="mb-3">
                         <label class="form-label">Nueva Contraseña</label>
-                        <input type="password" name="password" id="editPassword" class="form-control">
-                        <small class="text-muted">Dejar en blanco para mantener la contraseña actual</small>
+                        <input type="password" name="password" id="editPassword" class="form-control" 
+                               placeholder="Dejar en blanco para mantener contraseña actual">
+                        <small class="text-muted">Solo se cambiará si ingresa una nueva contraseña</small>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1087,17 +1140,75 @@ function abrirModalEditar(userId, username) {
     // Configurar action del formulario
     form.action = `/login/admin/usuarios/editar/${userId}/`;
     
-    // Llenar campos básicos
-    try {
+    // Obtener datos actuales del usuario
+    fetch(`/login/admin/usuarios/obtener/${userId}/`, {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            const usuario = data.usuario;
+            
+            // Llenar campos del formulario (vacíos para que mantengan valor actual si no se cambian)
+            document.getElementById('editUserId').value = userId;
+            document.getElementById('editUsername').value = '';
+            document.getElementById('editFirstName').value = '';
+            document.getElementById('editLastName').value = '';
+            document.getElementById('editPassword').value = '';
+            
+            // Seleccionar el tipo de usuario actual en el select
+            const tipoUsuarioSelect = document.getElementById('editTipoUsuario');
+            tipoUsuarioSelect.value = usuario.tipo_usuario;
+            
+            // Mostrar valores actuales en los placeholders y textos informativos
+            document.getElementById('currentUsername').textContent = usuario.username;
+            document.getElementById('currentFirstName').textContent = usuario.first_name || '(Sin nombre)';
+            document.getElementById('currentLastName').textContent = usuario.last_name || '(Sin apellidos)';
+            document.getElementById('currentTipoUsuario').textContent = usuario.tipo_usuario_display;
+            
+            // Actualizar placeholders
+            document.getElementById('editUsername').placeholder = `Actual: ${usuario.username}`;
+            document.getElementById('editFirstName').placeholder = `Actual: ${usuario.first_name || '(Sin nombre)'}`;
+            document.getElementById('editLastName').placeholder = `Actual: ${usuario.last_name || '(Sin apellidos)'}`;
+            
+            console.log('Datos del usuario cargados:', usuario);
+        } else {
+            console.error('Error obteniendo datos del usuario:', data.message);
+            // Llenar campos básicos como respaldo
+            document.getElementById('editUserId').value = userId;
+            document.getElementById('editUsername').value = '';
+            document.getElementById('editFirstName').value = '';
+            document.getElementById('editLastName').value = '';
+            document.getElementById('editPassword').value = '';
+            document.getElementById('editTipoUsuario').value = '';
+            
+            // Mostrar solo el username conocido
+            document.getElementById('currentUsername').textContent = username;
+            document.getElementById('currentFirstName').textContent = '(Información no disponible)';
+            document.getElementById('currentLastName').textContent = '(Información no disponible)';
+            document.getElementById('currentTipoUsuario').textContent = '(Información no disponible)';
+        }
+    })
+    .catch(error => {
+        console.error('Error cargando datos del usuario:', error);
+        // Llenar campos básicos como respaldo
         document.getElementById('editUserId').value = userId;
-        document.getElementById('editUsername').value = username;
+        document.getElementById('editUsername').value = '';
         document.getElementById('editFirstName').value = '';
         document.getElementById('editLastName').value = '';
         document.getElementById('editPassword').value = '';
-        console.log('Campos del formulario llenados');
-    } catch (error) {
-        console.error('Error llenando campos:', error);
-    }
+        document.getElementById('editTipoUsuario').value = '';
+        
+        // Mostrar solo el username conocido
+        document.getElementById('currentUsername').textContent = username;
+        document.getElementById('currentFirstName').textContent = '(Error cargando datos)';
+        document.getElementById('currentLastName').textContent = '(Error cargando datos)';
+        document.getElementById('currentTipoUsuario').textContent = '(Error cargando datos)';
+    });
     
     // Abrir el modal
     try {

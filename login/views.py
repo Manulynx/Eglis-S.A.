@@ -166,27 +166,32 @@ def administrar_usuarios(request):
     total_pagos_count = 0
     
     for usuario in usuarios:
-        # Obtener balance del usuario
+        # Calcular balance real del usuario basándose en remesas y pagos
         try:
-            balance = usuario.perfil.balance
+            balance_real = usuario.perfil.calcular_balance_real()
+            # Actualizar el balance en la base de datos si es diferente
+            if usuario.perfil.balance != balance_real:
+                usuario.perfil.balance = balance_real
+                usuario.perfil.save()
+            balance = balance_real
             suma_todos_balances += balance
         except:
             balance = Decimal('0.00')
         
-        # Contar remesas gestionadas por el usuario
-        remesas_count = Remesa.objects.filter(gestor=usuario).count()
+        # Contar remesas gestionadas por el usuario - Solo completadas
+        remesas_count = Remesa.objects.filter(gestor=usuario, estado='completada').count()
         total_remesas_count += remesas_count
         
-        # Contar pagos realizados por el usuario
-        pagos_count = Pago.objects.filter(usuario=usuario).count()
+        # Contar pagos realizados por el usuario - Solo confirmados
+        pagos_count = Pago.objects.filter(usuario=usuario, estado='confirmado').count()
         total_pagos_count += pagos_count
         
-        # Calcular total en USD de remesas del usuario - Solo confirmadas y completadas
+        # Calcular total en USD de remesas del usuario - Solo completadas
         total_remesas_usd = Decimal('0.00')
         remesas_usuario = Remesa.objects.filter(
             gestor=usuario, 
             importe__isnull=False,
-            estado__in=['confirmada', 'completada']
+            estado='completada'
         ).select_related('moneda')
         
         for remesa in remesas_usuario:
@@ -202,9 +207,13 @@ def administrar_usuarios(request):
             elif remesa.importe:
                 total_remesas_usd += remesa.importe
         
-        # Calcular total en USD de pagos del usuario
+        # Calcular total en USD de pagos del usuario - Solo confirmados
         total_pagos_usd = Decimal('0.00')
-        pagos_usuario = Pago.objects.filter(usuario=usuario, cantidad__isnull=False).select_related('tipo_moneda')
+        pagos_usuario = Pago.objects.filter(
+            usuario=usuario, 
+            cantidad__isnull=False,
+            estado='confirmado'
+        ).select_related('tipo_moneda')
         
         for pago in pagos_usuario:
             if pago.cantidad and pago.tipo_moneda:
@@ -345,6 +354,52 @@ def crear_usuario(request):
     
     return redirect('login:administrar_usuarios')
 
+@login_required
+@user_passes_test(lambda u: u.is_superuser)
+def obtener_usuario(request, user_id):
+    """Vista para obtener datos de un usuario (AJAX)"""
+    try:
+        usuario = get_object_or_404(User, id=user_id)
+        
+        # Obtener el tipo de usuario
+        if usuario.is_superuser:
+            tipo_usuario = 'admin'
+            tipo_usuario_display = 'Administrador'
+        else:
+            try:
+                perfil = usuario.perfil
+                tipo_usuario = perfil.tipo_usuario
+                # Usar el display definido en las opciones del modelo
+                tipo_usuario_display = dict(perfil.TIPO_USUARIO_CHOICES).get(tipo_usuario, 'Gestor')
+            except:
+                tipo_usuario = 'gestor'
+                tipo_usuario_display = 'Gestor'
+        
+        return JsonResponse({
+            'status': 'success',
+            'usuario': {
+                'id': usuario.id,
+                'username': usuario.username,
+                'first_name': usuario.first_name,
+                'last_name': usuario.last_name,
+                'email': usuario.email,
+                'is_superuser': usuario.is_superuser,
+                'tipo_usuario': tipo_usuario,
+                'tipo_usuario_display': tipo_usuario_display,
+                'is_active': usuario.is_active,
+                'date_joined': usuario.date_joined.strftime('%Y-%m-%d'),
+                'last_login': usuario.last_login.strftime('%Y-%m-%d %H:%M') if usuario.last_login else 'Nunca'
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Error al obtener datos del usuario: {str(e)}'
+        })
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser)
 def editar_usuario(request, user_id):
     """Vista para editar un usuario"""
     usuario = get_object_or_404(User, id=user_id)
@@ -354,24 +409,59 @@ def editar_usuario(request, user_id):
         is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         
         try:
-            # Obtener datos del formulario
-            username = request.POST.get('username', usuario.username)
-            email = request.POST.get('email', usuario.email)
-            first_name = request.POST.get('first_name', usuario.first_name)
-            last_name = request.POST.get('last_name', usuario.last_name)
+            # Obtener datos del formulario - solo actualizar si no están vacíos
+            username = request.POST.get('username', '').strip()
+            email = request.POST.get('email', '').strip()
+            first_name = request.POST.get('first_name', '').strip()
+            last_name = request.POST.get('last_name', '').strip()
             password = request.POST.get('password', '').strip()
+            tipo_usuario = request.POST.get('tipo_usuario', '').strip()
             
-            # Actualizar campos del usuario
-            usuario.username = username
-            usuario.email = email
-            usuario.first_name = first_name
-            usuario.last_name = last_name
+            # Actualizar campos del usuario solo si se proporcionaron valores
+            if username:
+                # Verificar que el username no esté en uso por otro usuario
+                if User.objects.filter(username=username).exclude(id=usuario.id).exists():
+                    raise ValueError(f'El nombre de usuario "{username}" ya está en uso')
+                usuario.username = username
+            
+            if email:
+                usuario.email = email
+            
+            if first_name:
+                usuario.first_name = first_name
+            
+            if last_name:
+                usuario.last_name = last_name
             
             # Solo actualizar la contraseña si se proporcionó una nueva
             if password:
                 usuario.set_password(password)
             
-            # Validar y guardar
+            # Manejar tipo de usuario
+            if tipo_usuario:
+                if tipo_usuario == 'admin':
+                    usuario.is_superuser = True
+                    usuario.is_staff = True
+                    # Si tiene perfil y no es admin, eliminar el perfil
+                    try:
+                        if hasattr(usuario, 'perfil') and usuario.perfil:
+                            usuario.perfil.delete()
+                    except:
+                        pass
+                else:
+                    usuario.is_superuser = False
+                    usuario.is_staff = False
+                    
+                    # Crear o actualizar perfil
+                    try:
+                        perfil = usuario.perfil
+                        perfil.tipo_usuario = tipo_usuario
+                        perfil.save()
+                    except:
+                        # Si no tiene perfil, crear uno nuevo
+                        PerfilUsuario.objects.create(user=usuario, tipo_usuario=tipo_usuario)
+            
+            # Validar y guardar usuario
             usuario.full_clean()
             usuario.save()
             
@@ -665,8 +755,7 @@ def historial_usuario(request, user_id):
         if destinatario_pagos:
             pagos_queryset = pagos_queryset.filter(destinatario__icontains=destinatario_pagos)
         if estado_pagos:
-            # Los pagos no tienen estado, pero mantenemos por compatibilidad
-            pass
+            pagos_queryset = pagos_queryset.filter(estado=estado_pagos)
         if moneda_pagos:
             pagos_queryset = pagos_queryset.filter(tipo_moneda_id=moneda_pagos)
         if cantidad_min_pagos:
@@ -732,8 +821,7 @@ def historial_usuario(request, user_id):
                 Q(telefono__icontains=search_query)
             )
         if estado_filter:
-            # Los pagos no tienen estado
-            pass
+            pagos_queryset = pagos_queryset.filter(estado=estado_filter)
         if moneda_filter:
             pagos_queryset = pagos_queryset.filter(tipo_moneda_id=moneda_filter)
         if fecha_desde:
@@ -786,7 +874,7 @@ def historial_usuario(request, user_id):
         pago.numero_pago = pago.pago_id
         pago.destinatario_nombre = pago.destinatario
         pago.moneda = pago.tipo_moneda
-        pago.estado = 'completado'  # Default ya que no tiene estado
+        # El estado ya existe en el modelo, no necesitamos asignarlo
         
         if pago.cantidad:
             if pago.tipo_moneda and pago.tipo_moneda.codigo != 'USD':
@@ -824,7 +912,7 @@ def historial_usuario(request, user_id):
             'pk': pago.pk,
             'numero_pago': pago.pago_id,
             'destinatario_nombre': pago.destinatario,
-            'estado': 'completado',
+            'estado': pago.estado,  # Usar el estado real del pago
             'cantidad': pago.cantidad,
             'cantidad_usd': getattr(pago, 'cantidad_usd', Decimal('0.00')),
             'moneda': pago.tipo_moneda,
@@ -839,11 +927,19 @@ def historial_usuario(request, user_id):
     total_remesas_count = Remesa.objects.filter(gestor=usuario).count()
     total_pagos_count = Pago.objects.filter(usuario=usuario).count()
     
-    # Estadísticas - Solo remesas confirmadas y completadas para el total
-    remesas_confirmadas_completadas = [r for r in remesas if r.estado in ['confirmada', 'completada']]
-    total_remesas_usd = sum([getattr(r, 'importe_usd', Decimal('0.00')) for r in remesas_confirmadas_completadas])
+    # Obtener balance calculado dinámicamente de las transacciones reales
+    balance_calculado = usuario.perfil.calcular_balance_real() if hasattr(usuario, 'perfil') else Decimal('0.00')
+    
+    # Actualizar balance almacenado si difiere del calculado
+    if hasattr(usuario, 'perfil') and usuario.perfil.balance != balance_calculado:
+        usuario.perfil.actualizar_balance()
+    
+    balance = balance_calculado
+    
+    # Estadísticas - Solo remesas confirmadas para el total (las confirmadas ya afectan el balance)
+    remesas_confirmadas = [r for r in remesas if r.estado == 'confirmada']
+    total_remesas_usd = sum([getattr(r, 'importe_usd', Decimal('0.00')) for r in remesas_confirmadas])
     total_pagos_usd = sum([getattr(p, 'cantidad_usd', Decimal('0.00')) for p in pagos])
-    balance = total_remesas_usd - total_pagos_usd
     
     # Obtener opciones para filtros
     estados_disponibles = list(Remesa.objects.filter(gestor=usuario).values_list('estado', flat=True).distinct())

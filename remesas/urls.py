@@ -18,8 +18,9 @@ urlpatterns = [
     # Otras URLs
     # path('lista/', views.lista_remesas, name='remesas_lista'),  # ELIMINADO - Reemplazado por registro_transacciones
     path('confirmar/<int:remesa_id>/', views.confirmar_remesa, name='confirmar_remesa'),
-    path('procesar/<int:remesa_id>/', views.procesar_remesa, name='procesar_remesa'),
+    # URL ELIMINADA - procesar_remesa ya no es necesario, la lógica se movió a confirmar_remesa
     path('cancelar/<int:remesa_id>/', views.cancelar_remesa, name='cancelar_remesa'),
+    path('eliminar/<int:remesa_id>/', views.eliminar_remesa, name='eliminar_remesa'),
     path('detalle/<int:remesa_id>/', views.detalle_remesa, name='detalle_remesa'),
     path('editar/<int:remesa_id>/', views.editar_remesa, name='editar_remesa'),
     
@@ -35,5 +36,7 @@ urlpatterns = [
     path('pagos/crear/', views.crear_pago, name='crear_pago'),
     path('pagos/detalle/<int:pago_id>/', views.detalle_pago, name='detalle_pago'),
     path('pagos/editar/<int:pago_id>/', views.editar_pago, name='editar_pago'),
+    path('pagos/confirmar/<int:pago_id>/', views.confirmar_pago, name='confirmar_pago'),
+    path('pagos/cancelar/<int:pago_id>/', views.cancelar_pago, name='cancelar_pago'),
     path('pagos/eliminar/<int:pago_id>/', views.eliminar_pago, name='eliminar_pago'),
 ]

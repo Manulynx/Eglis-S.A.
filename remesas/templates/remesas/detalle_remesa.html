@@ -1,194 +1,696 @@
 {% extends 'eglisapp/base.html' %}
 {% load static %}
 
+{% block title %}{{ title }}{% endblock %}
+
 {% block content %}
-<div class="container mt-5">
+{% csrf_token %}
+<div class="container-fluid px-2 px-md-4 mt-4">
     <div class="row justify-content-center">
-        <div class="col-lg-10">
-            <div class="card bg-dark text-white">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h3 class="mb-0">
-                        <i class="fas fa-file-invoice me-2"></i>
-                        Detalles de Remesa
-                    </h3>
-                    <a href="{% url 'remesas:registro_transacciones' %}" class="btn btn-outline-light">
-                        <i class="fas fa-arrow-left me-2"></i>Volver
+        <div class="col-12 col-xl-10">
+            <!-- Header -->
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4">
+                <div class="mb-3 mb-md-0">
+                    <h2 class="text-white mb-2">
+                        <i class="fas fa-file-invoice mr-2"></i>
+                        <span class="d-none d-sm-inline">{{ title }}</span>
+                        <span class="d-sm-none">Detalle Remesa</span>
+                    </h2>
+                    <!-- Estado de la Remesa -->
+                    <div class="mb-2">
+                        {% if remesa.estado == 'completada' %}
+                            <span class="badge badge-success badge-lg">
+                                <i class="fas fa-check-circle mr-1"></i>COMPLETADA
+                            </span>
+                        {% elif remesa.estado == 'pendiente' %}
+                            <span class="badge badge-warning badge-lg">
+                                <i class="fas fa-clock mr-1"></i>PENDIENTE
+                            </span>
+                        {% elif remesa.estado == 'cancelada' %}
+                            <span class="badge badge-danger badge-lg">
+                                <i class="fas fa-times-circle mr-1"></i>CANCELADA
+                            </span>
+                        {% elif remesa.estado == 'confirmada' %}
+                            <span class="badge badge-info badge-lg">
+                                <i class="fas fa-check mr-1"></i>CONFIRMADA
+                            </span>
+                        {% else %}
+                            <span class="badge badge-secondary badge-lg">
+                                <i class="fas fa-question-circle mr-1"></i>{{ remesa.estado|upper }}
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="d-flex flex-wrap gap-2 justify-content-end">
+                    {% if user_tipo == 'admin' %}
+                        <!-- Botones para Administradores -->
+                        {% if remesa.estado == 'pendiente' %}
+                            <a href="{% url 'remesas:editar_remesa' remesa.id %}" class="btn btn-warning btn-sm">
+                                <i class="fas fa-edit mr-1"></i>Editar
+                            </a>
+                            <button type="button" class="btn btn-success btn-sm btn-confirmar-remesa"
+                                    data-remesa-id="{{ remesa.id }}" data-remesa-numero="{{ remesa.remesa_id }}">
+                                <i class="fas fa-check mr-1"></i>Confirmar
+                            </button>
+                            <button type="button" class="btn btn-danger btn-sm btn-cancelar-remesa"
+                                    data-remesa-id="{{ remesa.id }}" data-remesa-numero="{{ remesa.remesa_id }}">
+                                <i class="fas fa-times mr-1"></i>Cancelar
+                            </button>
+                        {% elif remesa.estado == 'completada' %}
+                            <button type="button" class="btn btn-danger btn-sm btn-eliminar-remesa"
+                                    data-remesa-id="{{ remesa.id }}" data-remesa-numero="{{ remesa.remesa_id }}">
+                                <i class="fas fa-trash mr-1"></i>Eliminar
+                            </button>
+                        {% endif %}
+                    {% elif user_tipo == 'contable' %}
+                        <!-- Botones para Contables (sin eliminar) -->
+                        {% if remesa.estado == 'pendiente' %}
+                            <a href="{% url 'remesas:editar_remesa' remesa.id %}" class="btn btn-warning btn-sm">
+                                <i class="fas fa-edit mr-1"></i>Editar
+                            </a>
+                            <button type="button" class="btn btn-success btn-sm btn-confirmar-remesa"
+                                    data-remesa-id="{{ remesa.id }}" data-remesa-numero="{{ remesa.remesa_id }}">
+                                <i class="fas fa-check mr-1"></i>Confirmar
+                            </button>
+                            <button type="button" class="btn btn-danger btn-sm btn-cancelar-remesa"
+                                    data-remesa-id="{{ remesa.id }}" data-remesa-numero="{{ remesa.remesa_id }}">
+                                <i class="fas fa-times mr-1"></i>Cancelar
+                            </button>
+                        {% endif %}
+                    {% else %}
+                        <!-- Botones para Gestores (solo editar) -->
+                        {% if remesa.estado == 'pendiente' %}
+                            <a href="{% url 'remesas:editar_remesa' remesa.id %}" class="btn btn-warning btn-sm">
+                                <i class="fas fa-edit mr-1"></i>Editar
+                            </a>
+                        {% endif %}
+                    {% endif %}
+                    
+                    <!-- Botón Volver (siempre visible) -->
+                    <a href="{% url 'remesas:registro_transacciones' %}" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-arrow-left mr-1"></i>
+                        <span class="d-none d-sm-inline">Volver</span>
+                        <span class="d-sm-none">Volver</span>
                     </a>
                 </div>
-                
-                <div class="card-body">
-                    <!-- Información principal de la remesa -->
-                    <div class="row mb-4">
-                        <div class="col-md-6">
-                            <h5 class="text-info border-bottom pb-2">Información General</h5>
-                            <dl class="row">
-                                <dt class="col-sm-4">ID Remesa:</dt>
-                                <dd class="col-sm-8">{{ remesa.remesa_id }}</dd>
-                                
-                                <dt class="col-sm-4">Fecha:</dt>
-                                <dd class="col-sm-8">{{ remesa.fecha|date:"d/m/Y" }}</dd>
-                                
-                                <dt class="col-sm-4">Estado:</dt>
-                                <dd class="col-sm-8">
-                                    <span class="badge bg-{{ remesa.get_estado_badge }}">
-                                        {{ remesa.get_estado_display }}
-                                    </span>
-                                </dd>
-                                
-                                <dt class="col-sm-4">Importe:</dt>
-                                <dd class="col-sm-8">{{ remesa.importe|floatformat:2 }} {{ remesa.moneda.codigo|default:"N/A" }}</dd>
-                            </dl>
-                        </div>
-                        
-                        <div class="col-md-6">
-                            <h5 class="text-success border-bottom pb-2">Detalles de Envío</h5>
-                            <dl class="row">
-                                <dt class="col-sm-4">Tipo de Pago:</dt>
-                                <dd class="col-sm-8">{{ remesa.get_tipo_pago_display|default:remesa.tipo_pago }}</dd>
-                                
-                                <dt class="col-sm-4">Gestor:</dt>
-                                <dd class="col-sm-8">{{ remesa.gestor.get_full_name|default:remesa.gestor.username }}</dd>
-                                
-                                {% if remesa.comprobante %}
-                                <dt class="col-sm-4">Comprobante:</dt>
-                                <dd class="col-sm-8">
-                                    <a href="{{ remesa.comprobante.url }}" target="_blank" class="btn btn-sm btn-outline-info">
-                                        <i class="fas fa-image me-2"></i>Ver Comprobante
-                                    </a>
-                                </dd>
-                                {% endif %}
-                                
-                                {% if remesa.observaciones %}
-                                <dt class="col-sm-4">Observaciones:</dt>
-                                <dd class="col-sm-8">{{ remesa.observaciones }}</dd>
-                                {% endif %}
-                            </dl>
-                        </div>
+            </div>
+
+            <!-- Card principal -->
+            <div class="card bg-dark border-secondary">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center">
+                        <h5 class="mb-2 mb-sm-0">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            <span class="d-none d-md-inline">Información de la Remesa</span>
+                            <span class="d-md-none">Info de la Remesa</span>
+                        </h5>
+                        <span class="badge badge-light badge-lg">{{ remesa.remesa_id|default:"Sin ID" }}</span>
                     </div>
-
-                    <!-- Información de clientes -->
-                    <div class="row mb-4">
-                        <div class="col-md-6">
-                            <h5 class="text-warning border-bottom pb-2">Remitente</h5>
-                            <dl class="row">
-                                <dt class="col-sm-4">Nombre:</dt>
-                                <dd class="col-sm-8">{{ remesa.receptor_nombre }}</dd>
-                                
-                                <dt class="col-sm-4">Tipo de Pago:</dt>
-                                <dd class="col-sm-8">{{ remesa.get_tipo_pago_display|default:remesa.tipo_pago }}</dd>
-                            </dl>
-                        </div>
-
-                        <div class="col-md-6">
-                            <h5 class="text-info border-bottom pb-2">Información de la Transacción</h5>
-                            <dl class="row">
-                                <dt class="col-sm-4">Importe:</dt>
-                                <dd class="col-sm-8">{{ remesa.importe|floatformat:2 }} {{ remesa.moneda.codigo|default:"N/A" }}</dd>
-                                
-                                <dt class="col-sm-4">Estado:</dt>
-                                <dd class="col-sm-8">
-                                    <span class="badge bg-{{ remesa.get_estado_badge }}">{{ remesa.get_estado_display }}</span>
-                                </dd>
-                                
-                                {% if remesa.observaciones %}
-                                <dt class="col-sm-4">Observaciones:</dt>
-                                <dd class="col-sm-8">{{ remesa.observaciones }}</dd>
-                                {% endif %}
-                                
-                                {% if remesa.gestor %}
-                                <dt class="col-sm-4">Gestor:</dt>
-                                <dd class="col-sm-8">{{ remesa.gestor.get_full_name|default:remesa.gestor.username }}</dd>
-                                {% endif %}
-                            </dl>
-                        </div>
-                    </div>
-
-                    <!-- Historial de la remesa -->
-                    {% if registros %}
+                </div>
+                <div class="card-body p-2 p-md-3">
                     <div class="row">
-                        <div class="col-12">
-                            <h5 class="text-info border-bottom pb-2">Historial de la Remesa</h5>
-                            <div class="table-responsive">
-                                <table class="table table-dark table-hover">
-                                    <thead>
-                                        <tr>
-                                            <th>Fecha</th>
-                                            <th>Tipo</th>
-                                            <th>Usuario</th>
-                                            <th>Detalles</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for registro in registros %}
-                                        <tr>
-                                            <td>{{ registro.fecha_registro|date:"d/m/Y H:i" }}</td>
-                                            <td>
-                                                <span class="badge bg-{{ registro.get_tipo_badge }}">
-                                                    {{ registro.get_tipo_display }}
-                                                </span>
-                                            </td>
-                                            <td>{{ registro.usuario_registro }}</td>
-                                            <td>{{ registro.detalles }}</td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
+                        <!-- Información principal -->
+                        <div class="col-12 col-lg-6 mb-4 mb-lg-0">
+                            <h6 class="text-white border-bottom border-secondary pb-2 mb-3">
+                                <i class="fas fa-file-alt mr-1"></i>
+                                Datos de la Remesa
+                            </h6>
+                            
+                            <div class="mb-3">
+                                <label class="text-muted small">Tipo de Pago:</label>
+                                <div>
+                                    <span class="badge badge-{% if remesa.tipo_pago == 'transferencia' %}info{% else %}warning{% endif %} badge-lg">
+                                        <i class="fas fa-{% if remesa.tipo_pago == 'transferencia' %}exchange-alt{% else %}money-bill-wave{% endif %} mr-1"></i>
+                                        {{ remesa.get_tipo_pago_display|default:remesa.tipo_pago }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="text-muted small">Importe:</label>
+                                <div class="d-flex flex-column flex-sm-row align-items-start align-items-sm-center">
+                                    <span class="h4 text-success mb-1 mb-sm-0">
+                                        <i class="fas fa-dollar-sign"></i>{{ remesa.importe|floatformat:2 }}
+                                    </span>
+                                    {% if remesa.moneda %}
+                                        <span class="badge badge-secondary ml-sm-2">{{ remesa.moneda.codigo }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            {% if remesa.moneda %}
+                            <div class="mb-3">
+                                <label class="text-muted small">Moneda:</label>
+                                <div class="text-white">
+                                    <strong>{{ remesa.moneda.nombre }}</strong>
+                                    <small class="text-muted d-block d-sm-inline">({{ remesa.moneda.codigo }})</small>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <div class="mb-3">
+                                <label class="text-muted small">Fecha de Creación:</label>
+                                <div class="text-white">
+                                    <i class="fas fa-calendar mr-1"></i>
+                                    <span class="d-block d-sm-inline">{{ remesa.fecha|date:"d/m/Y" }}</span>
+                                    <small class="text-muted d-block d-sm-inline ml-sm-2">{{ remesa.fecha|date:"H:i" }}</small>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    {% endif %}
 
-                    <!-- Comprobante de pago -->
+                        <!-- Información del receptor y gestor -->
+                        <div class="col-12 col-lg-6">
+                            <h6 class="text-white border-bottom border-secondary pb-2 mb-3">
+                                <i class="fas fa-user mr-1"></i>
+                                Datos del Receptor
+                            </h6>
+                            
+                            <div class="mb-3">
+                                <label class="text-muted small">Receptor:</label>
+                                <div class="text-white">
+                                    <strong class="word-break">{{ remesa.receptor_nombre }}</strong>
+                                </div>
+                            </div>
+
+                            {% if remesa.gestor %}
+                            <div class="mb-3">
+                                <label class="text-muted small">Gestor Asignado:</label>
+                                <div class="text-white">
+                                    <i class="fas fa-user-tie mr-1"></i>
+                                    <span class="word-break">{{ remesa.gestor.get_full_name|default:remesa.gestor.username }}</span>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            {% if remesa.observaciones %}
+                            <div class="mb-3">
+                                <label class="text-muted small">Observaciones:</label>
+                                <div class="text-white">
+                                    <i class="fas fa-sticky-note mr-1"></i>
+                                    <span class="word-break">{{ remesa.observaciones }}</span>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Comprobante de Remesa -->
                     {% if remesa.comprobante %}
                     <div class="row mt-4">
                         <div class="col-12">
-                            <h5 class="text-info border-bottom pb-2">Comprobante de Pago</h5>
+                            <h6 class="text-white border-bottom border-secondary pb-2 mb-3">
+                                <i class="fas fa-receipt mr-1"></i>
+                                Comprobante de Remesa
+                            </h6>
                             <div class="text-center">
-                                <img src="{{ remesa.comprobante.url }}" 
-                                     alt="Comprobante de la remesa {{ remesa.remesa_id }}" 
-                                     class="img-fluid rounded border border-secondary"
-                                     style="max-height: 500px; cursor: pointer;"
-                                     onclick="openImageModal('{{ remesa.comprobante.url }}')">
-                                <p class="text-muted mt-2">
-                                    <small>Click en la imagen para ver en tamaño completo</small>
-                                </p>
+                                <div class="mb-3 comprobante-container">
+                                    <img src="{{ remesa.comprobante.url }}" 
+                                         alt="Comprobante de remesa" 
+                                         class="img-fluid rounded border border-secondary comprobante-img"
+                                         onclick="mostrarComprobanteCompleto('{{ remesa.comprobante.url }}')">
+                                </div>
+                                <div class="d-flex flex-column flex-sm-row justify-content-center">
+                                    <a href="{{ remesa.comprobante.url }}" 
+                                       target="_blank" 
+                                       class="btn btn-outline-light btn-sm mb-2 mb-sm-0 mr-sm-2">
+                                        <i class="fas fa-eye mr-1"></i>
+                                        <span class="d-none d-sm-inline">Ver en nueva pestaña</span>
+                                        <span class="d-sm-none">Ver</span>
+                                    </a>
+                                    <a href="{{ remesa.comprobante.url }}" 
+                                       download 
+                                       class="btn btn-outline-success btn-sm">
+                                        <i class="fas fa-download mr-1"></i>
+                                        Descargar
+                                    </a>
+                                </div>
                             </div>
                         </div>
                     </div>
                     {% endif %}
+                </div>
+            </div>
+
+            <!-- Historial de la remesa -->
+            {% if registros %}
+            <div class="card bg-dark border-secondary mt-3">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-history mr-1"></i>
+                        Historial de Movimientos
+                    </h6>
+                </div>
+                <div class="card-body p-2 p-md-3">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Tipo</th>
+                                    <th>Usuario</th>
+                                    <th class="d-none d-md-table-cell">Detalles</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for registro in registros %}
+                                <tr>
+                                    <td>
+                                        <small>{{ registro.fecha_registro|date:"d/m/Y" }}</small>
+                                        <br>
+                                        <small class="text-muted">{{ registro.fecha_registro|date:"H:i" }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-{{ registro.get_tipo_badge|default:'secondary' }}">
+                                            {{ registro.get_tipo_display|default:registro.tipo }}
+                                        </span>
+                                    </td>
+                                    <td>{{ registro.usuario_registro|default:"Sistema" }}</td>
+                                    <td class="d-none d-md-table-cell">
+                                        <small class="word-break">{{ registro.detalles|default:"Sin detalles" }}</small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Información adicional - Resumen -->
+            <div class="card bg-dark border-secondary mt-3">
+                <div class="card-body p-2 p-md-3">
+                    <h6 class="text-white mb-3">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Resumen:
+                    </h6>
+                    <div class="row text-center">
+                        <div class="col-12 col-sm-4 mb-3 mb-sm-0">
+                            <div class="text-muted small">ID de la Remesa</div>
+                            <div class="h5 text-primary">#{{ remesa.remesa_id }}</div>
+                        </div>
+                        <div class="col-12 col-sm-4 mb-3 mb-sm-0">
+                            <div class="text-muted small">Importe Total</div>
+                            <div class="h5 text-success">
+                                ${{ remesa.importe|floatformat:2 }}
+                                {% if remesa.moneda %}{{ remesa.moneda.codigo }}{% endif %}
+                            </div>
+                        </div>
+                        <div class="col-12 col-sm-4">
+                            <div class="text-muted small">Método</div>
+                            <div class="h5 text-info">{{ remesa.get_tipo_pago_display|default:remesa.tipo_pago }}</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Modal para ver imagen en tamaño completo -->
-<div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+<!-- Modal para ver comprobante en tamaño completo -->
+<div class="modal fade" id="comprobanteModal" tabindex="-1" aria-labelledby="comprobanteModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content bg-dark">
             <div class="modal-header border-secondary">
-                <h5 class="modal-title text-white" id="imageModalLabel">Comprobante de Pago</h5>
+                <h5 class="modal-title text-white" id="comprobanteModalLabel">Comprobante de Remesa</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body text-center">
-                <img id="modalImage" src="" alt="Comprobante" class="img-fluid rounded">
+                <img id="modalComprobanteImage" src="" alt="Comprobante" class="img-fluid rounded">
             </div>
             <div class="modal-footer border-secondary">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                <a id="downloadLink" href="" download class="btn btn-primary">
-                    <i class="fas fa-download me-2"></i>Descargar
+                <a id="comprobanteDownloadLink" href="" download class="btn btn-primary">
+                    <i class="fas fa-download mr-1"></i>Descargar
                 </a>
             </div>
         </div>
     </div>
 </div>
 
-<script>
-function openImageModal(imageUrl) {
-    document.getElementById('modalImage').src = imageUrl;
-    document.getElementById('downloadLink').href = imageUrl;
-    new bootstrap.Modal(document.getElementById('imageModal')).show();
+<style>
+/* Estilos responsive para mobile */
+.gap-2 {
+    gap: 0.5rem !important;
 }
+
+.justify-content-end {
+    justify-content: flex-end !important;
+}
+
+.badge-lg {
+    font-size: 0.875rem;
+    padding: 0.5rem 0.75rem;
+}
+
+.word-break {
+    word-break: break-word;
+    word-wrap: break-word;
+}
+
+.comprobante-container {
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.comprobante-img {
+    max-height: 300px;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.comprobante-img:hover {
+    transform: scale(1.02);
+}
+
+/* Media queries para diferentes dispositivos */
+@media (max-width: 575.98px) {
+    /* Mobile */
+    .d-flex.flex-wrap.gap-2.justify-content-end {
+        justify-content: flex-end !important;
+        align-items: flex-end !important;
+    }
+    
+    .btn-sm {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+    
+    .h4 {
+        font-size: 1.2rem;
+    }
+    
+    .badge-lg {
+        font-size: 0.75rem;
+        padding: 0.375rem 0.5rem;
+    }
+    
+    .card-header h5 {
+        font-size: 1rem;
+    }
+    
+    .h6 {
+        font-size: 0.9rem;
+    }
+    
+    .comprobante-img {
+        max-height: 200px;
+    }
+}
+
+@media (min-width: 576px) and (max-width: 767.98px) {
+    /* Tablet */
+    .btn-sm {
+        font-size: 0.8rem;
+        padding: 0.375rem 0.75rem;
+    }
+    
+    .comprobante-img {
+        max-height: 250px;
+    }
+}
+
+@media (min-width: 768px) {
+    /* Desktop */
+    .comprobante-img {
+        max-height: 400px;
+    }
+}
+
+/* Fix para botones en mobile - asegurar que estén a la derecha */
+@media (max-width: 575.98px) {
+    .d-flex.flex-wrap.gap-2 {
+        justify-content: flex-end !important;
+        margin-left: auto !important;
+    }
+}
+</style>
+
+<script>
+// Variable global para prevenir múltiples envíos
+let isProcessing = false;
+
+// Función para obtener CSRF token
+function getCSRFToken() {
+    // Intentar obtener del input hidden
+    let csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (csrfToken) {
+        return csrfToken.value;
+    }
+    
+    // Intentar obtener del meta tag
+    let csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    if (csrfMeta) {
+        return csrfMeta.getAttribute('content');
+    }
+    
+    // Intentar obtener de las cookies
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, 10) === 'csrftoken=') {
+                cookieValue = decodeURIComponent(cookie.substring(10));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Función para deshabilitar/habilitar todos los botones de acción
+function toggleActionButtons(disabled) {
+    const actionButtons = document.querySelectorAll('.btn-confirmar-remesa, .btn-cancelar-remesa, .btn-eliminar-remesa');
+    actionButtons.forEach(btn => {
+        btn.disabled = disabled;
+        if (disabled) {
+            btn.classList.add('disabled');
+            btn.style.pointerEvents = 'none';
+        } else {
+            btn.classList.remove('disabled');
+            btn.style.pointerEvents = 'auto';
+        }
+    });
+}
+
+// Función para enviar petición AJAX con protección contra doble envío
+function sendAjaxRequest(url, remesaId, actionType) {
+    // Verificar si ya hay una petición en proceso
+    if (isProcessing) {
+        Swal.fire({
+            title: 'Operación en Proceso',
+            text: 'Ya hay una operación en curso. Por favor espere.',
+            icon: 'warning',
+            background: '#343a40',
+            color: '#ffffff',
+            confirmButtonColor: '#ffc107'
+        });
+        return;
+    }
+    
+    // Marcar como procesando y deshabilitar botones
+    isProcessing = true;
+    toggleActionButtons(true);
+    
+    const csrfToken = getCSRFToken();
+    
+    // Mostrar loading
+    Swal.fire({
+        title: 'Procesando...',
+        text: `Ejecutando acción: ${actionType}`,
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        background: '#343a40',
+        color: '#ffffff',
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
+    
+    fetch(url.replace('0', remesaId), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        credentials: 'same-origin'
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        Swal.close();
+        
+        if (data.success) {
+            // Éxito - mostrar mensaje y recargar página
+            Swal.fire({
+                title: '¡Éxito!',
+                text: data.message,
+                icon: 'success',
+                background: '#343a40',
+                color: '#ffffff',
+                confirmButtonColor: '#28a745',
+                allowOutsideClick: false
+            }).then(() => {
+                // Recargar la página para mostrar los cambios
+                window.location.reload();
+            });
+        } else {
+            // Error - mostrar mensaje de error y rehabilitar botones
+            isProcessing = false;
+            toggleActionButtons(false);
+            
+            Swal.fire({
+                title: 'Error',
+                text: data.message || 'Ocurrió un error al procesar la solicitud',
+                icon: 'error',
+                background: '#343a40',
+                color: '#ffffff',
+                confirmButtonColor: '#dc3545'
+            });
+        }
+    })
+    .catch(error => {
+        Swal.close();
+        isProcessing = false;
+        toggleActionButtons(false);
+        
+        console.error('Error:', error);
+        Swal.fire({
+            title: 'Error de Conexión',
+            text: 'Hubo un problema al procesar la solicitud. Por favor, inténtelo de nuevo.',
+            icon: 'error',
+            background: '#343a40',
+            color: '#ffffff',
+            confirmButtonColor: '#dc3545'
+        });
+    });
+}
+
+// Función para mostrar comprobante en modal
+function mostrarComprobanteCompleto(imageUrl) {
+    document.getElementById('modalComprobanteImage').src = imageUrl;
+    document.getElementById('comprobanteDownloadLink').href = imageUrl;
+    var modal = new bootstrap.Modal(document.getElementById('comprobanteModal'));
+    modal.show();
+}
+
+// Funciones para las acciones de remesa
+document.addEventListener('DOMContentLoaded', function() {
+    // Confirmar remesa
+    const btnsConfirmar = document.querySelectorAll('.btn-confirmar-remesa');
+    btnsConfirmar.forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // Verificar si ya está procesando
+            if (isProcessing) {
+                return;
+            }
+            
+            const remesaId = this.dataset.remesaId;
+            const remesaNumero = this.dataset.remesaNumero;
+            
+            Swal.fire({
+                title: '¿Confirmar Remesa?',
+                text: `¿Está seguro que desea confirmar la remesa #${remesaNumero}? Esta acción afectará el balance del gestor.`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#28a745',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Sí, confirmar',
+                cancelButtonText: 'Cancelar',
+                background: '#343a40',
+                color: '#ffffff',
+                allowOutsideClick: false
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    sendAjaxRequest('{% url "remesas:confirmar_remesa" 0 %}', remesaId, 'confirmar');
+                }
+            });
+        });
+    });
+
+    // Cancelar remesa
+    const btnsCancelar = document.querySelectorAll('.btn-cancelar-remesa');
+    btnsCancelar.forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // Verificar si ya está procesando
+            if (isProcessing) {
+                return;
+            }
+            
+            const remesaId = this.dataset.remesaId;
+            const remesaNumero = this.dataset.remesaNumero;
+            
+            Swal.fire({
+                title: '¿Cancelar Remesa?',
+                text: `¿Está seguro que desea cancelar la remesa #${remesaNumero}? Esta acción no se puede deshacer.`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Sí, cancelar',
+                cancelButtonText: 'No, mantener',
+                background: '#343a40',
+                color: '#ffffff',
+                allowOutsideClick: false
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    sendAjaxRequest('{% url "remesas:cancelar_remesa" 0 %}', remesaId, 'cancelar');
+                }
+            });
+        });
+    });
+
+    // Eliminar remesa
+    const btnsEliminar = document.querySelectorAll('.btn-eliminar-remesa');
+    btnsEliminar.forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // Verificar si ya está procesando
+            if (isProcessing) {
+                return;
+            }
+            
+            const remesaId = this.dataset.remesaId;
+            const remesaNumero = this.dataset.remesaNumero;
+            
+            Swal.fire({
+                title: '¿Eliminar Remesa?',
+                text: `¿Está seguro que desea eliminar permanentemente la remesa #${remesaNumero}? Esta acción revertirá el balance del gestor y no se puede deshacer.`,
+                icon: 'error',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Sí, eliminar',
+                cancelButtonText: 'Cancelar',
+                background: '#343a40',
+                color: '#ffffff',
+                allowOutsideClick: false
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    sendAjaxRequest('{% url "remesas:eliminar_remesa" 0 %}', remesaId, 'eliminar');
+                }
+            });
+        });
+    });
+    
+    // Protección adicional: deshabilitar botones si la página se está recargando
+    window.addEventListener('beforeunload', function() {
+        isProcessing = true;
+        toggleActionButtons(true);
+    });
+});
 </script>
 
 {% endblock %}

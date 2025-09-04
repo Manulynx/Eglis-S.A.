@@ -59,6 +59,11 @@ from django.db import models
 
 
 class Moneda(models.Model):
+    TIPO_MONEDA_CHOICES = [
+        ('efectivo', 'Efectivo'),
+        ('transferencia', 'Transferencia'),
+    ]
+    
     codigo = models.CharField(max_length=10, unique=True, verbose_name='Código')
     nombre = models.CharField(max_length=50, verbose_name='Nombre')
     valor_actual = models.DecimalField(
@@ -72,6 +77,13 @@ class Moneda(models.Model):
         decimal_places=6,
         verbose_name='Valor Comercial',
         help_text='Valor comercial de la moneda para transacciones'
+    )
+    tipo_moneda = models.CharField(
+        max_length=20,
+        choices=TIPO_MONEDA_CHOICES,
+        default='transferencia',
+        verbose_name='Tipo de Moneda',
+        help_text='Tipo de moneda: efectivo o transferencia'
     )
     activa = models.BooleanField(default=True, verbose_name='Activa')
     fecha_creacion = models.DateTimeField(auto_now_add=True)
@@ -147,6 +159,12 @@ class Pago(models.Model):
         ('efectivo', 'Efectivo'),
     ]
     
+    ESTADO_CHOICES = [
+        ('pendiente', 'Pendiente'),
+        ('confirmado', 'Confirmado'),
+        ('cancelado', 'Cancelado'),
+    ]
+    
     pago_id = models.CharField(max_length=50, unique=True, blank=True, help_text="ID único del pago")
     tipo_pago = models.CharField(max_length=20, choices=TIPO_PAGO_CHOICES, help_text="Tipo de pago")
     tipo_moneda = models.ForeignKey(Moneda, on_delete=models.SET_NULL, blank=True, null=True, help_text="Tipo de moneda")
@@ -157,6 +175,7 @@ class Pago(models.Model):
     carnet_identidad = models.CharField(max_length=50, blank=True, null=True, help_text="Carnet de identidad del destinatario")
     fecha_creacion = models.DateTimeField(auto_now_add=True, help_text="Fecha de creación del pago")
     usuario = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, help_text="Usuario que realizó el pago")
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='pendiente', help_text="Estado del pago")
     
     # Campos específicos para transferencia
     tarjeta = models.CharField(max_length=19, blank=True, null=True, help_text="Número de tarjeta (para transferencias)")
@@ -180,6 +199,53 @@ class Pago(models.Model):
     def __str__(self):
         return f"{self.pago_id} - {self.get_tipo_pago_display()} - {self.destinatario} - {self.cantidad}"
     
+    def get_estado_badge(self):
+        """Retorna la clase de Bootstrap para el badge según el estado"""
+        return {
+            'pendiente': 'warning',
+            'confirmado': 'success',
+            'cancelado': 'danger',
+        }.get(self.estado, 'secondary')
+
+    def get_estado_display(self):
+        """Retorna el texto para mostrar del estado"""
+        return {
+            'pendiente': 'Pendiente',
+            'confirmado': 'Confirmado',
+            'cancelado': 'Cancelado',
+        }.get(self.estado, 'Desconocido')
+
+    def puede_confirmar(self):
+        """Verifica si el pago puede pasar de pendiente a confirmado"""
+        return self.estado == 'pendiente'
+    
+    def puede_cancelar(self):
+        """Verifica si el pago puede ser cancelado (solo desde pendiente)"""
+        return self.estado == 'pendiente'
+    
+    def confirmar(self):
+        """Confirma el pago y descuenta del balance del usuario"""
+        if self.puede_confirmar():
+            self.estado = 'confirmado'
+            # Solo descontar del balance cuando se confirma
+            success = self.descontar_del_balance_usuario()
+            if success:
+                self.save()
+                return True
+            else:
+                # Si falla el descuento, no confirmar
+                self.estado = 'pendiente'
+                return False
+        return False
+    
+    def cancelar(self):
+        """Cancela el pago"""
+        if self.puede_cancelar():
+            self.estado = 'cancelado'
+            self.save()
+            return True
+        return False
+    
     def calcular_monto_en_usd(self):
         """Calcula el monto del pago convertido a USD"""
         from decimal import Decimal
@@ -200,32 +266,16 @@ class Pago(models.Model):
             return Decimal('0')
     
     def descontar_del_balance_usuario(self):
-        """Descuenta el monto del pago del balance del usuario (permite balance negativo)"""
-        if self.usuario and self.cantidad:
-            try:
-                perfil = self.usuario.perfil
-                monto_usd = self.calcular_monto_en_usd()
-                
-                # Descontar el monto independientemente del balance (permite negativo)
-                perfil.balance -= monto_usd
-                perfil.save()
-                return True
-            except Exception:
-                return False
-        return False
+        """DEPRECATED: El balance ahora se calcula dinámicamente"""
+        # Esta funcionalidad está deshabilitada porque el balance
+        # se calcula dinámicamente en base a las transacciones
+        return True
     
     def reembolsar_al_balance_usuario(self):
-        """Reembolsa el monto del pago al balance del usuario (para eliminaciones)"""
-        if self.usuario and self.cantidad:
-            try:
-                perfil = self.usuario.perfil
-                monto_usd = self.calcular_monto_en_usd()
-                perfil.balance += monto_usd
-                perfil.save()
-                return True
-            except Exception:
-                return False
-        return False
+        """DEPRECATED: El balance ahora se calcula dinámicamente"""
+        # Esta funcionalidad está deshabilitada porque el balance
+        # se calcula dinámicamente en base a las transacciones
+        return True
 
 
 class Remesa(models.Model):
@@ -296,8 +346,8 @@ class Remesa(models.Model):
         return self.estado == 'confirmada'
     
     def puede_cancelar(self):
-        """Verifica si la remesa puede ser cancelada (desde pendiente o confirmada)"""
-        return self.estado in ['pendiente', 'confirmada']
+        """Verifica si la remesa puede ser cancelada (solo desde pendiente)"""
+        return self.estado == 'pendiente'
     
     def confirmar(self):
         """Cambia el estado de pendiente a confirmada y actualiza el balance"""
@@ -343,17 +393,10 @@ class Remesa(models.Model):
             return Decimal('0')
 
     def actualizar_balance_usuario(self):
-        """Actualiza el balance del usuario gestor cuando se crea/confirma la remesa"""
-        if self.gestor and self.importe:
-            try:
-                perfil = self.gestor.perfil
-                monto_usd = self.calcular_monto_en_usd()
-                perfil.balance += monto_usd
-                perfil.save()
-                return True
-            except Exception:
-                return False
-        return False
+        """DEPRECATED: El balance ahora se calcula dinámicamente"""
+        # Esta funcionalidad está deshabilitada porque el balance
+        # se calcula dinámicamente en base a las transacciones
+        return True
 
 
 class RegistroRemesas(models.Model):
@@ -414,40 +457,23 @@ def guardar_estado_anterior_remesa(sender, instance, **kwargs):
 @receiver(post_save, sender=Remesa)
 def actualizar_balance_post_remesa(sender, instance, created, **kwargs):
     """
-    Signal que se ejecuta después de guardar una remesa.
-    Actualiza el balance cuando se crea una nueva remesa confirmada o cuando se confirma una existente.
+    DEPRECATED: El balance ahora se calcula dinámicamente
     """
-    # Actualizar balance si:
-    # 1. Es una remesa nueva y ya está confirmada/completada
-    # 2. O si el estado cambió de pendiente a confirmada/completada
-    estado_anterior = getattr(instance, '_estado_anterior', None)
-    
-    if created and instance.estado in ['confirmada', 'completada']:
-        # Remesa nueva ya confirmada
-        instance.actualizar_balance_usuario()
-    elif (not created and 
-          estado_anterior == 'pendiente' and 
-          instance.estado in ['confirmada', 'completada']):
-        # Remesa existente que cambió de pendiente a confirmada/completada
-        instance.actualizar_balance_usuario()
+    # Signal deshabilitado - el balance se calcula dinámicamente
+    pass
 
 @receiver(post_save, sender=Pago)
 def actualizar_balance_post_pago(sender, instance, created, **kwargs):
     """
-    Signal que se ejecuta después de guardar un pago.
-    Descuenta el monto del balance del usuario cuando se crea un nuevo pago.
+    DEPRECATED: El balance ahora se calcula dinámicamente
     """
-    if created:
-        # Solo descontar cuando se crea un nuevo pago
-        if not instance.descontar_del_balance_usuario():
-            # Si no se pudo descontar (saldo insuficiente), podríamos registrar un error
-            # Por ahora, dejamos que el pago se cree pero no se descuenta
-            pass
+    # Signal deshabilitado - el balance se calcula dinámicamente
+    pass
 
 @receiver(post_delete, sender=Pago)
 def reembolsar_balance_post_eliminar_pago(sender, instance, **kwargs):
     """
-    Signal que se ejecuta después de eliminar un pago.
-    Reembolsa el monto al balance del usuario cuando se elimina un pago.
+    DEPRECATED: El balance ahora se calcula dinámicamente
     """
-    instance.reembolsar_al_balance_usuario()
+    # Signal deshabilitado - el balance se calcula dinámicamente
+    pass

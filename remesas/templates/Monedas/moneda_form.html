@@ -76,6 +76,31 @@
                             <small class="form-text text-muted">Valor comercial de la moneda para transacciones</small>
                         </div>
                         
+                        <div class="mb-3">
+                            <label class="form-label">Tipo de Moneda</label>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input type="radio" class="form-check-input" id="tipo_efectivo" name="tipo_moneda" value="efectivo" 
+                                               {% if not is_edit or moneda.tipo_moneda == 'efectivo' %}checked{% endif %}>
+                                        <label class="form-check-label" for="tipo_efectivo">
+                                            <i class="fas fa-money-bill-wave me-2"></i>Efectivo
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input type="radio" class="form-check-input" id="tipo_transferencia" name="tipo_moneda" value="transferencia" 
+                                               {% if is_edit and moneda.tipo_moneda == 'transferencia' or not is_edit %}checked{% endif %}>
+                                        <label class="form-check-label" for="tipo_transferencia">
+                                            <i class="fas fa-credit-card me-2"></i>Transferencia
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <small class="form-text text-muted">Seleccione si esta moneda se maneja como efectivo o transferencia</small>
+                        </div>
+                        
                         <div class="mb-3 form-check">
                             <input type="checkbox" class="form-check-input" id="activa" name="activa" 
                                    {% if not is_edit or moneda.activa %}checked{% endif %}>

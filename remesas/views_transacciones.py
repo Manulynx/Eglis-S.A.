@@ -14,13 +14,23 @@ def registro_transacciones(request):
     tab_activa = request.GET.get('tab', 'remesas')  # Por defecto muestra remesas
     tipo = tab_activa  # Mantener compatibilidad con el resto del código
     
-    # Consultas base - filtrar por usuario si no es admin
-    if request.user.is_staff or request.user.is_superuser:
+    # Consultas base - filtrar según el tipo de usuario
+    user_tipo = 'admin' if request.user.is_superuser else (
+        request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
+    )
+    
+    if user_tipo == 'admin':
         # Si es admin, mostrar todos los registros
         remesas = Remesa.objects.select_related('moneda', 'gestor').all()
         pagos = Pago.objects.select_related('tipo_moneda').all()
+    elif user_tipo == 'contable':
+        # Si es contable, mostrar todos los registros excepto los de administradores
+        from django.contrib.auth.models import User
+        non_admin_users = User.objects.filter(is_superuser=False)
+        remesas = Remesa.objects.select_related('moneda', 'gestor').filter(gestor__in=non_admin_users)
+        pagos = Pago.objects.select_related('tipo_moneda').filter(usuario__in=non_admin_users)
     else:
-        # Si no es admin, mostrar solo los registros del usuario actual
+        # Si es gestor u otro tipo, mostrar solo los registros del usuario actual
         remesas = Remesa.objects.select_related('moneda', 'gestor').filter(gestor=request.user)
         pagos = Pago.objects.select_related('tipo_moneda').filter(usuario=request.user)
     
@@ -167,7 +177,7 @@ def registro_transacciones(request):
             'cantidad': pago.cantidad,
             'moneda': pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD',
             'equiv_usd': pago.calcular_monto_en_usd(),
-            'estado': 'efectuado',  # Estado fijo para pagos
+            'estado': pago.estado,  # Usar el estado real del pago
             'fecha': pago.fecha_creacion,  # Mantenemos fecha para filtros
             'id_original': pago.id,
             'tipo_operacion': 'Pago',
@@ -271,7 +281,7 @@ def registro_transacciones(request):
     
     # Estadísticas de remesas (basadas en los datos filtrados)
     total_pendientes = remesas.filter(estado='pendiente').count()
-    total_confirmadas = remesas.filter(estado='confirmada').count()
+    total_confirmadas = 0  # Ya no tenemos estado confirmada como intermedio
     total_completadas = remesas.filter(estado='completada').count()
     total_canceladas = remesas.filter(estado='cancelada').count()
     
@@ -301,7 +311,7 @@ def registro_transacciones(request):
     total_filtradas_count = total_operaciones_count
     
     # TOTAL REMESAS: Solo sumar remesas confirmadas y completadas
-    remesas_confirmadas_completadas = remesas.filter(estado__in=['confirmada', 'completada'])
+    remesas_confirmadas_completadas = remesas.filter(estado='completada')
     total_remesas = sum(remesa.calcular_monto_en_usd() for remesa in remesas_confirmadas_completadas)
     
     total_pagos = sum(pago.calcular_monto_en_usd() for pago in pagos)
@@ -309,13 +319,18 @@ def registro_transacciones(request):
     # Obtener monedas para filtros
     monedas = Moneda.objects.filter(activa=True)
     
-    # Obtener usuarios para filtros (solo si el usuario actual es admin o contable)
+    # Obtener usuarios para filtros (admin ve todos, contable ve no-admin, gestor no ve filtros de usuario)
     usuarios = []
-    if request.user.is_authenticated and hasattr(request.user, 'perfil'):
-        user_tipo_actual = request.user.perfil.tipo_usuario
-        if user_tipo_actual in ['admin', 'contable']:
+    if request.user.is_authenticated:
+        user_tipo_actual = 'admin' if request.user.is_superuser else (
+            request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
+        )
+        if user_tipo_actual == 'admin':
             from django.contrib.auth.models import User
-            usuarios = User.objects.filter(perfil__isnull=False).select_related('perfil').order_by('first_name', 'username')
+            usuarios = User.objects.all().select_related('perfil').order_by('first_name', 'username')
+        elif user_tipo_actual == 'contable':
+            from django.contrib.auth.models import User
+            usuarios = User.objects.filter(is_superuser=False).select_related('perfil').order_by('first_name', 'username')
     
     # PAGINACIÓN COMENTADA TEMPORALMENTE - Mostrando todos los resultados
     # remesas_paginator = Paginator(remesas, 10)
@@ -332,8 +347,13 @@ def registro_transacciones(request):
     
     # Obtener el tipo de usuario si está autenticado
     user_tipo = None
-    if request.user.is_authenticated and hasattr(request.user, 'perfil'):
-        user_tipo = request.user.perfil.tipo_usuario
+    if request.user.is_authenticated:
+        if request.user.is_superuser:
+            user_tipo = 'admin'
+        elif hasattr(request.user, 'perfil'):
+            user_tipo = request.user.perfil.tipo_usuario
+        else:
+            user_tipo = 'gestor'  # Default
 
     context = {
         'remesas': remesas,  # Mostrando todos los resultados sin paginación
@@ -369,9 +389,18 @@ def exportar_excel(request, tipo):
     """Vista para exportar datos a formato CSV (compatible con Excel)"""
     try:
         # Aplicar los mismos filtros que en la vista principal
-        if request.user.is_staff or request.user.is_superuser:
+        user_tipo = 'admin' if request.user.is_superuser else (
+            request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
+        )
+        
+        if user_tipo == 'admin':
             remesas = Remesa.objects.select_related('moneda', 'gestor').all()
             pagos = Pago.objects.select_related('tipo_moneda').all()
+        elif user_tipo == 'contable':
+            from django.contrib.auth.models import User
+            non_admin_users = User.objects.filter(is_superuser=False)
+            remesas = Remesa.objects.select_related('moneda', 'gestor').filter(gestor__in=non_admin_users)
+            pagos = Pago.objects.select_related('tipo_moneda').filter(usuario__in=non_admin_users)
         else:
             remesas = Remesa.objects.select_related('moneda', 'gestor').filter(gestor=request.user)
             pagos = Pago.objects.select_related('tipo_moneda').filter(usuario=request.user)
@@ -542,7 +571,7 @@ def exportar_excel(request, tipo):
                     'cantidad': pago.cantidad,
                     'moneda': pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD',
                     'equiv_usd': pago.calcular_monto_en_usd(),
-                    'estado': 'efectuado',
+                    'estado': pago.estado,  # Usar el estado real del pago
                     'fecha': pago.fecha_creacion,
                     'detalle': pago.destinatario or ''
                 })

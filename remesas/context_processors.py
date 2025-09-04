@@ -10,14 +10,28 @@ def user_balance(request):
     
     if request.user.is_authenticated:
         try:
-            # Usar el balance del PerfilUsuario en lugar del modelo Balance
-            perfil = request.user.perfil
-            context['user_balance'] = perfil.balance
+            # Determinar el tipo de usuario
+            if request.user.is_superuser:
+                context['user_tipo'] = 'admin'
+                # Los administradores pueden no tener perfil, usar balance 0
+                context['user_balance'] = Decimal('0.00')
+            else:
+                # Usar el balance calculado dinámicamente
+                perfil = request.user.perfil
+                balance_calculado = perfil.calcular_balance_real()
+                
+                # Actualizar balance almacenado si difiere del calculado
+                if perfil.balance != balance_calculado:
+                    perfil.actualizar_balance()
+                
+                context['user_balance'] = balance_calculado
+                context['user_tipo'] = perfil.tipo_usuario
+            
             context['user_balance_moneda'] = 'USD'  # El balance siempre está en USD
-            context['user_tipo'] = perfil.tipo_usuario
+            
         except Exception:
             context['user_balance'] = Decimal('0.00')
             context['user_balance_moneda'] = 'USD'
-            context['user_tipo'] = None
+            context['user_tipo'] = 'gestor'  # Default a gestor si hay error
     
     return context
