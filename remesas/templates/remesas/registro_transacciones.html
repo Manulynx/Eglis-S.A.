@@ -669,6 +669,17 @@
                                 </span>
                             </div>
                             <div class="mobile-item-body">
+                                {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                                <div class="mb-2">
+                                    <small class="text-muted">Usuario:</small><br>
+                                    {% if remesa.gestor %}
+                                        <span class="text-info">{{ remesa.gestor.first_name|default:remesa.gestor.username }}</span>
+                                        <br><small class="text-muted">{{ remesa.gestor.perfil.tipo_usuario|capfirst }}</small>
+                                    {% else %}
+                                        <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
                                 <div class="mb-2">
                                     <small class="text-muted">Receptor:</small><br>
                                     {{ remesa.receptor_nombre|default:"No especificado" }}
@@ -970,9 +981,32 @@
                                         {{ pago.tipo_pago|title }}
                                     </span>
                                 </div>
-                                <span class="text-muted">{{ pago.fecha_creacion|date:"d/m/Y H:i" }}</span>
+                                <div class="text-end">
+                                    <span class="text-muted">{{ pago.fecha_creacion|date:"d/m/Y H:i" }}</span>
+                                    <br>
+                                    {% if pago.estado == 'confirmado' %}
+                                        <span class="badge bg-success">Confirmado</span>
+                                    {% elif pago.estado == 'pendiente' %}
+                                        <span class="badge bg-warning text-dark">Pendiente</span>
+                                    {% elif pago.estado == 'cancelado' %}
+                                        <span class="badge bg-danger">Cancelado</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ pago.estado|title }}</span>
+                                    {% endif %}
+                                </div>
                             </div>
                             <div class="mobile-item-body">
+                                {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                                <div class="mb-2">
+                                    <small class="text-muted">Usuario:</small><br>
+                                    {% if pago.usuario %}
+                                        <span class="text-info">{{ pago.usuario.first_name|default:pago.usuario.username }}</span>
+                                        <br><small class="text-muted">{{ pago.usuario.perfil.tipo_usuario|capfirst }}</small>
+                                    {% else %}
+                                        <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
                                 <div class="mb-2">
                                     <small class="text-muted">Destinatario:</small><br>
                                     {{ pago.destinatario }}
@@ -1003,8 +1037,7 @@
                                 {% endif %}
                             </div>
                             <div class="mobile-item-footer">
-                                <small class="text-muted">{{ pago.fecha_creacion|date:"d/m/Y H:i" }}</small>
-                                <div class="d-flex gap-2 flex-wrap">
+                                <div class="d-flex gap-2 flex-wrap w-100">
                                     <a href="{% url 'remesas:detalle_pago' pago.id %}"
                                        class="btn btn-info btn-sm">
                                         <i class="fas fa-eye"></i> Ver
@@ -1278,6 +1311,26 @@
                                 {% endif %}
                             </div>
                             <div class="mobile-item-body">
+                                {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                                <div class="mb-2">
+                                    <small class="text-muted">Usuario:</small><br>
+                                    {% if operacion.tipo_operacion == 'Remesa' %}
+                                        {% if operacion.gestor %}
+                                            <span class="text-info">{{ operacion.gestor.first_name|default:operacion.gestor.username }}</span>
+                                            <br><small class="text-muted">{{ operacion.gestor.perfil.tipo_usuario|capfirst }}</small>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    {% else %}
+                                        {% if operacion.usuario %}
+                                            <span class="text-info">{{ operacion.usuario.first_name|default:operacion.usuario.username }}</span>
+                                            <br><small class="text-muted">{{ operacion.usuario.perfil.tipo_usuario|capfirst }}</small>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                                {% endif %}
                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                     <div>
                                         <small class="text-muted">Cantidad:</small><br>
@@ -3404,6 +3457,48 @@
 
     .mobile-item-body {
         font-size: 0.9rem;
+    }
+    
+    /* Estilo específico para información de usuario en móvil */
+    .mobile-item-body .mb-2:first-child {
+        background: rgba(0, 123, 255, 0.1);
+        border-radius: 6px;
+        padding: 8px 10px;
+        border-left: 3px solid #007bff;
+    }
+    
+    .mobile-item-body .text-info {
+        font-weight: 600;
+        color: #66c2ff !important;
+    }
+    
+    .mobile-item-body small.text-muted {
+        font-size: 0.75rem;
+        opacity: 0.8;
+    }
+    
+    /* Mejoras adicionales para móviles muy pequeños */
+    @media (max-width: 576px) {
+        .mobile-item-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+        
+        .mobile-item-header .text-end {
+            align-self: flex-end;
+            width: 100%;
+            text-align: right;
+        }
+        
+        .mobile-item-body .d-flex {
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .mobile-item-body .text-end {
+            text-align: left !important;
+        }
     }
 
     .mobile-item-footer {
