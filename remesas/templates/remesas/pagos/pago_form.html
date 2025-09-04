@@ -827,8 +827,30 @@ document.addEventListener('DOMContentLoaded', function() {
     // Configurar formato de tarjeta (solo números, agrupados en bloques de 4)
     configurarFormatoTarjeta();
     
-    // Calcular inicial si hay valores
+        // Calcular inicial si hay valores
     calcularMontoUSD();
+    
+    // Al cargar la página, verificar si hay mensajes de Django y liberar formulario
+    setTimeout(() => {
+        const mensajes = document.querySelectorAll('.alert, .messages div, .message');
+        if (mensajes.length > 0) {
+            console.log('Mensajes encontrados, liberando formulario');
+            liberarFormulario();
+        }
+    }, 100);
+    
+    // Liberar formulario después de cualquier navegación exitosa
+    if (window.performance) {
+        const navEntries = performance.getEntriesByType('navigation');
+        if (navEntries.length > 0) {
+            const navEntry = navEntries[0];
+            // Si la página se recargó por una redirección del servidor
+            if (navEntry.type === 'reload' || navEntry.type === 'navigate') {
+                liberarFormulario();
+            }
+        }
+    }
+});
     
     // Confirmación antes de enviar
     form.addEventListener('submit', function(e) {
@@ -890,33 +912,70 @@ document.addEventListener('DOMContentLoaded', function() {
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Enviando...';
             submitBtn.classList.add('btn-warning');
             submitBtn.classList.remove('btn-primary');
-            
-            // Timeout de seguridad - liberar después de 30 segundos
-            setTimeout(() => {
-                if (form.dataset.enviando === 'true') {
-                    console.log('Timeout de seguridad: liberando formulario');
-                    liberarFormulario();
-                }
-            }, 30000);
         }
+        
+        // Timeout de seguridad más largo - liberar después de 60 segundos
+        const timeoutId = setTimeout(() => {
+            console.log('Timeout de seguridad: liberando formulario después de 60 segundos');
+            liberarFormulario();
+            mostrarError('El envío está tomando más tiempo del esperado. Si el problema persiste, recargue la página.');
+        }, 60000);
+        
+        // Guardar el ID del timeout para poder cancelarlo si el envío es exitoso
+        form.dataset.timeoutId = timeoutId;
     });
     
     // Función para liberar el formulario después del envío
     function liberarFormulario() {
+        // Cancelar timeout si existe
+        if (form.dataset.timeoutId) {
+            clearTimeout(parseInt(form.dataset.timeoutId));
+            delete form.dataset.timeoutId;
+        }
+        
         form.dataset.enviando = 'false';
         const submitBtn = form.querySelector('button[type="submit"]');
         if (submitBtn) {
             submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Enviar Pago';
+            submitBtn.innerHTML = 'Realizar Pago';
             submitBtn.classList.remove('btn-warning');
             submitBtn.classList.add('btn-primary');
         }
     }
     
+    // Calcular inicial si hay valores
+    calcularMontoUSD();
+    
     // Liberar formulario si hay un error de servidor o navegación
     window.addEventListener('beforeunload', function() {
         liberarFormulario();
     });
+    
+    // Liberar formulario cuando la página se carga completamente (en caso de redirección)
+    window.addEventListener('load', function() {
+        liberarFormulario();
+    });
+    
+    // Al cargar, verificar si hay mensajes de Django y liberar formulario
+    setTimeout(() => {
+        const mensajes = document.querySelectorAll('.alert, .messages div, .message');
+        if (mensajes.length > 0) {
+            console.log('Mensajes encontrados, liberando formulario');
+            liberarFormulario();
+        }
+    }, 100);
+    
+    // Liberar formulario después de cualquier navegación exitosa
+    if (window.performance) {
+        const navEntries = performance.getEntriesByType('navigation');
+        if (navEntries.length > 0) {
+            const navEntry = navEntries[0];
+            // Si la página se recargó por una redirección del servidor
+            if (navEntry.type === 'reload' || navEntry.type === 'navigate') {
+                liberarFormulario();
+            }
+        }
+    }
     
     function mostrarError(mensaje) {
         if (typeof Swal !== 'undefined') {
@@ -931,6 +990,6 @@ document.addEventListener('DOMContentLoaded', function() {
             alert(mensaje);
         }
     }
-});
+
 </script>
 {% endblock %}

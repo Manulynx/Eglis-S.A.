@@ -1088,39 +1088,19 @@ function enviarRemesa() {
             cambiarEstadoBoton('success', '¡Guardado!', 'fas fa-check me-2');
             
             Swal.fire({
-                title: '¡Éxito!',
+                title: '¡Remesa creada exitosamente!',
                 text: result.message,
                 icon: 'success',
-                showCancelButton: true,
-                confirmButtonText: 'Ver Detalle',
-                cancelButtonText: 'Nueva Remesa',
+                confirmButtonText: 'Aceptar',
                 confirmButtonColor: '#198754',
                 background: '#212529',
-                color: '#fff'
+                color: '#fff',
+                allowOutsideClick: false,
+                allowEscapeKey: false
             }).then((swalResult) => {
                 if (swalResult.isConfirmed) {
-                    if (result.detalle_url) {
-                        window.location.href = result.detalle_url;
-                    } else {
-                        window.location.href = `/remesas/detalle/${result.remesa_pk}/`;
-                    }
-                } else {
-                    form.reset();
-                    generarIdYFecha();
-                    
-                    // Resetear checkboxes y ocultar campos opcionales
-                    document.getElementById('check_observaciones').checked = false;
-                    document.getElementById('check_comprobante').checked = false;
-                    document.getElementById('campo_observaciones').style.display = 'none';
-                    document.getElementById('campo_comprobante').style.display = 'none';
-                    
-                    // Eliminar cálculo de USD
-                    const calculoDiv = document.getElementById('calculo-usd-remesa');
-                    if (calculoDiv) {
-                        calculoDiv.remove();
-                    }
-                    
-                    cambiarEstadoBoton('normal', 'Guardar Remesa', 'fas fa-save me-2');
+                    // Redirigir a la lista de transacciones con la pestaña de remesas activa
+                    window.location.href = '/remesas/registro/?tab=remesas';
                 }
             });
         } else {
