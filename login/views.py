@@ -293,6 +293,7 @@ def crear_usuario(request):
         username = request.POST.get('username')
         first_name = request.POST.get('first_name')
         last_name = request.POST.get('last_name')
+        telefono = request.POST.get('telefono', '')
         password1 = request.POST.get('password1')
         password2 = request.POST.get('password2')
         tipo_usuario = request.POST.get('tipo_usuario', 'gestor')
@@ -313,9 +314,11 @@ def crear_usuario(request):
                 is_superuser=is_superuser
             )
             
-            # Asignar tipo de usuario al perfil
+            # Asignar tipo de usuario y teléfono al perfil
             perfil = user.perfil
             perfil.tipo_usuario = tipo_usuario
+            if telefono:  # Solo asignar si se proporcionó un teléfono
+                perfil.telefono = telefono
             perfil.save()
             
             # Registrar acción si hay usuario autenticado
@@ -361,19 +364,22 @@ def obtener_usuario(request, user_id):
     try:
         usuario = get_object_or_404(User, id=user_id)
         
-        # Obtener el tipo de usuario
+        # Obtener el tipo de usuario y teléfono
         if usuario.is_superuser:
             tipo_usuario = 'admin'
             tipo_usuario_display = 'Administrador'
+            telefono = ''  # Los admins no tienen perfil con teléfono
         else:
             try:
                 perfil = usuario.perfil
                 tipo_usuario = perfil.tipo_usuario
+                telefono = perfil.telefono if perfil.telefono else ''
                 # Usar el display definido en las opciones del modelo
                 tipo_usuario_display = dict(perfil.TIPO_USUARIO_CHOICES).get(tipo_usuario, 'Gestor')
             except:
                 tipo_usuario = 'gestor'
                 tipo_usuario_display = 'Gestor'
+                telefono = ''
         
         return JsonResponse({
             'status': 'success',
@@ -383,6 +389,7 @@ def obtener_usuario(request, user_id):
                 'first_name': usuario.first_name,
                 'last_name': usuario.last_name,
                 'email': usuario.email,
+                'telefono': telefono,
                 'is_superuser': usuario.is_superuser,
                 'tipo_usuario': tipo_usuario,
                 'tipo_usuario_display': tipo_usuario_display,
@@ -416,6 +423,7 @@ def editar_usuario(request, user_id):
             last_name = request.POST.get('last_name', '').strip()
             password = request.POST.get('password', '').strip()
             tipo_usuario = request.POST.get('tipo_usuario', '').strip()
+            telefono = request.POST.get('telefono', '').strip()
             
             # Actualizar campos del usuario solo si se proporcionaron valores
             if username:
@@ -456,10 +464,16 @@ def editar_usuario(request, user_id):
                     try:
                         perfil = usuario.perfil
                         perfil.tipo_usuario = tipo_usuario
+                        if telefono:
+                            perfil.telefono = telefono
                         perfil.save()
                     except:
                         # Si no tiene perfil, crear uno nuevo
-                        PerfilUsuario.objects.create(user=usuario, tipo_usuario=tipo_usuario)
+                        PerfilUsuario.objects.create(
+                            user=usuario, 
+                            tipo_usuario=tipo_usuario,
+                            telefono=telefono if telefono else ''
+                        )
             
             # Validar y guardar usuario
             usuario.full_clean()

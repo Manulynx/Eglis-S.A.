@@ -115,7 +115,7 @@
                     <thead>
                         <tr>
                             <th>Usuario</th>
-                            <th>Tipo</th>
+                            <th>Teléfono</th>
                             <th>Balance</th>
                             <th>Remesas</th>
                             <th>Pagos</th>
@@ -129,22 +129,23 @@
                         {% for usuario in usuarios %}
                         <tr>
                             <td>
+                                {% if usuario.is_superuser %}
+                                    <i class="fas fa-crown text-danger me-2" title="Administrador"></i>
+                                {% elif usuario.perfil.tipo_usuario == 'contable' %}
+                                    <i class="fas fa-calculator text-info me-2" title="Contable"></i>
+                                {% else %}
+                                    <i class="fas fa-user text-secondary me-2" title="Gestor"></i>
+                                {% endif %}
                                 {{ usuario.username }}
                                 <br>
                                 <small class="text-muted">{{ usuario.first_name }} {{ usuario.last_name }}</small>
                             </td>
                             <td>
-                                {% if usuario.is_superuser %}
-                                    <span class="badge bg-danger">
-                                        <i class="fas fa-crown me-1"></i>Administrador
-                                    </span>
-                                {% elif usuario.perfil.tipo_usuario == 'contable' %}
-                                    <span class="badge bg-info">
-                                        <i class="fas fa-calculator me-1"></i>Contable
-                                    </span>
+                                {% if usuario.perfil.telefono %}
+                                    <i class="fas fa-phone me-1 text-success"></i>{{ usuario.perfil.telefono }}
                                 {% else %}
-                                    <span class="badge bg-secondary">
-                                        <i class="fas fa-user me-1"></i>Gestor
+                                    <span class="text-muted">
+                                        <i class="fas fa-phone-slash me-1"></i>Sin teléfono
                                     </span>
                                 {% endif %}
                             </td>
@@ -216,21 +217,26 @@
                     <!-- Encabezado con nombre y estado -->
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <div>
-                            <h5 class="mb-0 text-white">{{ usuario.username }}</h5>
+                            <h5 class="mb-0 text-white">
+                                {% if usuario.is_superuser %}
+                                    <i class="fas fa-crown text-danger me-2" title="Administrador"></i>
+                                {% elif usuario.perfil.tipo_usuario == 'contable' %}
+                                    <i class="fas fa-calculator text-info me-2" title="Contable"></i>
+                                {% else %}
+                                    <i class="fas fa-user text-secondary me-2" title="Gestor"></i>
+                                {% endif %}
+                                {{ usuario.username }}
+                            </h5>
                             <small class="text-muted">{{ usuario.first_name }} {{ usuario.last_name }}</small>
                             <div class="mt-1">
-                                {% if usuario.is_superuser %}
-                                    <span class="badge bg-danger">
-                                        <i class="fas fa-crown me-1"></i>Administrador
-                                    </span>
-                                {% elif usuario.perfil.tipo_usuario == 'contable' %}
-                                    <span class="badge bg-info">
-                                        <i class="fas fa-calculator me-1"></i>Contable
-                                    </span>
+                                {% if usuario.perfil.telefono %}
+                                    <small class="text-success">
+                                        <i class="fas fa-phone me-1"></i>{{ usuario.perfil.telefono }}
+                                    </small>
                                 {% else %}
-                                    <span class="badge bg-secondary">
-                                        <i class="fas fa-user me-1"></i>Gestor
-                                    </span>
+                                    <small class="text-muted">
+                                        <i class="fas fa-phone-slash me-1"></i>Sin teléfono
+                                    </small>
                                 {% endif %}
                             </div>
                         </div>
@@ -352,6 +358,11 @@
                         <input type="text" name="last_name" class="form-control" required>
                     </div>
                     <div class="mb-3">
+                        <label class="form-label">Teléfono</label>
+                        <input type="tel" name="telefono" class="form-control" placeholder="Ej: +1234567890">
+                        <small class="text-muted">Campo opcional</small>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label">Tipo de Usuario</label>
                         <select name="tipo_usuario" class="form-select" required>
                             <option value="gestor" selected>Gestor</option>
@@ -410,6 +421,13 @@
                         <input type="text" name="last_name" id="editLastName" class="form-control" 
                                placeholder="Dejar en blanco para mantener actual">
                         <small class="text-muted">Apellidos actuales: <span id="currentLastName"></span></small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Teléfono</label>
+                        <input type="tel" name="telefono" id="editTelefono" class="form-control" 
+                               placeholder="Dejar en blanco para mantener actual">
+                        <small class="text-muted">Teléfono actual: <span id="currentTelefono"></span></small>
                     </div>
                     
                     <div class="mb-3">
@@ -1158,6 +1176,7 @@ function abrirModalEditar(userId, username) {
             document.getElementById('editUsername').value = '';
             document.getElementById('editFirstName').value = '';
             document.getElementById('editLastName').value = '';
+            document.getElementById('editTelefono').value = '';
             document.getElementById('editPassword').value = '';
             
             // Seleccionar el tipo de usuario actual en el select
@@ -1168,12 +1187,14 @@ function abrirModalEditar(userId, username) {
             document.getElementById('currentUsername').textContent = usuario.username;
             document.getElementById('currentFirstName').textContent = usuario.first_name || '(Sin nombre)';
             document.getElementById('currentLastName').textContent = usuario.last_name || '(Sin apellidos)';
+            document.getElementById('currentTelefono').textContent = usuario.telefono || '(Sin teléfono)';
             document.getElementById('currentTipoUsuario').textContent = usuario.tipo_usuario_display;
             
             // Actualizar placeholders
             document.getElementById('editUsername').placeholder = `Actual: ${usuario.username}`;
             document.getElementById('editFirstName').placeholder = `Actual: ${usuario.first_name || '(Sin nombre)'}`;
             document.getElementById('editLastName').placeholder = `Actual: ${usuario.last_name || '(Sin apellidos)'}`;
+            document.getElementById('editTelefono').placeholder = `Actual: ${usuario.telefono || '(Sin teléfono)'}`;
             
             console.log('Datos del usuario cargados:', usuario);
         } else {
@@ -1183,6 +1204,7 @@ function abrirModalEditar(userId, username) {
             document.getElementById('editUsername').value = '';
             document.getElementById('editFirstName').value = '';
             document.getElementById('editLastName').value = '';
+            document.getElementById('editTelefono').value = '';
             document.getElementById('editPassword').value = '';
             document.getElementById('editTipoUsuario').value = '';
             
@@ -1190,6 +1212,7 @@ function abrirModalEditar(userId, username) {
             document.getElementById('currentUsername').textContent = username;
             document.getElementById('currentFirstName').textContent = '(Información no disponible)';
             document.getElementById('currentLastName').textContent = '(Información no disponible)';
+            document.getElementById('currentTelefono').textContent = '(Información no disponible)';
             document.getElementById('currentTipoUsuario').textContent = '(Información no disponible)';
         }
     })
@@ -1200,6 +1223,7 @@ function abrirModalEditar(userId, username) {
         document.getElementById('editUsername').value = '';
         document.getElementById('editFirstName').value = '';
         document.getElementById('editLastName').value = '';
+        document.getElementById('editTelefono').value = '';
         document.getElementById('editPassword').value = '';
         document.getElementById('editTipoUsuario').value = '';
         
@@ -1207,6 +1231,7 @@ function abrirModalEditar(userId, username) {
         document.getElementById('currentUsername').textContent = username;
         document.getElementById('currentFirstName').textContent = '(Error cargando datos)';
         document.getElementById('currentLastName').textContent = '(Error cargando datos)';
+        document.getElementById('currentTelefono').textContent = '(Error cargando datos)';
         document.getElementById('currentTipoUsuario').textContent = '(Error cargando datos)';
     });
     
