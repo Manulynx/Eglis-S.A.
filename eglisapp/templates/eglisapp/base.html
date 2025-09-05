@@ -426,19 +426,30 @@
               </div>
               
               <!-- Balance del usuario -->
-              {% if user_balance is not None %}
+              {% if user.is_authenticated %}
               <div class="d-flex align-items-center">
-                {% if user_balance >= 0 %}
-                <span class="badge bg-success rounded-pill fs-4">
+                <!-- Siempre mostrar el balance para usuarios autenticados -->
+                {% if user_balance is not None and user_balance >= 0 %}
+                <span class="badge bg-success rounded-pill fs-4" id="balance-badge" style="cursor: pointer;" title="Clic para actualizar balance">
                 <i class="fas fa-wallet me-1"></i>
                 <span class="fw-medium">Balance:</span>
-                  {{ user_balance|floatformat:2 }} {{ user_balance_moneda }}
+                  <span id="balance-amount">{{ user_balance|floatformat:2 }}</span> <span id="balance-currency">{{ user_balance_moneda }}</span>
+                  <i class="fas fa-sync-alt ms-1" id="balance-refresh-icon" style="font-size: 0.8em;"></i>
                 </span>
-                {% else %}
-                <span class="badge bg-danger rounded-pill fs-4">
+                {% elif user_balance is not None and user_balance < 0 %}
+                <span class="badge bg-danger rounded-pill fs-4" id="balance-badge" style="cursor: pointer;" title="Clic para actualizar balance">
                 <i class="fas fa-exclamation-triangle me-1"></i>
                 <span class="fw-medium">Balance:</span>
-                  {{ user_balance|floatformat:2 }} {{ user_balance_moneda }}
+                  <span id="balance-amount">{{ user_balance|floatformat:2 }}</span> <span id="balance-currency">{{ user_balance_moneda }}</span>
+                  <i class="fas fa-sync-alt ms-1" id="balance-refresh-icon" style="font-size: 0.8em;"></i>
+                </span>
+                {% else %}
+                <!-- Fallback si user_balance es None -->
+                <span class="badge bg-warning rounded-pill fs-4" id="balance-badge" style="cursor: pointer;" title="Clic para actualizar balance">
+                <i class="fas fa-question-circle me-1"></i>
+                <span class="fw-medium">Balance:</span>
+                  <span id="balance-amount">Cargando...</span> <span id="balance-currency">USD</span>
+                  <i class="fas fa-sync-alt ms-1" id="balance-refresh-icon" style="font-size: 0.8em;"></i>
                 </span>
                 {% endif %}
               </div>
@@ -1261,6 +1272,100 @@
         });
         
         console.log('Sistema de protección configurado exitosamente');
+    });
+    
+    // Sistema de actualización de balance
+    document.addEventListener('DOMContentLoaded', function() {
+        const balanceBadge = document.getElementById('balance-badge');
+        const balanceAmount = document.getElementById('balance-amount');
+        const balanceCurrency = document.getElementById('balance-currency');
+        const refreshIcon = document.getElementById('balance-refresh-icon');
+        
+        if (balanceBadge && balanceAmount && refreshIcon) {
+            let isUpdating = false;
+            
+            balanceBadge.addEventListener('click', async function() {
+                if (isUpdating) return;
+                
+                isUpdating = true;
+                
+                // Animación de carga
+                refreshIcon.classList.add('fa-spin');
+                balanceBadge.style.opacity = '0.7';
+                
+                try {
+                    const response = await fetch('/remesas/api/balance/', {
+                        method: 'GET',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        // Actualizar el balance en la interfaz
+                        balanceAmount.textContent = data.balance_formatted;
+                        
+                        // Cambiar color del badge según el balance
+                        if (data.balance >= 0) {
+                            balanceBadge.className = 'badge bg-success rounded-pill fs-4';
+                            balanceBadge.querySelector('i').className = 'fas fa-wallet me-1';
+                        } else {
+                            balanceBadge.className = 'badge bg-danger rounded-pill fs-4';
+                            balanceBadge.querySelector('i').className = 'fas fa-exclamation-triangle me-1';
+                        }
+                        
+                        // Feedback visual de éxito
+                        refreshIcon.className = 'fas fa-check ms-1';
+                        setTimeout(() => {
+                            refreshIcon.className = 'fas fa-sync-alt ms-1';
+                        }, 1500);
+                        
+                    } else {
+                        throw new Error(data.message || 'Error actualizando balance');
+                    }
+                    
+                } catch (error) {
+                    console.error('Error actualizando balance:', error);
+                    
+                    // Feedback visual de error
+                    refreshIcon.className = 'fas fa-exclamation-triangle ms-1';
+                    setTimeout(() => {
+                        refreshIcon.className = 'fas fa-sync-alt ms-1';
+                    }, 2000);
+                    
+                    // Mostrar notificación de error si SweetAlert está disponible
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            title: 'Error',
+                            text: 'No se pudo actualizar el balance. Intenta de nuevo.',
+                            icon: 'error',
+                            timer: 3000,
+                            background: '#212529',
+                            color: '#fff'
+                        });
+                    }
+                } finally {
+                    // Restaurar estado
+                    refreshIcon.classList.remove('fa-spin');
+                    balanceBadge.style.opacity = '1';
+                    isUpdating = false;
+                }
+            });
+            
+            // Tooltip hover effect
+            balanceBadge.addEventListener('mouseenter', function() {
+                if (!isUpdating) {
+                    this.style.transform = 'scale(1.05)';
+                    this.style.transition = 'transform 0.2s ease';
+                }
+            });
+            
+            balanceBadge.addEventListener('mouseleave', function() {
+                this.style.transform = 'scale(1)';
+            });
+        }
     });
     </script>
 

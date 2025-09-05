@@ -43,11 +43,13 @@ class PerfilUsuario(models.Model):
     
     def calcular_balance_real(self):
         """
-        Calcula el balance real del usuario basándose en remesas y pagos
+        Calcula el balance real del usuario basándose en remesas y pagos confirmados
         """
         from remesas.models import Remesa, Pago
         from decimal import Decimal
+        import logging
         
+        logger = logging.getLogger(__name__)
         balance_calculado = Decimal('0.00')
         
         # Sumar remesas completadas (dinero que entra)
@@ -57,17 +59,25 @@ class PerfilUsuario(models.Model):
             importe__isnull=False
         ).select_related('moneda')
         
+        total_remesas = Decimal('0.00')
         for remesa in remesas_completadas:
-            if remesa.importe:
+            if remesa.importe and remesa.importe > 0:
                 # Convertir a USD si es necesario
                 if remesa.moneda and remesa.moneda.codigo != 'USD':
                     try:
-                        importe_usd = remesa.importe / remesa.moneda.valor_actual
-                        balance_calculado += importe_usd
-                    except (ZeroDivisionError, AttributeError):
-                        pass
+                        # Verificar que el valor_actual no sea 0
+                        if remesa.moneda.valor_actual and remesa.moneda.valor_actual > 0:
+                            importe_usd = remesa.importe / remesa.moneda.valor_actual
+                            total_remesas += importe_usd
+                        else:
+                            logger.warning(f"Moneda {remesa.moneda.codigo} tiene valor_actual inválido: {remesa.moneda.valor_actual}")
+                    except (ZeroDivisionError, AttributeError) as e:
+                        logger.error(f"Error convirtiendo remesa {remesa.remesa_id}: {e}")
                 else:
-                    balance_calculado += remesa.importe
+                    # Remesa en USD o sin moneda específica
+                    total_remesas += remesa.importe
+        
+        balance_calculado += total_remesas
         
         # Restar pagos confirmados (dinero que sale)
         pagos_confirmados = Pago.objects.filter(
@@ -76,17 +86,28 @@ class PerfilUsuario(models.Model):
             cantidad__isnull=False
         ).select_related('tipo_moneda')
         
+        total_pagos = Decimal('0.00')
         for pago in pagos_confirmados:
-            if pago.cantidad:
+            if pago.cantidad and pago.cantidad > 0:
                 # Convertir a USD si es necesario
                 if pago.tipo_moneda and pago.tipo_moneda.codigo != 'USD':
                     try:
-                        cantidad_usd = pago.cantidad / pago.tipo_moneda.valor_actual
-                        balance_calculado -= cantidad_usd
-                    except (ZeroDivisionError, AttributeError):
-                        pass
+                        # Verificar que el valor_actual no sea 0
+                        if pago.tipo_moneda.valor_actual and pago.tipo_moneda.valor_actual > 0:
+                            cantidad_usd = pago.cantidad / pago.tipo_moneda.valor_actual
+                            total_pagos += cantidad_usd
+                        else:
+                            logger.warning(f"Moneda {pago.tipo_moneda.codigo} tiene valor_actual inválido: {pago.tipo_moneda.valor_actual}")
+                    except (ZeroDivisionError, AttributeError) as e:
+                        logger.error(f"Error convirtiendo pago {pago.pago_id}: {e}")
                 else:
-                    balance_calculado -= pago.cantidad
+                    # Pago en USD o sin moneda específica
+                    total_pagos += pago.cantidad
+        
+        balance_calculado -= total_pagos
+        
+        # Log para debugging si es necesario
+        logger.debug(f"Balance calculado para {self.user.username}: Remesas={total_remesas}, Pagos={total_pagos}, Balance={balance_calculado}")
         
         return balance_calculado
     
@@ -98,6 +119,28 @@ class PerfilUsuario(models.Model):
         self.balance = balance_real
         self.save()
         return balance_real
+    
+    def clean(self):
+        """
+        Validaciones personalizadas del modelo
+        """
+        from django.core.exceptions import ValidationError
+        
+        # Validar consistencia entre tipo_usuario y status de superuser
+        if self.user.is_superuser and self.tipo_usuario != 'admin':
+            raise ValidationError({
+                'tipo_usuario': 'Los superusers deben tener tipo de usuario "admin"'
+            })
+    
+    def save(self, *args, **kwargs):
+        """
+        Sobrescribir save para aplicar validaciones automáticas
+        """
+        # Auto-corregir tipo de usuario para superusers
+        if self.user.is_superuser and self.tipo_usuario != 'admin':
+            self.tipo_usuario = 'admin'
+        
+        super().save(*args, **kwargs)
 
 class SesionUsuario(models.Model):
     """
@@ -161,4 +204,15 @@ from django.dispatch import receiver
 @receiver(post_save, sender=User)
 def crear_perfil_usuario(sender, instance, created, **kwargs):
     if created:
-        PerfilUsuario.objects.create(user=instance)
+        # Crear perfil con tipo correcto según si es superuser
+        tipo_usuario = 'admin' if instance.is_superuser else 'gestor'
+        PerfilUsuario.objects.create(user=instance, tipo_usuario=tipo_usuario)
+    else:
+        # Usuario existente - sincronizar tipo de usuario si tiene perfil
+        if hasattr(instance, 'perfil'):
+            tipo_esperado = 'admin' if instance.is_superuser else instance.perfil.tipo_usuario
+            
+            # Solo actualizar si un superuser no tiene tipo 'admin'
+            if instance.is_superuser and instance.perfil.tipo_usuario != 'admin':
+                instance.perfil.tipo_usuario = 'admin'
+                instance.perfil.save()

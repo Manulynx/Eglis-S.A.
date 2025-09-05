@@ -14,6 +14,7 @@ urlpatterns = [
     path('api/monedas/', views.api_monedas, name='api_monedas'),
     path('api/gestores/', views.api_gestores, name='api_gestores'),
     path('api/metodos-pago/', views.api_metodos_pago, name='api_metodos_pago'),
+    path('api/balance/', views.api_balance_usuario, name='api_balance_usuario'),
 
     # Otras URLs
     # path('lista/', views.lista_remesas, name='remesas_lista'),  # ELIMINADO - Reemplazado por registro_transacciones

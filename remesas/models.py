@@ -455,25 +455,37 @@ def guardar_estado_anterior_remesa(sender, instance, **kwargs):
         instance._estado_anterior = None
 
 @receiver(post_save, sender=Remesa)
-def actualizar_balance_post_remesa(sender, instance, created, **kwargs):
+def invalidar_cache_balance_remesa(sender, instance, **kwargs):
     """
-    DEPRECATED: El balance ahora se calcula dinámicamente
+    Invalidar cache del balance cuando cambia una remesa
     """
-    # Signal deshabilitado - el balance se calcula dinámicamente
-    pass
+    if instance.gestor:
+        from .context_processors import invalidate_user_balance_cache
+        invalidate_user_balance_cache(instance.gestor.id)
 
 @receiver(post_save, sender=Pago)
-def actualizar_balance_post_pago(sender, instance, created, **kwargs):
+def invalidar_cache_balance_pago(sender, instance, **kwargs):
     """
-    DEPRECATED: El balance ahora se calcula dinámicamente
+    Invalidar cache del balance cuando cambia un pago
     """
-    # Signal deshabilitado - el balance se calcula dinámicamente
-    pass
+    if instance.usuario:
+        from .context_processors import invalidate_user_balance_cache
+        invalidate_user_balance_cache(instance.usuario.id)
+
+@receiver(post_delete, sender=Remesa)
+def invalidar_cache_balance_remesa_eliminada(sender, instance, **kwargs):
+    """
+    Invalidar cache del balance cuando se elimina una remesa
+    """
+    if instance.gestor:
+        from .context_processors import invalidate_user_balance_cache
+        invalidate_user_balance_cache(instance.gestor.id)
 
 @receiver(post_delete, sender=Pago)
-def reembolsar_balance_post_eliminar_pago(sender, instance, **kwargs):
+def invalidar_cache_balance_pago_eliminado(sender, instance, **kwargs):
     """
-    DEPRECATED: El balance ahora se calcula dinámicamente
+    Invalidar cache del balance cuando se elimina un pago
     """
-    # Signal deshabilitado - el balance se calcula dinámicamente
-    pass
+    if instance.usuario:
+        from .context_processors import invalidate_user_balance_cache
+        invalidate_user_balance_cache(instance.usuario.id)
