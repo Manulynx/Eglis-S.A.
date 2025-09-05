@@ -1119,6 +1119,9 @@
                                 <tr>
                                     <th style="min-width: 150px; background-color: #343a40; z-index: 10;">ID Operación</th>
                                     <th style="min-width: 100px; background-color: #343a40; z-index: 10;">Tipo</th>
+                                    {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                                    <th class="d-none d-lg-table-cell" style="min-width: 100px; background-color: #343a40; z-index: 10;">Usuario</th>
+                                    {% endif %}
                                     <th style="min-width: 120px; background-color: #343a40; z-index: 10;">Cantidad</th>
                                     <th style="min-width: 80px; background-color: #343a40; z-index: 10;">Moneda</th>
                                     <th style="min-width: 120px; background-color: #343a40; z-index: 10;">Equiv. USD</th>
@@ -1135,6 +1138,18 @@
                                             {{ operacion.tipo }}
                                         </span>
                                     </td>
+                                    {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                                    <td class="d-none d-lg-table-cell">
+                                        {% if operacion.usuario %}
+                                            <div class="text-truncate" style="max-width: 100px;" title="{{ operacion.usuario.first_name|default:operacion.usuario.username }} ({{ operacion.usuario.perfil.tipo_usuario|capfirst }})">
+                                                <span class="text-info">{{ operacion.usuario.first_name|default:operacion.usuario.username }}</span>
+                                                <br><small class="text-muted">{{ operacion.usuario.perfil.tipo_usuario|capfirst }}</small>
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    {% endif %}
                                     <td>
                                         {% if operacion.tipo_operacion == 'Pago' %}
                                             <span class="{% if operacion.estado == 'confirmado' %}text-danger{% else %}text-muted{% endif %}">
@@ -1170,7 +1185,7 @@
                                             </span>
                                         {% else %}
                                             {% if operacion.estado == 'confirmado' %}
-                                                <span class="badge bg-danger">Confirmado</span>
+                                                <span class="badge bg-success">Confirmado</span>
                                             {% elif operacion.estado == 'pendiente' %}
                                                 <span class="badge bg-warning text-dark">Pendiente</span>
                                             {% elif operacion.estado == 'cancelado' %}
@@ -1202,7 +1217,7 @@
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="7" class="text-center text-muted py-4">
+                                    <td colspan="{% if user_tipo == 'admin' or user_tipo == 'contable' %}8{% else %}7{% endif %}" class="text-center text-muted py-4">
                                         <i class="fas fa-inbox fa-2x mb-2"></i><br>
                                         No hay operaciones para mostrar
                                     </td>
@@ -1300,7 +1315,7 @@
                                     </span>
                                 {% else %}
                                     {% if operacion.estado == 'confirmado' %}
-                                        <span class="badge bg-danger">Confirmado</span>
+                                        <span class="badge bg-success">Confirmado</span>
                                     {% elif operacion.estado == 'pendiente' %}
                                         <span class="badge bg-warning text-dark">Pendiente</span>
                                     {% elif operacion.estado == 'cancelado' %}

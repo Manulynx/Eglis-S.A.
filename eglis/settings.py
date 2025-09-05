@@ -157,3 +157,21 @@ CRISPY_TEMPLATE_PACK = "bootstrap4"
 LOGIN_URL = 'login:login'  # URL para redirigir cuando se requiere login
 LOGIN_REDIRECT_URL = '/'   # URL para redirigir después del login exitoso
 LOGOUT_REDIRECT_URL = 'login:login'  # URL para redirigir después del logout
+
+# Configuración de logging para debug
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'remesas.context_processors': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+    },
+}

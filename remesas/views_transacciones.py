@@ -166,7 +166,9 @@ def registro_transacciones(request):
             'id_original': remesa.id,
             'tipo_operacion': 'Remesa',
             'remitente': remesa.receptor_nombre or '',  # Usar el campo correcto del modelo
-            'destinatario': ''  # Las remesas no tienen destinatario separado
+            'destinatario': '',  # Las remesas no tienen destinatario separado
+            'gestor': remesa.gestor,  # Usuario que creó la remesa
+            'usuario': remesa.gestor  # Alias para compatibilidad
         })
     
     # Agregar pagos a la lista combinada
@@ -182,7 +184,9 @@ def registro_transacciones(request):
             'id_original': pago.id,
             'tipo_operacion': 'Pago',
             'remitente': '',  # Agregado para búsqueda
-            'destinatario': pago.destinatario  # Agregado para búsqueda
+            'destinatario': pago.destinatario,  # Agregado para búsqueda
+            'gestor': pago.usuario,  # Usuario que creó el pago
+            'usuario': pago.usuario  # Usuario que creó el pago
         })
     
     # Aplicar filtros específicos para TOTAL
@@ -310,11 +314,13 @@ def registro_transacciones(request):
     pagos_filtrados_count = pagos_count
     total_filtradas_count = total_operaciones_count
     
-    # TOTAL REMESAS: Solo sumar remesas confirmadas y completadas
+    # TOTAL REMESAS: Solo sumar remesas completadas (el estado "confirmada" fue eliminado como intermedio)
     remesas_confirmadas_completadas = remesas.filter(estado='completada')
     total_remesas = sum(remesa.calcular_monto_en_usd() for remesa in remesas_confirmadas_completadas)
     
-    total_pagos = sum(pago.calcular_monto_en_usd() for pago in pagos)
+    # TOTAL PAGOS: Solo sumar pagos confirmados
+    pagos_confirmados = pagos.filter(estado='confirmado')
+    total_pagos = sum(pago.calcular_monto_en_usd() for pago in pagos_confirmados)
     
     # Obtener monedas para filtros
     monedas = Moneda.objects.filter(activa=True)
@@ -560,7 +566,8 @@ def exportar_excel(request, tipo):
                     'equiv_usd': remesa.calcular_monto_en_usd(),
                     'estado': remesa.estado,
                     'fecha': remesa.fecha,
-                    'detalle': remesa.receptor_nombre or ''
+                    'detalle': remesa.receptor_nombre or '',
+                    'usuario': remesa.gestor.first_name or remesa.gestor.username if remesa.gestor else 'N/A'
                 })
             
             # Agregar pagos a la lista combinada
@@ -573,7 +580,8 @@ def exportar_excel(request, tipo):
                     'equiv_usd': pago.calcular_monto_en_usd(),
                     'estado': pago.estado,  # Usar el estado real del pago
                     'fecha': pago.fecha_creacion,
-                    'detalle': pago.destinatario or ''
+                    'detalle': pago.destinatario or '',
+                    'usuario': pago.usuario.first_name or pago.usuario.username if pago.usuario else 'N/A'
                 })
 
             # Aplicar filtros específicos para TOTAL
@@ -602,12 +610,13 @@ def exportar_excel(request, tipo):
             response['Content-Disposition'] = f'attachment; filename="Operaciones_Total_{datetime.now().strftime("%Y-%m-%d")}.csv"'
             
             writer = csv.writer(response)
-            writer.writerow(['ID Operación', 'Tipo', 'Cantidad', 'Moneda', 'Equiv. USD', 'Estado', 'Fecha', 'Detalle'])
+            writer.writerow(['ID Operación', 'Tipo', 'Usuario', 'Cantidad', 'Moneda', 'Equiv. USD', 'Estado', 'Fecha', 'Detalle'])
             
             for operacion in total_operaciones_list:
                 writer.writerow([
                     operacion['id_operacion'] or '',
                     operacion['tipo_operacion'],
+                    operacion['usuario'],
                     str(operacion['cantidad'] or 0),
                     operacion['moneda'],
                     f"{operacion['equiv_usd']:.2f}",

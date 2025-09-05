@@ -1,6 +1,8 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 from django.utils import timezone
 from . import models
 from .models import Pago
@@ -1487,3 +1489,45 @@ def cancelar_pago(request, pago_id):
 
 
 # FUNCIÓN ELIMINADA - Reemplazada por la nueva función eliminar_pago con restricciones de admin
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def api_balance_usuario(request):
+    """
+    API endpoint para obtener el balance actualizado del usuario
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({
+            'success': False,
+            'message': 'Usuario no autenticado'
+        }, status=401)
+    
+    try:
+        # Invalidar cache del balance
+        from .context_processors import invalidate_user_balance_cache
+        invalidate_user_balance_cache(request.user.id)
+        
+        if request.user.is_superuser:
+            balance = Decimal('0.00')
+            tipo_usuario = 'admin'
+        else:
+            perfil = request.user.perfil
+            balance = perfil.calcular_balance_real()
+            tipo_usuario = perfil.tipo_usuario
+            
+            # Actualizar balance almacenado
+            perfil.actualizar_balance()
+        
+        return JsonResponse({
+            'success': True,
+            'balance': float(balance),
+            'balance_formatted': f"{balance:,.2f}",
+            'moneda': 'USD',
+            'tipo_usuario': tipo_usuario
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'Error calculando balance: {str(e)}'
+        }, status=500)
