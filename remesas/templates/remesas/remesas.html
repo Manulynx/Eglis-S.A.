@@ -691,15 +691,15 @@ function calcularMontoUSD() {
             const moneda = obtenerValorMoneda(monedaId);
             console.log('Moneda encontrada:', moneda); // Debug
             
-            if (moneda && moneda.valor_actual) {
+            if (moneda && moneda.valor_usuario) {
                 let montoUSD = importe;
                 
-                // Verificar que valor_actual es un número válido
-                const valorActual = parseFloat(moneda.valor_actual);
-                console.log('Valor actual de la moneda:', valorActual); // Debug
+                // Verificar que valor_usuario es un número válido
+                const valorUsuario = parseFloat(moneda.valor_usuario);
+                console.log('Valor de usuario para la moneda:', valorUsuario); // Debug
                 
-                if (moneda.codigo !== 'USD' && valorActual > 0) {
-                    montoUSD = importe / valorActual;
+                if (moneda.codigo !== 'USD' && valorUsuario > 0) {
+                    montoUSD = importe / valorUsuario;
                 }
                 
                 // Verificar que montoUSD es un número válido
@@ -724,7 +724,7 @@ function calcularMontoUSD() {
                     console.error('Error en el cálculo: montoUSD no es válido', montoUSD);
                 }
             } else {
-                console.error('Moneda no encontrada o sin valor_actual válido:', moneda);
+                console.error('Moneda no encontrada o sin valor_usuario válido:', moneda);
             }
         } else {
             const calculoDiv = document.getElementById('calculo-usd-remesa');
@@ -1025,10 +1025,11 @@ function enviarRemesa() {
                 cambiarEstadoBoton('normal', 'Guardar Remesa', 'fas fa-save me-2');
             }, 3000);
         } else {
-            boton.classList.add('btn-success');
-            boton.classList.remove('btn-warning', 'btn-danger');
+            boton.classList.add('btn-primary');
+            boton.classList.remove('btn-warning', 'btn-danger', 'btn-success');
             // Liberar el bloqueo en estado normal
             boton.dataset.enviando = 'false';
+            boton.disabled = false;
         }
     }
     
@@ -1133,6 +1134,9 @@ function enviarRemesa() {
             confirmButtonText: 'OK',
             background: '#212529',
             color: '#fff'
+        }).then(() => {
+            // Asegurar que el botón vuelva al estado normal después del SweetAlert
+            cambiarEstadoBoton('normal', 'Enviar Remesa', 'fas fa-paper-plane me-2');
         });
     });
 }

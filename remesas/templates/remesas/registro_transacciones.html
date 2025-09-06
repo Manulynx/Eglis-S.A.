@@ -1837,7 +1837,7 @@
     // Configurar validación en tiempo real
     setupRealTimeValidation();
 
-    // FUNCIONES DE PROTECCIÓN CONTRA DOBLES CLICS
+    // FUNCIONES DE PROTECCIÓN CONTRA DOBLES CLICS SIMPLIFICADAS
     
     function protegerBotonAccion(button) {
         if (button.dataset.procesando === 'true') {
@@ -1848,29 +1848,22 @@
         
         // Marcar como procesando
         button.dataset.procesando = 'true';
-        button.disabled = true;
         
-        // Guardar estado original
-        button.dataset.originalInnerHTML = button.innerHTML;
-        button.dataset.originalClasses = button.className;
+        // Cambiar apariencia visual solamente
+        button.style.opacity = '0.7';
         
-        // Cambiar apariencia visual
-        button.style.opacity = '0.6';
-        button.style.cursor = 'not-allowed';
-        button.style.pointerEvents = 'none';
-        
-        // Agregar spinner si no es un ícono ya
+        // Agregar spinner al ícono
         const icon = button.querySelector('i');
         if (icon && !icon.classList.contains('fa-spinner')) {
             button.dataset.originalIcon = icon.className;
             icon.className = 'fas fa-spinner fa-spin';
         }
         
-        // Timeout de seguridad (30 segundos)
+        // Timeout de seguridad más corto (5 segundos)
         const timeoutId = setTimeout(() => {
             console.log('Timeout de seguridad: liberando botón');
             liberarBotonAccion(button);
-        }, 30000);
+        }, 5000);
         
         button.dataset.timeoutId = timeoutId;
         
@@ -1892,16 +1885,7 @@
         
         // Restaurar estado original
         button.dataset.procesando = 'false';
-        button.disabled = false;
         button.style.opacity = '';
-        button.style.cursor = '';
-        button.style.pointerEvents = '';
-        
-        // Restaurar contenido original
-        if (button.dataset.originalInnerHTML) {
-            button.innerHTML = button.dataset.originalInnerHTML;
-            delete button.dataset.originalInnerHTML;
-        }
         
         // Restaurar ícono original
         if (button.dataset.originalIcon) {
@@ -1911,8 +1895,6 @@
             }
             delete button.dataset.originalIcon;
         }
-        
-        delete button.dataset.originalClasses;
     }
     
     function liberarTodosLosBotones() {
@@ -2005,19 +1987,15 @@
             return;
         }
 
-        // PROTECCIÓN GLOBAL CONTRA DOBLES CLICS EN BOTONES DE ACCIÓN
+        // PROTECCIÓN SIMPLE CONTRA DOBLES CLICS EN BOTONES DE ACCIÓN
         const actionButton = e.target.closest('.btn-confirmar, .btn-cancelar, .btn-eliminar-remesa, .btn-eliminar-pago, .btn-confirmar-pago, .btn-cancelar-pago');
         if (actionButton) {
-            // Verificar si el botón ya está procesando
+            // Solo evitar dobles clics, no bloquear funcionalidad
             if (actionButton.dataset.procesando === 'true') {
-                console.log('Acción bloqueada: botón ya está procesando');
+                console.log('Doble click bloqueado - acción ya en progreso');
                 e.preventDefault();
-                e.stopImmediatePropagation();
                 return false;
             }
-            
-            // Marcar botón como procesando
-            protegerBotonAccion(actionButton);
         }
 
         if (e.target.closest('.btn-editar')) {
@@ -2208,6 +2186,11 @@
 
     // Función para eliminar remesas (solo administradores)
     function eliminarRemesa(remesaId, remesaNumero, button) {
+        // Protección contra doble click
+        if (button && !protegerBotonAccion(button)) {
+            return; // Ya está procesando
+        }
+        
         Swal.fire({
             title: '⚠️ ¿Eliminar remesa completada?',
             html: `<div class="text-start">

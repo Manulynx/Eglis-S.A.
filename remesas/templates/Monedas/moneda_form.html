@@ -63,20 +63,6 @@
                         </div>
                         
                         <div class="mb-3">
-                            <label for="valor_actual" class="form-label">Valor Actual</label>
-                            <input type="number" class="form-control bg-dark text-white" id="valor_actual" name="valor_actual" 
-                                   step="0.01" min="0.01" placeholder="1.00" required {% if is_edit %}value="{{ moneda.valor_actual }}"{% endif %}>
-                            <small class="form-text text-muted">Valor actual de la moneda respecto al USD</small>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="valor_comercial" class="form-label">Valor Comercial</label>
-                            <input type="number" class="form-control bg-dark text-white" id="valor_comercial" name="valor_comercial" 
-                                   step="0.01" min="0.01" placeholder="1.00" required {% if is_edit %}value="{{ moneda.valor_comercial }}"{% endif %}>
-                            <small class="form-text text-muted">Valor comercial de la moneda para transacciones</small>
-                        </div>
-                        
-                        <div class="mb-3">
                             <label class="form-label">Tipo de Moneda</label>
                             <div class="row">
                                 <div class="col-md-6">

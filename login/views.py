@@ -264,6 +264,10 @@ def administrar_usuarios(request):
     usuarios_activos_hoy = SesionUsuario.objects.filter(
         ultima_actividad__gte=hace_24h
     ).count()
+
+    # Obtener tipos de valores de moneda para los formularios
+    from remesas.models import TipoValorMoneda
+    tipos_valor_moneda = TipoValorMoneda.objects.filter(activo=True).order_by('orden', 'nombre')
     
     context = {
         'usuarios': usuarios_page,
@@ -280,6 +284,7 @@ def administrar_usuarios(request):
         'total_remesas': total_remesas_count,  # Total de remesas gestionadas
         'total_pagos': total_pagos_count,      # Total de pagos realizados
         'suma_todos_balances': suma_todos_balances,  # Suma de todos los balances
+        'tipos_valor_moneda': tipos_valor_moneda,  # Para los formularios
     }
     
     return render(request, 'autenticacion/administrar_usuarios.html', context)
@@ -314,14 +319,45 @@ def crear_usuario(request):
                 is_superuser=is_superuser
             )
             
-            # Asignar tipo de usuario y teléfono al perfil
+            # Obtener datos del formulario
+            username = request.POST.get('username')
+            email = request.POST.get('email', '')
+            first_name = request.POST.get('first_name', '')
+            last_name = request.POST.get('last_name', '')
+            password = request.POST.get('password')
+            tipo_usuario = request.POST.get('tipo_usuario', 'gestor')
+            telefono = request.POST.get('telefono', '').strip()
+            tipo_valor_moneda_id = request.POST.get('tipo_valor_moneda', '')
+
+            # Validar campos requeridos
+            if not username or not password:
+                raise ValueError('Username y password son requeridos')
+
+            # Crear usuario
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                password=password
+            )
+            
+            # Asignar tipo de usuario, teléfono y tipo de valor de moneda al perfil
             perfil = user.perfil
             perfil.tipo_usuario = tipo_usuario
             if telefono:  # Solo asignar si se proporcionó un teléfono
                 perfil.telefono = telefono
-            perfil.save()
             
-            # Registrar acción si hay usuario autenticado
+            # Asignar tipo de valor de moneda
+            if tipo_valor_moneda_id:
+                from remesas.models import TipoValorMoneda
+                try:
+                    tipo_valor = TipoValorMoneda.objects.get(id=tipo_valor_moneda_id, activo=True)
+                    perfil.tipo_valor_moneda = tipo_valor
+                except TipoValorMoneda.DoesNotExist:
+                    pass  # Mantener el valor por defecto
+            
+            perfil.save()            # Registrar acción si hay usuario autenticado
             if request.user.is_authenticated:
                 registrar_accion(
                     request.user, 'create', 
@@ -368,18 +404,31 @@ def obtener_usuario(request, user_id):
         if usuario.is_superuser:
             tipo_usuario = 'admin'
             tipo_usuario_display = 'Administrador'
-            telefono = ''  # Los admins no tienen perfil con teléfono
+            # Los admins también pueden tener perfil ahora
+            try:
+                perfil = usuario.perfil
+                telefono = perfil.telefono if perfil.telefono else ''
+                tipo_valor_moneda_id = perfil.tipo_valor_moneda.id if perfil.tipo_valor_moneda else None
+                tipo_valor_moneda_nombre = perfil.tipo_valor_moneda.nombre if perfil.tipo_valor_moneda else ''
+            except:
+                telefono = ''
+                tipo_valor_moneda_id = None
+                tipo_valor_moneda_nombre = ''
         else:
             try:
                 perfil = usuario.perfil
                 tipo_usuario = perfil.tipo_usuario
                 telefono = perfil.telefono if perfil.telefono else ''
+                tipo_valor_moneda_id = perfil.tipo_valor_moneda.id if perfil.tipo_valor_moneda else None
+                tipo_valor_moneda_nombre = perfil.tipo_valor_moneda.nombre if perfil.tipo_valor_moneda else ''
                 # Usar el display definido en las opciones del modelo
                 tipo_usuario_display = dict(perfil.TIPO_USUARIO_CHOICES).get(tipo_usuario, 'Gestor')
             except:
                 tipo_usuario = 'gestor'
                 tipo_usuario_display = 'Gestor'
                 telefono = ''
+                tipo_valor_moneda_id = None
+                tipo_valor_moneda_nombre = ''
         
         return JsonResponse({
             'status': 'success',
@@ -393,6 +442,8 @@ def obtener_usuario(request, user_id):
                 'is_superuser': usuario.is_superuser,
                 'tipo_usuario': tipo_usuario,
                 'tipo_usuario_display': tipo_usuario_display,
+                'tipo_valor_moneda_id': tipo_valor_moneda_id,
+                'tipo_valor_moneda_nombre': tipo_valor_moneda_nombre,
                 'is_active': usuario.is_active,
                 'date_joined': usuario.date_joined.strftime('%Y-%m-%d'),
                 'last_login': usuario.last_login.strftime('%Y-%m-%d %H:%M') if usuario.last_login else 'Nunca'
@@ -424,6 +475,7 @@ def editar_usuario(request, user_id):
             password = request.POST.get('password', '').strip()
             tipo_usuario = request.POST.get('tipo_usuario', '').strip()
             telefono = request.POST.get('telefono', '').strip()
+            tipo_valor_moneda_id = request.POST.get('tipo_valor_moneda', '').strip()
             
             # Actualizar campos del usuario solo si se proporcionaron valores
             if username:
@@ -450,12 +502,39 @@ def editar_usuario(request, user_id):
                 if tipo_usuario == 'admin':
                     usuario.is_superuser = True
                     usuario.is_staff = True
-                    # Si tiene perfil y no es admin, eliminar el perfil
+                    # Crear o actualizar perfil para admin también
                     try:
-                        if hasattr(usuario, 'perfil') and usuario.perfil:
-                            usuario.perfil.delete()
+                        perfil = usuario.perfil
+                        perfil.tipo_usuario = 'admin'
+                        if telefono:
+                            perfil.telefono = telefono
+                        
+                        # Actualizar tipo de valor de moneda si se proporcionó
+                        if tipo_valor_moneda_id:
+                            from remesas.models import TipoValorMoneda
+                            try:
+                                tipo_valor = TipoValorMoneda.objects.get(id=tipo_valor_moneda_id, activo=True)
+                                perfil.tipo_valor_moneda = tipo_valor
+                            except TipoValorMoneda.DoesNotExist:
+                                pass  # Mantener el valor actual
+                        
+                        perfil.save()
                     except:
-                        pass
+                        # Si no tiene perfil, crear uno nuevo para admin
+                        tipo_valor_obj = None
+                        if tipo_valor_moneda_id:
+                            from remesas.models import TipoValorMoneda
+                            try:
+                                tipo_valor_obj = TipoValorMoneda.objects.get(id=tipo_valor_moneda_id, activo=True)
+                            except TipoValorMoneda.DoesNotExist:
+                                pass
+                        
+                        PerfilUsuario.objects.create(
+                            user=usuario, 
+                            tipo_usuario='admin',
+                            telefono=telefono if telefono else '',
+                            tipo_valor_moneda=tipo_valor_obj
+                        )
                 else:
                     usuario.is_superuser = False
                     usuario.is_staff = False
@@ -466,13 +545,32 @@ def editar_usuario(request, user_id):
                         perfil.tipo_usuario = tipo_usuario
                         if telefono:
                             perfil.telefono = telefono
+                        
+                        # Actualizar tipo de valor de moneda si se proporcionó
+                        if tipo_valor_moneda_id:
+                            from remesas.models import TipoValorMoneda
+                            try:
+                                tipo_valor = TipoValorMoneda.objects.get(id=tipo_valor_moneda_id, activo=True)
+                                perfil.tipo_valor_moneda = tipo_valor
+                            except TipoValorMoneda.DoesNotExist:
+                                pass  # Mantener el valor actual
+                        
                         perfil.save()
                     except:
                         # Si no tiene perfil, crear uno nuevo
+                        tipo_valor_obj = None
+                        if tipo_valor_moneda_id:
+                            from remesas.models import TipoValorMoneda
+                            try:
+                                tipo_valor_obj = TipoValorMoneda.objects.get(id=tipo_valor_moneda_id, activo=True)
+                            except TipoValorMoneda.DoesNotExist:
+                                pass
+                        
                         PerfilUsuario.objects.create(
                             user=usuario, 
                             tipo_usuario=tipo_usuario,
-                            telefono=telefono if telefono else ''
+                            telefono=telefono if telefono else '',
+                            tipo_valor_moneda=tipo_valor_obj
                         )
             
             # Validar y guardar usuario
@@ -1026,10 +1124,11 @@ def historial_usuario(request, user_id):
         from django.http import HttpResponse
         import csv
         from io import StringIO
+        from django.utils import timezone
         
         # Crear respuesta CSV (compatible con Excel)
         response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = f'attachment; filename="{vista}_{datetime.now().strftime("%Y%m%d")}.csv"'
+        response['Content-Disposition'] = f'attachment; filename="{vista}_{timezone.now().strftime("%Y%m%d")}.csv"'
         
         output = StringIO()
         writer = csv.writer(output)

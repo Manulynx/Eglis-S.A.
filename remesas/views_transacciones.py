@@ -3,6 +3,7 @@ from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from datetime import datetime
+from django.utils import timezone
 from .models import Remesa, Pago, Moneda
 from django.http import HttpResponse, JsonResponse
 import csv
@@ -462,7 +463,7 @@ def exportar_excel(request, tipo):
 
             # Crear respuesta CSV para remesas
             response = HttpResponse(content_type='text/csv; charset=utf-8')
-            response['Content-Disposition'] = f'attachment; filename="Remesas_{datetime.now().strftime("%Y-%m-%d")}.csv"'
+            response['Content-Disposition'] = f'attachment; filename="Remesas_{timezone.now().strftime("%Y-%m-%d")}.csv"'
             
             writer = csv.writer(response)
             writer.writerow(['ID Remesa', 'Receptor', 'Estado', 'Importe', 'Moneda', 'Equiv. USD', 'Fecha', 'Tipo Pago', 'Observaciones'])
@@ -530,7 +531,7 @@ def exportar_excel(request, tipo):
 
             # Crear respuesta CSV para pagos
             response = HttpResponse(content_type='text/csv; charset=utf-8')
-            response['Content-Disposition'] = f'attachment; filename="Pagos_{datetime.now().strftime("%Y-%m-%d")}.csv"'
+            response['Content-Disposition'] = f'attachment; filename="Pagos_{timezone.now().strftime("%Y-%m-%d")}.csv"'
             
             writer = csv.writer(response)
             writer.writerow(['ID Pago', 'Destinatario', 'Tipo Pago', 'Cantidad', 'Moneda', 'Equiv. USD', 'Fecha', 'Teléfono', 'Dirección'])
@@ -607,7 +608,7 @@ def exportar_excel(request, tipo):
 
             # Crear respuesta CSV para total
             response = HttpResponse(content_type='text/csv; charset=utf-8')
-            response['Content-Disposition'] = f'attachment; filename="Operaciones_Total_{datetime.now().strftime("%Y-%m-%d")}.csv"'
+            response['Content-Disposition'] = f'attachment; filename="Operaciones_Total_{timezone.now().strftime("%Y-%m-%d")}.csv"'
             
             writer = csv.writer(response)
             writer.writerow(['ID Operación', 'Tipo', 'Usuario', 'Cantidad', 'Moneda', 'Equiv. USD', 'Estado', 'Fecha', 'Detalle'])

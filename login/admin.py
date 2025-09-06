@@ -9,7 +9,7 @@ class PerfilUsuarioInline(admin.StackedInline):
     can_delete = False
     verbose_name_plural = 'Perfil'
     fk_name = 'user'  # Especificar el campo FK correcto
-    fields = ('telefono', 'direccion', 'fecha_nacimiento', 'codigo_gestor', 'limite_remesas', 'comision_porcentaje')
+    fields = ('tipo_usuario', 'tipo_valor_moneda', 'telefono', 'direccion', 'fecha_nacimiento', 'codigo_gestor', 'limite_remesas', 'comision_porcentaje')
 
 # Extender el UserAdmin para incluir el perfil
 class UserAdmin(BaseUserAdmin):
@@ -25,14 +25,14 @@ admin.site.register(User, UserAdmin)
 
 @admin.register(PerfilUsuario)
 class PerfilUsuarioAdmin(admin.ModelAdmin):
-    list_display = ('user', 'telefono', 'codigo_gestor', 'limite_remesas', 'comision_porcentaje', 'fecha_creacion')
-    list_filter = ('fecha_creacion', 'fecha_actualizacion')
+    list_display = ('user', 'tipo_usuario', 'tipo_valor_moneda', 'telefono', 'codigo_gestor', 'limite_remesas', 'comision_porcentaje', 'fecha_creacion')
+    list_filter = ('tipo_usuario', 'tipo_valor_moneda', 'fecha_creacion', 'fecha_actualizacion')
     search_fields = ('user__username', 'user__first_name', 'user__last_name', 'codigo_gestor', 'telefono')
     readonly_fields = ('fecha_creacion', 'fecha_actualizacion')
     
     fieldsets = (
         ('Información Personal', {
-            'fields': ('user', 'telefono', 'direccion', 'fecha_nacimiento', 'avatar')
+            'fields': ('user', 'tipo_usuario', 'tipo_valor_moneda', 'telefono', 'direccion', 'fecha_nacimiento', 'avatar')
         }),
         ('Información de Gestor', {
             'fields': ('codigo_gestor', 'limite_remesas', 'comision_porcentaje')

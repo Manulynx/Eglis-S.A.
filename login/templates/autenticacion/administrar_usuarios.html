@@ -370,6 +370,18 @@
                             <option value="contable">Contable</option>
                         </select>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de Valor de Moneda</label>
+                        <select name="tipo_valor_moneda" class="form-select">
+                            <option value="">Seleccionar tipo de valor...</option>
+                            {% for tipo in tipos_valor_moneda %}
+                                <option value="{{ tipo.id }}" {% if forloop.first %}selected{% endif %}>
+                                    {{ tipo.nombre }}{% if tipo.descripcion %} - {{ tipo.descripcion }}{% endif %}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">Define qué tipo de valor de moneda usará este usuario para cálculos</small>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -439,6 +451,19 @@
                             <option value="contable">Contable</option>
                         </select>
                         <small class="text-muted">Tipo actual: <span id="currentTipoUsuario"></span></small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de Valor de Moneda</label>
+                        <select name="tipo_valor_moneda" id="editTipoValorMoneda" class="form-select">
+                            <option value="">Mantener tipo actual</option>
+                            {% for tipo in tipos_valor_moneda %}
+                                <option value="{{ tipo.id }}">
+                                    {{ tipo.nombre }}{% if tipo.descripcion %} - {{ tipo.descripcion }}{% endif %}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">Tipo actual: <span id="currentTipoValorMoneda"></span></small>
                     </div>
                     
                     <div class="mb-3">
@@ -1183,12 +1208,21 @@ function abrirModalEditar(userId, username) {
             const tipoUsuarioSelect = document.getElementById('editTipoUsuario');
             tipoUsuarioSelect.value = usuario.tipo_usuario;
             
+            // Seleccionar el tipo de valor de moneda actual
+            const tipoValorMonedaSelect = document.getElementById('editTipoValorMoneda');
+            if (usuario.tipo_valor_moneda_id) {
+                tipoValorMonedaSelect.value = usuario.tipo_valor_moneda_id;
+            } else {
+                tipoValorMonedaSelect.value = '';
+            }
+            
             // Mostrar valores actuales en los placeholders y textos informativos
             document.getElementById('currentUsername').textContent = usuario.username;
             document.getElementById('currentFirstName').textContent = usuario.first_name || '(Sin nombre)';
             document.getElementById('currentLastName').textContent = usuario.last_name || '(Sin apellidos)';
             document.getElementById('currentTelefono').textContent = usuario.telefono || '(Sin teléfono)';
             document.getElementById('currentTipoUsuario').textContent = usuario.tipo_usuario_display;
+            document.getElementById('currentTipoValorMoneda').textContent = usuario.tipo_valor_moneda_nombre || '(Sin asignar)';
             
             // Actualizar placeholders
             document.getElementById('editUsername').placeholder = `Actual: ${usuario.username}`;
@@ -1214,6 +1248,8 @@ function abrirModalEditar(userId, username) {
             document.getElementById('currentLastName').textContent = '(Información no disponible)';
             document.getElementById('currentTelefono').textContent = '(Información no disponible)';
             document.getElementById('currentTipoUsuario').textContent = '(Información no disponible)';
+            document.getElementById('currentTipoValorMoneda').textContent = '(Información no disponible)';
+            document.getElementById('currentTipoUsuario').textContent = '(Información no disponible)';
         }
     })
     .catch(error => {
@@ -1226,12 +1262,15 @@ function abrirModalEditar(userId, username) {
         document.getElementById('editTelefono').value = '';
         document.getElementById('editPassword').value = '';
         document.getElementById('editTipoUsuario').value = '';
+        document.getElementById('editTipoValorMoneda').value = '';
         
         // Mostrar solo el username conocido
         document.getElementById('currentUsername').textContent = username;
         document.getElementById('currentFirstName').textContent = '(Error cargando datos)';
         document.getElementById('currentLastName').textContent = '(Error cargando datos)';
         document.getElementById('currentTelefono').textContent = '(Error cargando datos)';
+        document.getElementById('currentTipoUsuario').textContent = '(Error cargando datos)';
+        document.getElementById('currentTipoValorMoneda').textContent = '(Error cargando datos)';
         document.getElementById('currentTipoUsuario').textContent = '(Error cargando datos)';
     });
     

@@ -31,16 +31,11 @@ form[data-enviando="true"] .btn[type="submit"]:after {
     border-radius: inherit;
 }
 
-/* Prevenir doble click a nivel de formulario */
-form[data-enviando="true"] {
-    pointer-events: none;
-}
-
-form[data-enviando="true"] input,
-form[data-enviando="true"] select,
-form[data-enviando="true"] textarea {
-    pointer-events: auto;
-    opacity: 0.7;
+/* Prevenir doble click solo en el botón de envío */
+form[data-enviando="true"] .btn[type="submit"] {
+    pointer-events: none !important;
+    opacity: 0.7 !important;
+    cursor: not-allowed !important;
 }
 </style>
 
@@ -611,7 +606,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (monedasData[monedaId]) {
             return monedasData[monedaId];
         }
-        return { codigo: 'USD', valor_actual: 1 };
+        return { codigo: 'USD', valor_usuario: 1 };
     }
     
     // Función para calcular y mostrar el monto en USD
@@ -639,7 +634,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 let montoUSD = cantidad;
                 
                 if (moneda.codigo !== 'USD') {
-                    montoUSD = cantidad / moneda.valor_actual;
+                    montoUSD = cantidad / moneda.valor_usuario;
                 }
                 
                 // Mostrar el cálculo
@@ -827,8 +822,110 @@ document.addEventListener('DOMContentLoaded', function() {
     // Configurar formato de tarjeta (solo números, agrupados en bloques de 4)
     configurarFormatoTarjeta();
     
-        // Calcular inicial si hay valores
+    // Protección simple contra doble click en el botón
+    const submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn) {
+        submitBtn.addEventListener('click', function(e) {
+            // Solo prevenir si ya está marcado como enviando
+            if (form.dataset.enviando === 'true') {
+                console.log('Click bloqueado: formulario ya está siendo enviado');
+                e.preventDefault();
+                return false;
+            }
+        });
+    }
+    
+    // Calcular inicial si hay valores
     calcularMontoUSD();
+    
+    // Confirmación antes de enviar
+    form.addEventListener('submit', function(e) {
+        console.log('=== EVENTO SUBMIT INICIADO ===');
+        console.log('Estado actual enviando:', form.dataset.enviando);
+        
+        // PROTECCIÓN CONTRA ENVÍOS DUPLICADOS
+        if (form.dataset.enviando === 'true') {
+            console.log('❌ Envío bloqueado: formulario ya está siendo enviado');
+            e.preventDefault();
+            return false;
+        }
+        
+        const tipoPagoSeleccionado = document.querySelector('.tipo-pago-check:checked');
+        console.log('Tipo de pago seleccionado:', tipoPagoSeleccionado ? tipoPagoSeleccionado.value : 'ninguno');
+        
+        if (!tipoPagoSeleccionado) {
+            console.log('❌ Error: No hay tipo de pago seleccionado');
+            e.preventDefault();
+            mostrarError('Por favor seleccione un tipo de pago');
+            return false;
+        }
+        
+        if (tipoPagoSeleccionado.value === 'transferencia') {
+            // Validar campos de transferencia
+            const cantidad = document.getElementById('{{ form.cantidad.id_for_label }}').value;
+            const moneda = document.getElementById('{{ form.tipo_moneda.id_for_label }}').value;
+            const tarjeta = document.getElementById('{{ form.tarjeta.id_for_label }}').value;
+            
+            console.log('Validando transferencia:', {cantidad, moneda, tarjeta});
+            
+            if (!cantidad || !moneda || !tarjeta) {
+                console.log('❌ Error: Faltan campos obligatorios para transferencia');
+                e.preventDefault();
+                mostrarError('Por favor complete todos los campos obligatorios para transferencia');
+                return false;
+            }
+            
+            // Validar que la tarjeta tenga 16 dígitos
+            const tarjetaNumeros = tarjeta.replace(/\D/g, '');
+            if (tarjetaNumeros.length !== 16) {
+                console.log('❌ Error: Tarjeta no tiene 16 dígitos');
+                e.preventDefault();
+                mostrarError('El número de tarjeta debe tener exactamente 16 dígitos');
+                return false;
+            }
+        } else if (tipoPagoSeleccionado.value === 'efectivo') {
+            // Validar campos de efectivo
+            const cantidad = document.getElementById('{{ form.cantidad.id_for_label }}_efectivo').value;
+            const moneda = document.getElementById('{{ form.tipo_moneda.id_for_label }}_efectivo').value;
+            const destinatario = document.getElementById('{{ form.destinatario.id_for_label }}_efectivo').value;
+            const telefono = document.getElementById('{{ form.telefono.id_for_label }}_efectivo').value;
+            const direccion = document.getElementById('{{ form.direccion.id_for_label }}_efectivo').value;
+            
+            console.log('Validando efectivo:', {cantidad, moneda, destinatario, telefono, direccion});
+            
+            if (!cantidad || !moneda || !destinatario || !telefono || !direccion) {
+                console.log('❌ Error: Faltan campos obligatorios para efectivo');
+                e.preventDefault();
+                mostrarError('Por favor complete todos los campos obligatorios para efectivo');
+                return false;
+            }
+        }
+        
+        // Si llegamos aquí, el formulario es válido
+        console.log('✅ Formulario válido, procediendo con el envío...');
+        
+        // Marcar como enviando DESPUÉS de que inicie el envío
+        setTimeout(() => {
+            form.dataset.enviando = 'true';
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Enviando...';
+                submitBtn.classList.add('btn-warning');
+                submitBtn.classList.remove('btn-primary');
+            }
+        }, 100);
+        
+        // Timeout de seguridad
+        setTimeout(() => {
+            console.log('⚠️ Timeout de seguridad: liberando formulario');
+            liberarFormulario();
+        }, 30000);
+        
+        // Permitir que el formulario se envíe normalmente
+        console.log('🚀 Permitiendo envío del formulario...');
+        return true;
+    });
     
     // Al cargar la página, verificar si hay mensajes de Django y liberar formulario
     setTimeout(() => {
@@ -850,101 +947,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     }
-});
-    
-    // Confirmación antes de enviar
-    form.addEventListener('submit', function(e) {
-        // PROTECCIÓN CONTRA ENVÍOS DUPLICADOS
-        if (form.dataset.enviando === 'true') {
-            console.log('Envío bloqueado: formulario ya está siendo enviado');
-            e.preventDefault();
-            return;
-        }
-        
-        const tipoPagoSeleccionado = document.querySelector('.tipo-pago-check:checked');
-        
-        if (!tipoPagoSeleccionado) {
-            e.preventDefault();
-            mostrarError('Por favor seleccione un tipo de pago');
-            return;
-        }
-        
-        if (tipoPagoSeleccionado.value === 'transferencia') {
-            // Validar campos de transferencia
-            const cantidad = document.getElementById('{{ form.cantidad.id_for_label }}').value;
-            const moneda = document.getElementById('{{ form.tipo_moneda.id_for_label }}').value;
-            const tarjeta = document.getElementById('{{ form.tarjeta.id_for_label }}').value;
-            
-            if (!cantidad || !moneda || !tarjeta) {
-                e.preventDefault();
-                mostrarError('Por favor complete todos los campos obligatorios para transferencia');
-                return;
-            }
-            
-            // Validar que la tarjeta tenga 16 dígitos
-            const tarjetaNumeros = tarjeta.replace(/\D/g, '');
-            if (tarjetaNumeros.length !== 16) {
-                e.preventDefault();
-                mostrarError('El número de tarjeta debe tener exactamente 16 dígitos');
-                return;
-            }
-        } else if (tipoPagoSeleccionado.value === 'efectivo') {
-            // Validar campos de efectivo
-            const cantidad = document.getElementById('{{ form.cantidad.id_for_label }}_efectivo').value;
-            const moneda = document.getElementById('{{ form.tipo_moneda.id_for_label }}_efectivo').value;
-            const destinatario = document.getElementById('{{ form.destinatario.id_for_label }}_efectivo').value;
-            const telefono = document.getElementById('{{ form.telefono.id_for_label }}_efectivo').value;
-            const direccion = document.getElementById('{{ form.direccion.id_for_label }}_efectivo').value;
-            
-            if (!cantidad || !moneda || !destinatario || !telefono || !direccion) {
-                e.preventDefault();
-                mostrarError('Por favor complete todos los campos obligatorios para efectivo');
-                return;
-            }
-        }
-        
-        // Si llegamos aquí, el formulario es válido
-        // Marcar como enviando y deshabilitar botón
-        form.dataset.enviando = 'true';
-        const submitBtn = form.querySelector('button[type="submit"]');
-        if (submitBtn) {
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Enviando...';
-            submitBtn.classList.add('btn-warning');
-            submitBtn.classList.remove('btn-primary');
-        }
-        
-        // Timeout de seguridad más largo - liberar después de 60 segundos
-        const timeoutId = setTimeout(() => {
-            console.log('Timeout de seguridad: liberando formulario después de 60 segundos');
-            liberarFormulario();
-            mostrarError('El envío está tomando más tiempo del esperado. Si el problema persiste, recargue la página.');
-        }, 60000);
-        
-        // Guardar el ID del timeout para poder cancelarlo si el envío es exitoso
-        form.dataset.timeoutId = timeoutId;
-    });
-    
-    // Función para liberar el formulario después del envío
-    function liberarFormulario() {
-        // Cancelar timeout si existe
-        if (form.dataset.timeoutId) {
-            clearTimeout(parseInt(form.dataset.timeoutId));
-            delete form.dataset.timeoutId;
-        }
-        
-        form.dataset.enviando = 'false';
-        const submitBtn = form.querySelector('button[type="submit"]');
-        if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = 'Realizar Pago';
-            submitBtn.classList.remove('btn-warning');
-            submitBtn.classList.add('btn-primary');
-        }
-    }
-    
-    // Calcular inicial si hay valores
-    calcularMontoUSD();
     
     // Liberar formulario si hay un error de servidor o navegación
     window.addEventListener('beforeunload', function() {
@@ -955,41 +957,57 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addEventListener('load', function() {
         liberarFormulario();
     });
-    
-    // Al cargar, verificar si hay mensajes de Django y liberar formulario
-    setTimeout(() => {
-        const mensajes = document.querySelectorAll('.alert, .messages div, .message');
-        if (mensajes.length > 0) {
-            console.log('Mensajes encontrados, liberando formulario');
-            liberarFormulario();
-        }
-    }, 100);
-    
-    // Liberar formulario después de cualquier navegación exitosa
-    if (window.performance) {
-        const navEntries = performance.getEntriesByType('navigation');
-        if (navEntries.length > 0) {
-            const navEntry = navEntries[0];
-            // Si la página se recargó por una redirección del servidor
-            if (navEntry.type === 'reload' || navEntry.type === 'navigate') {
-                liberarFormulario();
-            }
-        }
-    }
-    
-    function mostrarError(mensaje) {
-        if (typeof Swal !== 'undefined') {
-            Swal.fire({
-                title: 'Campos obligatorios',
-                text: mensaje,
-                icon: 'warning',
-                background: '#343a40',
-                color: '#ffffff'
-            });
-        } else {
-            alert(mensaje);
-        }
-    }
 
+}); // Fin del DOMContentLoaded
+
+// Función para liberar el formulario después del envío
+function liberarFormulario() {
+    console.log('Liberando formulario...');
+    
+    const form = document.querySelector('form');
+    if (!form) return;
+    
+    // Cancelar timeout si existe
+    if (form.dataset.timeoutId) {
+        clearTimeout(parseInt(form.dataset.timeoutId));
+        delete form.dataset.timeoutId;
+    }
+    
+    // Liberar marca de enviando
+    form.dataset.enviando = 'false';
+    
+    // Restaurar botón
+    const submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.style.pointerEvents = '';
+        submitBtn.innerHTML = 'Realizar Pago';
+        submitBtn.classList.remove('btn-warning');
+        submitBtn.classList.add('btn-primary');
+    }
+    
+    // Restaurar formulario
+    form.style.pointerEvents = '';
+    
+    console.log('Formulario liberado correctamente');
+}
+
+// Función para mostrar errores
+function mostrarError(mensaje) {
+    // Liberar el formulario antes de mostrar el error
+    liberarFormulario();
+    
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            title: 'Campos obligatorios',
+            text: mensaje,
+            icon: 'warning',
+            background: '#343a40',
+            color: '#ffffff'
+        });
+    } else {
+        alert(mensaje);
+    }
+}
 </script>
 {% endblock %}

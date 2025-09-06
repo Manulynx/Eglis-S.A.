@@ -378,3 +378,57 @@ Sistema EGLIS - Notificacion automatica"""
                 
         except Exception as e:
             return False, str(e)
+    
+    def enviar_mensaje(self, telefono, mensaje):
+        """
+        Método público para enviar un mensaje directo a un número específico
+        Usado para mensajes de prueba y envíos directos
+        """
+        try:
+            # Buscar destinatario para usar su API Key individual si existe
+            destinatario = DestinatarioNotificacion.objects.filter(telefono=telefono).first()
+            
+            if destinatario and destinatario.callmebot_api_key:
+                # Usar API Key individual
+                return self._enviar_con_callmebot_individual(destinatario, mensaje)
+            elif hasattr(self.config, 'callmebot_api_key') and self.config.callmebot_api_key:
+                # Usar API Key global - crear objeto temporal para compatibilidad
+                destinatario_temp = type('obj', (object,), {
+                    'telefono': telefono,
+                    'callmebot_api_key': self.config.callmebot_api_key
+                })
+                return self._enviar_con_callmebot_individual(destinatario_temp, mensaje)
+            elif self.config.twilio_account_sid and self.config.twilio_auth_token:
+                # Usar Twilio - crear objeto temporal
+                destinatario_temp = type('obj', (object,), {'telefono': telefono})
+                return self._enviar_con_twilio(destinatario_temp, mensaje)
+            elif self.config.whatsapp_business_token:
+                # Usar WhatsApp Business - crear objeto temporal
+                destinatario_temp = type('obj', (object,), {'telefono': telefono})
+                return self._enviar_con_whatsapp_business(destinatario_temp, mensaje)
+            else:
+                return False, "No hay configuración de API disponible"
+                
+        except Exception as e:
+            return False, str(e)
+    
+    def test_conexion(self):
+        """
+        Prueba la conexión con las APIs configuradas
+        """
+        try:
+            if hasattr(self.config, 'callmebot_api_key') and self.config.callmebot_api_key:
+                # Test básico de CallMeBot (solo verificar que la API key existe)
+                return True, "CallMeBot API configurada correctamente"
+            elif self.config.twilio_account_sid and self.config.twilio_auth_token:
+                # Test de Twilio
+                client = Client(self.config.twilio_account_sid, self.config.twilio_auth_token)
+                account = client.api.accounts(self.config.twilio_account_sid).fetch()
+                return True, f"Twilio conectado: {account.friendly_name}"
+            elif self.config.whatsapp_business_token:
+                # Test básico de WhatsApp Business
+                return True, "WhatsApp Business API configurada"
+            else:
+                return False, "No hay configuración de API disponible"
+        except Exception as e:
+            return False, str(e)

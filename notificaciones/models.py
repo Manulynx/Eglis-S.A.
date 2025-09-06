@@ -138,6 +138,7 @@ class LogNotificacion(models.Model):
         ('pago_nuevo', 'Nuevo Pago'),
         ('pago_estado', 'Cambio Estado Pago'),
         ('pago_eliminado', 'Pago Eliminado'),
+        ('TEST', 'Mensaje de Prueba'),
     ]
     
     ESTADO_CHOICES = [
