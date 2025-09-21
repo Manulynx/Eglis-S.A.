@@ -305,6 +305,25 @@ class Pago(models.Model):
         help_text="Monto en USD calculado al momento de crear el pago (inmutable)"
     )
     
+    # Campos para controlar ediciones
+    editado = models.BooleanField(
+        default=False,
+        help_text="Indica si el pago ha sido editado después de su creación"
+    )
+    fecha_edicion = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Fecha y hora de la última edición"
+    )
+    usuario_editor = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pagos_editados',
+        help_text="Usuario que realizó la última edición"
+    )
+    
     destinatario = models.CharField(max_length=255, help_text="Nombre del destinatario")
     telefono = models.CharField(max_length=20, blank=True, null=True, help_text="Teléfono del destinatario")
     direccion = models.TextField(blank=True, null=True, help_text="Dirección del destinatario")
@@ -451,6 +470,39 @@ class Pago(models.Model):
         # se calcula dinámicamente en base a las transacciones
         return True
 
+    def recalcular_valores_por_edicion(self):
+        """
+        Recalcula y actualiza los valores históricos cuando se edita el pago
+        Usa las tasas actuales al momento de la edición
+        """
+        from decimal import Decimal
+        from django.utils import timezone
+        
+        if self.tipo_moneda and self.cantidad and self.usuario:
+            # Obtener el valor actual de la moneda para el usuario
+            valor_actual = self.tipo_moneda.get_valor_para_usuario(self.usuario)
+            self.valor_moneda_historico = Decimal(str(valor_actual))
+            
+            # Calcular nuevo monto en USD con la tasa actual
+            if self.tipo_moneda.codigo == 'USD':
+                self.monto_usd_historico = Decimal(str(self.cantidad))
+            else:
+                cantidad_decimal = Decimal(str(self.cantidad))
+                if valor_actual > 0:
+                    self.monto_usd_historico = cantidad_decimal / Decimal(str(valor_actual))
+                else:
+                    self.monto_usd_historico = Decimal('0')
+            
+            # Marcar como editado
+            self.editado = True
+            self.fecha_edicion = timezone.now()
+            # El usuario_editor se debe establecer desde la vista
+            
+            # Guardar sin llamar save() completo para evitar recursión
+            super(Pago, self).save(update_fields=['valor_moneda_historico', 'monto_usd_historico', 'editado', 'fecha_edicion', 'usuario_editor'])
+            return True
+        return False
+
 
 class Remesa(models.Model):
     TIPO_PAGO_CHOICES = [
@@ -478,6 +530,25 @@ class Remesa(models.Model):
         null=True, 
         blank=True,
         help_text="Monto en USD calculado al momento de crear la remesa (inmutable)"
+    )
+    
+    # Campos para controlar ediciones
+    editada = models.BooleanField(
+        default=False,
+        help_text="Indica si la remesa ha sido editada después de su creación"
+    )
+    fecha_edicion = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Fecha y hora de la última edición"
+    )
+    usuario_editor = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='remesas_editadas',
+        help_text="Usuario que realizó la última edición"
     )
     
     receptor_nombre = models.CharField(max_length=255, blank=True, null=True, help_text="Nombre del remitente")
@@ -626,6 +697,39 @@ class Remesa(models.Model):
         # Esta funcionalidad está deshabilitada porque el balance
         # se calcula dinámicamente en base a las transacciones
         return True
+
+    def recalcular_valores_por_edicion(self):
+        """
+        Recalcula y actualiza los valores históricos cuando se edita la remesa
+        Usa las tasas actuales al momento de la edición
+        """
+        from decimal import Decimal
+        from django.utils import timezone
+        
+        if self.moneda and self.importe and self.gestor:
+            # Obtener el valor actual de la moneda para el gestor
+            valor_actual = self.moneda.get_valor_para_usuario(self.gestor)
+            self.valor_moneda_historico = Decimal(str(valor_actual))
+            
+            # Calcular nuevo monto en USD con la tasa actual
+            if self.moneda.codigo == 'USD':
+                self.monto_usd_historico = Decimal(str(self.importe))
+            else:
+                importe_decimal = Decimal(str(self.importe))
+                if valor_actual > 0:
+                    self.monto_usd_historico = importe_decimal / Decimal(str(valor_actual))
+                else:
+                    self.monto_usd_historico = Decimal('0')
+            
+            # Marcar como editada
+            self.editada = True
+            self.fecha_edicion = timezone.now()
+            # El usuario_editor se debe establecer desde la vista
+            
+            # Guardar sin llamar save() completo para evitar recursión
+            super(Remesa, self).save(update_fields=['valor_moneda_historico', 'monto_usd_historico', 'editada', 'fecha_edicion', 'usuario_editor'])
+            return True
+        return False
 
 # Signals para manejar la creación automática de valores
 from django.db.models.signals import post_save, post_delete

@@ -25,11 +25,9 @@ def registro_transacciones(request):
         remesas = Remesa.objects.select_related('moneda', 'gestor').all()
         pagos = Pago.objects.select_related('tipo_moneda').all()
     elif user_tipo == 'contable':
-        # Si es contable, mostrar todos los registros excepto los de administradores
-        from django.contrib.auth.models import User
-        non_admin_users = User.objects.filter(is_superuser=False)
-        remesas = Remesa.objects.select_related('moneda', 'gestor').filter(gestor__in=non_admin_users)
-        pagos = Pago.objects.select_related('tipo_moneda').filter(usuario__in=non_admin_users)
+        # Si es contable, mostrar todos los registros (incluyendo los de administradores)
+        remesas = Remesa.objects.select_related('moneda', 'gestor').all()
+        pagos = Pago.objects.select_related('tipo_moneda').all()
     else:
         # Si es gestor u otro tipo, mostrar solo los registros del usuario actual
         remesas = Remesa.objects.select_related('moneda', 'gestor').filter(gestor=request.user)
@@ -95,6 +93,7 @@ def registro_transacciones(request):
     
     # Aplicar filtros específicos para PAGOS
     search_pagos = request.GET.get('search_pagos')
+    estado_pagos = request.GET.get('estado_pagos')  # NUEVO: Filtro de estado
     tipo_pago_pagos = request.GET.get('tipo_pago_pagos')
     moneda_pagos = request.GET.get('moneda_pagos')
     usuario_pagos = request.GET.get('usuario_pagos')
@@ -110,6 +109,10 @@ def registro_transacciones(request):
             Q(destinatario__icontains=search_pagos) |
             Q(pago_id__icontains=search_pagos)
         )
+    
+    # NUEVO: Filtro por estado
+    if estado_pagos:
+        pagos = pagos.filter(estado=estado_pagos)
     
     if tipo_pago_pagos:
         pagos = pagos.filter(tipo_pago=tipo_pago_pagos)
@@ -187,7 +190,10 @@ def registro_transacciones(request):
             'remitente': '',  # Agregado para búsqueda
             'destinatario': pago.destinatario,  # Agregado para búsqueda
             'gestor': pago.usuario,  # Usuario que creó el pago
-            'usuario': pago.usuario  # Usuario que creó el pago
+            'usuario': pago.usuario,  # Usuario que creó el pago
+            'tarjeta': pago.tarjeta if pago.tarjeta else None,  # Agregar información de tarjeta
+            'telefono': pago.telefono if pago.telefono else None,  # Agregar teléfono
+            'carnet_identidad': pago.carnet_identidad if pago.carnet_identidad else None  # Agregar CI
         })
     
     # Aplicar filtros específicos para TOTAL
@@ -326,18 +332,15 @@ def registro_transacciones(request):
     # Obtener monedas para filtros
     monedas = Moneda.objects.filter(activa=True)
     
-    # Obtener usuarios para filtros (admin ve todos, contable ve no-admin, gestor no ve filtros de usuario)
+    # Obtener usuarios para filtros (admin y contable ven todos, gestor no ve filtros de usuario)
     usuarios = []
     if request.user.is_authenticated:
         user_tipo_actual = 'admin' if request.user.is_superuser else (
             request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
         )
-        if user_tipo_actual == 'admin':
+        if user_tipo_actual == 'admin' or user_tipo_actual == 'contable':
             from django.contrib.auth.models import User
             usuarios = User.objects.all().select_related('perfil').order_by('first_name', 'username')
-        elif user_tipo_actual == 'contable':
-            from django.contrib.auth.models import User
-            usuarios = User.objects.filter(is_superuser=False).select_related('perfil').order_by('first_name', 'username')
     
     # PAGINACIÓN COMENTADA TEMPORALMENTE - Mostrando todos los resultados
     # remesas_paginator = Paginator(remesas, 10)
@@ -386,6 +389,8 @@ def registro_transacciones(request):
         'filtros_pagos_aplicados': filtros_pagos_aplicados,
         'filtros_total_aplicados': filtros_total_aplicados,
         'user_tipo': user_tipo,
+        # NUEVO: Agregar opciones de estado para pagos
+        'estados_pagos': Pago.ESTADO_CHOICES,
     }
     
     return render(request, 'remesas/registro_transacciones.html', context)
@@ -404,10 +409,9 @@ def exportar_excel(request, tipo):
             remesas = Remesa.objects.select_related('moneda', 'gestor').all()
             pagos = Pago.objects.select_related('tipo_moneda').all()
         elif user_tipo == 'contable':
-            from django.contrib.auth.models import User
-            non_admin_users = User.objects.filter(is_superuser=False)
-            remesas = Remesa.objects.select_related('moneda', 'gestor').filter(gestor__in=non_admin_users)
-            pagos = Pago.objects.select_related('tipo_moneda').filter(usuario__in=non_admin_users)
+            # Los contables ahora pueden ver todas las operaciones (incluyendo las de administradores)
+            remesas = Remesa.objects.select_related('moneda', 'gestor').all()
+            pagos = Pago.objects.select_related('tipo_moneda').all()
         else:
             remesas = Remesa.objects.select_related('moneda', 'gestor').filter(gestor=request.user)
             pagos = Pago.objects.select_related('tipo_moneda').filter(usuario=request.user)
@@ -484,6 +488,7 @@ def exportar_excel(request, tipo):
         elif tipo == 'pagos':
             # Aplicar filtros específicos para PAGOS
             search_pagos = request.GET.get('search_pagos')
+            estado_pagos = request.GET.get('estado_pagos')  # NUEVO: Filtro de estado
             tipo_pago_pagos = request.GET.get('tipo_pago_pagos')
             moneda_pagos = request.GET.get('moneda_pagos')
             destinatario_pagos = request.GET.get('destinatario_pagos')
@@ -498,6 +503,11 @@ def exportar_excel(request, tipo):
                     Q(destinatario__icontains=search_pagos) |
                     Q(pago_id__icontains=search_pagos)
                 )
+            
+            # NUEVO: Filtro por estado
+            if estado_pagos:
+                pagos = pagos.filter(estado=estado_pagos)
+                
             if tipo_pago_pagos:
                 pagos = pagos.filter(tipo_pago=tipo_pago_pagos)
             if moneda_pagos:

@@ -53,7 +53,7 @@ class PerfilUsuario(models.Model):
     def calcular_balance_real(self):
         """
         Calcula el balance real del usuario basándose en remesas y pagos confirmados
-        usando el tipo de valor de moneda asignado al usuario
+        usando valores históricos guardados para mantener consistencia
         """
         from remesas.models import Remesa, Pago
         from decimal import Decimal
@@ -62,30 +62,24 @@ class PerfilUsuario(models.Model):
         logger = logging.getLogger(__name__)
         balance_calculado = Decimal('0.00')
         
-        # Sumar remesas completadas (dinero que entra)
-        remesas_completadas = Remesa.objects.filter(
+        # Sumar remesas confirmadas y completadas (dinero que entra)
+        # Usar los mismos estados que en historial_usuario para consistencia
+        remesas_validas = Remesa.objects.filter(
             gestor=self.user, 
-            estado='completada',
+            estado__in=['confirmada', 'completada'],
             importe__isnull=False
         ).select_related('moneda')
         
         total_remesas = Decimal('0.00')
-        for remesa in remesas_completadas:
-            if remesa.importe and remesa.importe > 0:
-                # Convertir a USD usando el valor específico del usuario
-                if remesa.moneda and remesa.moneda.codigo != 'USD':
-                    try:
-                        valor_para_usuario = remesa.moneda.get_valor_para_usuario(self.user)
-                        if valor_para_usuario and valor_para_usuario > 0:
-                            importe_usd = remesa.importe / valor_para_usuario
-                            total_remesas += importe_usd
-                        else:
-                            logger.warning(f"Moneda {remesa.moneda.codigo} tiene valor inválido para usuario {self.user.username}: {valor_para_usuario}")
-                    except (ZeroDivisionError, AttributeError) as e:
-                        logger.error(f"Error convirtiendo remesa {remesa.remesa_id}: {e}")
-                else:
-                    # Remesa en USD o sin moneda específica
-                    total_remesas += remesa.importe
+        for remesa in remesas_validas:
+            try:
+                # Usar el método que prioriza valores históricos guardados
+                monto_usd = remesa.calcular_monto_en_usd()
+                if monto_usd is not None:
+                    total_remesas += Decimal(str(monto_usd))
+            except Exception as e:
+                logger.error(f"Error calculando monto USD para remesa {remesa.remesa_id}: {e}")
+                continue
         
         balance_calculado += total_remesas
         
@@ -98,21 +92,14 @@ class PerfilUsuario(models.Model):
         
         total_pagos = Decimal('0.00')
         for pago in pagos_confirmados:
-            if pago.cantidad and pago.cantidad > 0:
-                # Convertir a USD usando el valor específico del usuario
-                if pago.tipo_moneda and pago.tipo_moneda.codigo != 'USD':
-                    try:
-                        valor_para_usuario = pago.tipo_moneda.get_valor_para_usuario(self.user)
-                        if valor_para_usuario and valor_para_usuario > 0:
-                            cantidad_usd = pago.cantidad / valor_para_usuario
-                            total_pagos += cantidad_usd
-                        else:
-                            logger.warning(f"Moneda {pago.tipo_moneda.codigo} tiene valor inválido para usuario {self.user.username}: {valor_para_usuario}")
-                    except (ZeroDivisionError, AttributeError) as e:
-                        logger.error(f"Error convirtiendo pago {pago.pago_id}: {e}")
-                else:
-                    # Pago en USD o sin moneda específica
-                    total_pagos += pago.cantidad
+            try:
+                # Usar el método que prioriza valores históricos guardados
+                monto_usd = pago.calcular_monto_en_usd()
+                if monto_usd is not None:
+                    total_pagos += Decimal(str(monto_usd))
+            except Exception as e:
+                logger.error(f"Error calculando monto USD para pago {pago.pago_id}: {e}")
+                continue
         
         balance_calculado -= total_pagos
         

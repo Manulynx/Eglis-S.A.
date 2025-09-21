@@ -249,6 +249,17 @@
                         </select>
                     </div>
                     <div class="col-md-3">
+                        <label class="form-label text-muted small">Estado</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="estado_pagos">
+                            <option value="">Todos los estados</option>
+                            {% for estado_valor, estado_nombre in estados_pagos %}
+                                <option value="{{ estado_valor }}" {% if request.GET.estado_pagos == estado_valor %}selected{% endif %}>
+                                    {{ estado_nombre }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
                         <label class="form-label text-muted small">Moneda</label>
                         <select class="form-select bg-dark text-white border-secondary" name="moneda_pagos">
                             <option value="">Todas las monedas</option>
@@ -481,6 +492,11 @@
                                 <tr>
                                     <td>
                                         <span class="text-info">{{ remesa.remesa_id }}</span>
+                                        {% if remesa.editada %}
+                                            <i class="fas fa-edit text-warning ms-1" 
+                                               data-bs-toggle="tooltip" 
+                                               title="Editada el {{ remesa.fecha_edicion|date:'d/m/Y H:i' }}{% if remesa.usuario_editor %} por {{ remesa.usuario_editor.first_name|default:remesa.usuario_editor.username }}{% endif %}"></i>
+                                        {% endif %}
                                     </td>
                                     {% if user_tipo == 'admin' or user_tipo == 'contable' %}
                                     <td class="d-none d-lg-table-cell">
@@ -663,7 +679,14 @@
                         {% for remesa in remesas %}
                         <div class="mobile-item">
                             <div class="mobile-item-header">
-                                <span class="text-info fw-bold">{{ remesa.remesa_id }}</span>
+                                <span class="text-info fw-bold">
+                                    {{ remesa.remesa_id }}
+                                    {% if remesa.editada %}
+                                        <i class="fas fa-edit text-warning ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="Editada el {{ remesa.fecha_edicion|date:'d/m/Y H:i' }}{% if remesa.usuario_editor %} por {{ remesa.usuario_editor.first_name|default:remesa.usuario_editor.username }}{% endif %}"></i>
+                                    {% endif %}
+                                </span>
                                 <span class="badge {% if remesa.estado == 'completada' %}bg-success{% elif remesa.estado == 'pendiente' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
                                     {{ remesa.get_estado_display }}
                                 </span>
@@ -703,27 +726,30 @@
                                         <i class="fas fa-eye"></i> Ver
                                     </a>
 
-                                    {% if remesa.estado == 'pendiente' %}
-                                    <button class="btn btn-warning btn-sm btn-editar"
-                                            data-remesa-id="{{ remesa.id }}">
-                                        <i class="fas fa-edit"></i> Editar
-                                    </button>
-                                    <button class="btn btn-success btn-sm btn-confirmar"
-                                            data-remesa-id="{{ remesa.id }}"
-                                            data-remesa-numero="{{ remesa.remesa_id }}">
-                                        <i class="fas fa-check-circle"></i> Confirmar
-                                    </button>
+                                    <!-- Botones de acción solo para admins y contables, ocultos para gestores -->
+                                    {% if user_tipo != 'gestor' %}
+                                        {% if remesa.estado == 'pendiente' %}
+                                        <button class="btn btn-warning btn-sm btn-editar"
+                                                data-remesa-id="{{ remesa.id }}">
+                                            <i class="fas fa-edit"></i> Editar
+                                        </button>
+                                        <button class="btn btn-success btn-sm btn-confirmar"
+                                                data-remesa-id="{{ remesa.id }}"
+                                                data-remesa-numero="{{ remesa.remesa_id }}">
+                                            <i class="fas fa-check-circle"></i> Confirmar
+                                        </button>
+                                        {% endif %}
+
+                                        {% if remesa.estado != 'completada' and remesa.estado != 'cancelada' %}
+                                        <button class="btn btn-danger btn-sm btn-cancelar"
+                                                data-remesa-id="{{ remesa.id }}"
+                                                data-remesa-numero="{{ remesa.remesa_id }}">
+                                            <i class="fas fa-times"></i> Cancelar
+                                        </button>
+                                        {% endif %}
                                     {% endif %}
 
-                                    {% if remesa.estado != 'completada' and remesa.estado != 'cancelada' %}
-                                    <button class="btn btn-danger btn-sm btn-cancelar"
-                                            data-remesa-id="{{ remesa.id }}"
-                                            data-remesa-numero="{{ remesa.remesa_id }}">
-                                        <i class="fas fa-times"></i> Cancelar
-                                    </button>
-                                    {% endif %}
-
-                                    <!-- Botón Eliminar para administradores -->
+                                    <!-- Botón Eliminar solo para administradores -->
                                     {% if user_tipo == 'admin' and remesa.estado == 'completada' %}
                                     <button class="btn btn-danger btn-sm btn-eliminar-remesa"
                                             data-remesa-id="{{ remesa.id }}"
@@ -789,6 +815,11 @@
                                 <tr>
                                     <td>
                                         <span class="text-info">{{ pago.pago_id }}</span>
+                                        {% if pago.editado %}
+                                            <i class="fas fa-edit text-warning ms-1" 
+                                               data-bs-toggle="tooltip" 
+                                               title="Editado el {{ pago.fecha_edicion|date:'d/m/Y H:i' }}{% if pago.usuario_editor %} por {{ pago.usuario_editor.first_name|default:pago.usuario_editor.username }}{% endif %}"></i>
+                                        {% endif %}
                                     </td>
                                     <td>
                                         {% if pago.tipo_pago == 'transferencia' %}
@@ -863,28 +894,24 @@
                                                data-bs-toggle="tooltip">
                                                 <i class="fas fa-edit"></i>
                                             </a>
-                                            {% endif %}
-
+                                            
                                             <!-- Botones de confirmación y cancelación -->
-                                            {% if pago.estado == 'pendiente' %}
-                                                {% if pago.usuario == user or user_tipo == 'admin' %}
-                                                <button type="button"
-                                                        class="btn btn-outline-success btn-sm btn-confirmar-pago"
-                                                        data-pago-id="{{ pago.id }}"
-                                                        data-pago-destinatario="{{ pago.destinatario }}"
-                                                        title="Confirmar pago"
-                                                        data-bs-toggle="tooltip">
-                                                    <i class="fas fa-check"></i>
-                                                </button>
-                                                <button type="button"
-                                                        class="btn btn-outline-danger btn-sm btn-cancelar-pago"
-                                                        data-pago-id="{{ pago.id }}"
-                                                        data-pago-destinatario="{{ pago.destinatario }}"
-                                                        title="Cancelar pago"
-                                                        data-bs-toggle="tooltip">
-                                                    <i class="fas fa-times"></i>
-                                                </button>
-                                                {% endif %}
+                                            <button type="button"
+                                                    class="btn btn-outline-success btn-sm btn-confirmar-pago"
+                                                    data-pago-id="{{ pago.id }}"
+                                                    data-pago-destinatario="{{ pago.destinatario }}"
+                                                    title="Confirmar pago"
+                                                    data-bs-toggle="tooltip">
+                                                <i class="fas fa-check"></i>
+                                            </button>
+                                            <button type="button"
+                                                    class="btn btn-outline-danger btn-sm btn-cancelar-pago"
+                                                    data-pago-id="{{ pago.id }}"
+                                                    data-pago-destinatario="{{ pago.destinatario }}"
+                                                    title="Cancelar pago"
+                                                    data-bs-toggle="tooltip">
+                                                <i class="fas fa-times"></i>
+                                            </button>
                                             {% endif %}
                                             {% endif %}
 
@@ -975,7 +1002,14 @@
                         <div class="mobile-item">
                             <div class="mobile-item-header">
                                 <div>
-                                    <span class="text-info fw-bold">{{ pago.pago_id }}</span>
+                                    <span class="text-info fw-bold">
+                                        {{ pago.pago_id }}
+                                        {% if pago.editado %}
+                                            <i class="fas fa-edit text-warning ms-1" 
+                                               data-bs-toggle="tooltip" 
+                                               title="Editado el {{ pago.fecha_edicion|date:'d/m/Y H:i' }}{% if pago.usuario_editor %} por {{ pago.usuario_editor.first_name|default:pago.usuario_editor.username }}{% endif %}"></i>
+                                        {% endif %}
+                                    </span>
                                     <br>
                                     <span class="badge {% if pago.tipo_pago == 'transferencia' %}bg-primary{% else %}bg-success{% endif %}">
                                         {{ pago.tipo_pago|title }}
@@ -1025,8 +1059,11 @@
                                         </span>
                                     </div>
                                 </div>
-                                {% if pago.telefono or pago.carnet_identidad %}
+                                {% if pago.telefono or pago.carnet_identidad or pago.tarjeta %}
                                 <div class="mt-2">
+                                    {% if pago.tarjeta and pago.tipo_pago == 'transferencia' %}
+                                    <div><small class="text-muted">Tarjeta: </small><span class="text-info">{{ pago.tarjeta }}</span></div>
+                                    {% endif %}
                                     {% if pago.telefono %}
                                     <div><small class="text-muted">Tel: </small>{{ pago.telefono }}</div>
                                     {% endif %}
@@ -1042,42 +1079,39 @@
                                        class="btn btn-info btn-sm">
                                         <i class="fas fa-eye"></i> Ver
                                     </a>
+                                    
+                                    <!-- Botones de acción solo para admins y contables, ocultos para gestores -->
                                     {% if user_tipo != 'gestor' %}
                                         {% if pago.estado == 'pendiente' %}
                                         <a href="{% url 'remesas:editar_pago' pago.id %}"
                                            class="btn btn-warning btn-sm">
                                             <i class="fas fa-edit"></i> Editar
                                         </a>
-                                        {% endif %}
                                         
                                         <!-- Botones de confirmación y cancelación para móvil -->
-                                        {% if pago.estado == 'pendiente' %}
-                                            {% if pago.usuario == user or user_tipo == 'admin' %}
-                                            <button type="button"
-                                                    class="btn btn-success btn-sm btn-confirmar-pago"
-                                                    data-pago-id="{{ pago.id }}"
-                                                    data-pago-destinatario="{{ pago.destinatario }}">
-                                                <i class="fas fa-check"></i> Confirmar
-                                            </button>
-                                            <button type="button"
-                                                    class="btn btn-danger btn-sm btn-cancelar-pago"
-                                                    data-pago-id="{{ pago.id }}"
-                                                    data-pago-destinatario="{{ pago.destinatario }}">
-                                                <i class="fas fa-times"></i> Cancelar
-                                            </button>
-                                            {% endif %}
+                                        <button type="button"
+                                                class="btn btn-success btn-sm btn-confirmar-pago"
+                                                data-pago-id="{{ pago.id }}"
+                                                data-pago-destinatario="{{ pago.destinatario }}">
+                                            <i class="fas fa-check"></i> Confirmar
+                                        </button>
+                                        <button type="button"
+                                                class="btn btn-danger btn-sm btn-cancelar-pago"
+                                                data-pago-id="{{ pago.id }}"
+                                                data-pago-destinatario="{{ pago.destinatario }}">
+                                            <i class="fas fa-times"></i> Cancelar
+                                        </button>
                                         {% endif %}
                                     {% endif %}
                                     
-                                    {% if user_tipo == 'admin' %}
-                                        {% if pago.estado == 'confirmado' %}
-                                        <button type="button"
-                                                class="btn btn-danger btn-sm btn-eliminar-pago"
-                                                data-pago-id="{{ pago.id }}"
-                                                data-pago-destinatario="{{ pago.destinatario }}">
-                                            <i class="fas fa-trash"></i> Eliminar
-                                        </button>
-                                        {% endif %}
+                                    <!-- Botón Eliminar solo para administradores -->
+                                    {% if user_tipo == 'admin' and pago.estado == 'confirmado' %}
+                                    <button type="button"
+                                            class="btn btn-danger btn-sm btn-eliminar-pago"
+                                            data-pago-id="{{ pago.id }}"
+                                            data-pago-destinatario="{{ pago.destinatario }}">
+                                        <i class="fas fa-trash"></i> Eliminar
+                                    </button>
                                     {% endif %}
                                 </div>
                             </div>
@@ -1372,6 +1406,28 @@
                                         {% endif %}
                                     </div>
                                 </div>
+                                {% if operacion.tipo_operacion == 'Pago' and operacion.tarjeta and operacion.tipo == 'Transferencia' %}
+                                <div class="mb-2">
+                                    <small class="text-muted">Tarjeta:</small><br>
+                                    <span class="text-info">{{ operacion.tarjeta }}</span>
+                                </div>
+                                {% endif %}
+                                {% if operacion.tipo_operacion == 'Pago' %}
+                                <div class="mb-2">
+                                    <small class="text-muted">Destinatario:</small><br>
+                                    {{ operacion.destinatario }}
+                                </div>
+                                {% endif %}
+                                {% if operacion.tipo_operacion == 'Pago' and operacion.telefono %}
+                                <div class="mb-2">
+                                    <small class="text-muted">Tel:</small> {{ operacion.telefono }}
+                                </div>
+                                {% endif %}
+                                {% if operacion.tipo_operacion == 'Pago' and operacion.carnet_identidad %}
+                                <div class="mb-2">
+                                    <small class="text-muted">CI:</small> {{ operacion.carnet_identidad }}
+                                </div>
+                                {% endif %}
                             </div>
                             <div class="mobile-item-footer">
                                 {% if operacion.tipo_operacion == 'Remesa' %}
@@ -2976,7 +3032,7 @@
         const filterParams = [
             'search_remesas', 'estado_remesas', 'moneda_remesas', 'tipo_pago_remesas',
             'fecha_desde_remesas', 'fecha_hasta_remesas', 'importe_min_remesas', 'importe_max_remesas',
-            'search_pagos', 'tipo_pago_pagos', 'moneda_pagos', 'destinatario_pagos',
+            'search_pagos', 'estado_pagos', 'tipo_pago_pagos', 'moneda_pagos', 'destinatario_pagos',
             'fecha_desde_pagos', 'fecha_hasta_pagos', 'cantidad_min_pagos', 'cantidad_max_pagos',
             'search_total', 'tipo_operacion', 'moneda_total', 'rango_usd',
             'fecha_desde_total', 'fecha_hasta_total', 'cantidad_min_total', 'cantidad_max_total'

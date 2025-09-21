@@ -180,6 +180,20 @@
                                     <span class="word-break">{{ remesa.gestor.get_full_name|default:remesa.gestor.username }}</span>
                                 </div>
                             </div>
+                            
+                            <div class="mb-3">
+                                <label class="text-muted small">Teléfono del Gestor:</label>
+                                <div class="text-white">
+                                    <i class="fas fa-phone mr-1"></i>
+                                    {% if remesa.gestor.perfil.telefono %}
+                                        <a href="tel:{{ remesa.gestor.perfil.telefono }}" class="text-success word-break">
+                                            {{ remesa.gestor.perfil.telefono }}
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </div>
+                            </div>
                             {% endif %}
 
                             {% if remesa.observaciones %}

@@ -38,11 +38,9 @@ def registro_transacciones(request):
         remesas = models.Remesa.objects.all()
         pagos = models.Pago.objects.all()
     elif user_tipo == 'contable':
-        # Contable ve todas excepto las de administradores
-        from django.contrib.auth.models import User
-        non_admin_users = User.objects.filter(is_superuser=False)
-        remesas = models.Remesa.objects.filter(gestor__in=non_admin_users)
-        pagos = models.Pago.objects.filter(usuario__in=non_admin_users)
+        # Contable ahora puede ver todas las transacciones (incluyendo las de administradores)
+        remesas = models.Remesa.objects.all()
+        pagos = models.Pago.objects.all()
     else:
         # Gestor solo ve sus propias transacciones
         remesas = models.Remesa.objects.filter(gestor=request.user)
@@ -456,7 +454,18 @@ def eliminar_remesa(request, remesa_id):
             monto_usd = remesa.calcular_monto_en_usd()
             
             # Revertir el balance del gestor (restar el monto que se había agregado)
-            if remesa.gestor and remesa.gestor.perfil:
+            if remesa.gestor:
+                # Verificar si el gestor tiene perfil, si no, crearlo
+                if not hasattr(remesa.gestor, 'perfil'):
+                    from login.models import PerfilUsuario
+                    from remesas.models import TipoValorMoneda
+                    tipo_valor_defecto = TipoValorMoneda.get_tipo_por_defecto()
+                    PerfilUsuario.objects.create(
+                        user=remesa.gestor,
+                        tipo_usuario='admin' if remesa.gestor.is_superuser else 'gestor',
+                        tipo_valor_moneda=tipo_valor_defecto
+                    )
+                
                 perfil_gestor = remesa.gestor.perfil
                 perfil_gestor.balance -= monto_usd
                 perfil_gestor.save()
@@ -513,9 +522,13 @@ def eliminar_remesa(request, remesa_id):
             })
             
         except Exception as e:
+            import traceback
+            error_detail = f'Error al eliminar la remesa: {str(e)}'
+            print(f"ERROR en eliminar_remesa: {error_detail}")
+            print(f"TRACEBACK: {traceback.format_exc()}")
             return JsonResponse({
                 'success': False,
-                'message': f'Error al eliminar la remesa: {str(e)}'
+                'message': error_detail
             })
     
     return JsonResponse({
@@ -556,7 +569,18 @@ def eliminar_pago(request, pago_id):
             monto_usd = pago.calcular_monto_en_usd()
             
             # Revertir el balance del usuario (agregar el monto que se había descontado)
-            if pago.usuario and pago.usuario.perfil:
+            if pago.usuario:
+                # Verificar si el usuario tiene perfil, si no, crearlo
+                if not hasattr(pago.usuario, 'perfil'):
+                    from login.models import PerfilUsuario
+                    from remesas.models import TipoValorMoneda
+                    tipo_valor_defecto = TipoValorMoneda.get_tipo_por_defecto()
+                    PerfilUsuario.objects.create(
+                        user=pago.usuario,
+                        tipo_usuario='admin' if pago.usuario.is_superuser else 'gestor',
+                        tipo_valor_moneda=tipo_valor_defecto
+                    )
+                
                 perfil_usuario = pago.usuario.perfil
                 perfil_usuario.balance += monto_usd
                 perfil_usuario.save()
@@ -596,9 +620,13 @@ def eliminar_pago(request, pago_id):
             })
             
         except Exception as e:
+            import traceback
+            error_detail = f'Error al eliminar el pago: {str(e)}'
+            print(f"ERROR en eliminar_pago: {error_detail}")
+            print(f"TRACEBACK: {traceback.format_exc()}")
             return JsonResponse({
                 'success': False,
-                'message': f'Error al eliminar el pago: {str(e)}'
+                'message': error_detail
             })
     
     return JsonResponse({
@@ -849,9 +877,16 @@ def editar_remesa(request, remesa_id):
                 if comprobante:
                     remesa.comprobante = comprobante
                 
+                # Guardar primero los cambios básicos
                 remesa.save()
                 
-                success_msg = f'Remesa {remesa.remesa_id} actualizada exitosamente'
+                # Establecer el usuario editor antes del recálculo
+                remesa.usuario_editor = request.user
+                
+                # Recalcular valores USD con las tasas actuales después de la edición
+                remesa.recalcular_valores_por_edicion()
+                
+                success_msg = f'Remesa {remesa.remesa_id} actualizada exitosamente con nuevos valores USD'
                 if is_ajax:
                     return JsonResponse({'success': True, 'message': success_msg})
                 else:
@@ -1334,7 +1369,14 @@ def editar_pago(request, pago_id):
             if comprobante_pago:
                 pago.comprobante_pago = comprobante_pago
             
+            # Guardar primero los cambios básicos
             pago.save()
+            
+            # Establecer el usuario editor antes del recálculo
+            pago.usuario_editor = request.user
+            
+            # Recalcular valores USD con las tasas actuales después de la edición
+            pago.recalcular_valores_por_edicion()
             
             # Calcular balance final real después de la actualización
             perfil = request.user.perfil
@@ -1343,13 +1385,13 @@ def editar_pago(request, pago_id):
             balance_final = balance_calculado
             if diferencia_usd > 0:
                 if balance_final < 0:
-                    success_msg = f'Pago actualizado exitosamente. Se descontaron ${diferencia_usd:.2f} USD adicionales. Tu balance ahora es ${balance_final:.2f} USD (negativo).'
+                    success_msg = f'Pago actualizado exitosamente con nuevos valores USD. Se descontaron ${diferencia_usd:.2f} USD adicionales. Tu balance ahora es ${balance_final:.2f} USD (negativo).'
                 else:
-                    success_msg = f'Pago actualizado exitosamente. Se descontaron ${diferencia_usd:.2f} USD adicionales de tu balance.'
+                    success_msg = f'Pago actualizado exitosamente con nuevos valores USD. Se descontaron ${diferencia_usd:.2f} USD adicionales de tu balance.'
             elif diferencia_usd < 0:
-                success_msg = f'Pago actualizado exitosamente. Se reembolsaron ${abs(diferencia_usd):.2f} USD a tu balance.'
+                success_msg = f'Pago actualizado exitosamente con nuevos valores USD. Se reembolsaron ${abs(diferencia_usd):.2f} USD a tu balance.'
             else:
-                success_msg = 'Pago actualizado exitosamente.'
+                success_msg = 'Pago actualizado exitosamente con nuevos valores USD.'
             
             if is_ajax:
                 return JsonResponse({'success': True, 'message': success_msg})

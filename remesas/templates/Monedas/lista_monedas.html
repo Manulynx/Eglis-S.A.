@@ -1542,16 +1542,12 @@ function eliminarMoneda(monedaId, codigo, nombre) {
                     color: '#fff'
                 });
                 
-                fetch(`{% url 'remesas:lista_monedas' %}`, {
+                fetch(`{% url 'remesas:eliminar_moneda' 0 %}`.replace('0', monedaId), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRFToken': getCookie('csrftoken')
-                    },
-                    body: JSON.stringify({
-                        action: 'delete',
-                        moneda_id: monedaId
-                    })
+                    }
                 })
                 .then(response => response.json())
                 .then(data => {
@@ -1594,16 +1590,12 @@ function eliminarMoneda(monedaId, codigo, nombre) {
     } else {
         // Fallback para confirm básico
         if (confirm(`¿Está seguro que desea eliminar la moneda ${codigo} - ${nombre}?`)) {
-            fetch(`{% url 'remesas:lista_monedas' %}`, {
+            fetch(`{% url 'remesas:eliminar_moneda' 0 %}`.replace('0', monedaId), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': getCookie('csrftoken')
-                },
-                body: JSON.stringify({
-                    action: 'delete',
-                    moneda_id: monedaId
-                })
+                }
             })
             .then(response => response.json())
             .then(data => {
@@ -1643,17 +1635,12 @@ function toggleEstadoMoneda(monedaId, estadoActual) {
             reverseButtons: true
         }).then((result) => {
             if (result.isConfirmed) {
-                fetch(`{% url 'remesas:lista_monedas' %}`, {
+                fetch(`{% url 'remesas:toggle_estado_moneda' 0 %}`.replace('0', monedaId), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRFToken': getCookie('csrftoken')
-                    },
-                    body: JSON.stringify({
-                        action: 'toggle_estado',
-                        moneda_id: monedaId,
-                        estado: nuevoEstado
-                    })
+                    }
                 })
                 .then(response => response.json())
                 .then(data => {
@@ -1696,17 +1683,12 @@ function toggleEstadoMoneda(monedaId, estadoActual) {
     } else {
         // Fallback para confirm básico
         if (confirm(`¿Está seguro que desea ${accion} esta moneda?`)) {
-            fetch(`{% url 'remesas:lista_monedas' %}`, {
+            fetch(`{% url 'remesas:toggle_estado_moneda' 0 %}`.replace('0', monedaId), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': getCookie('csrftoken')
-                },
-                body: JSON.stringify({
-                    action: 'toggle_estado',
-                    moneda_id: monedaId,
-                    estado: nuevoEstado
-                })
+                }
             })
             .then(response => response.json())
             .then(data => {

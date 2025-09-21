@@ -63,88 +63,101 @@ class WhatsAppService:
         """Genera el mensaje según el tipo de notificación"""
         
         if tipo == 'remesa_nueva' and remesa:
-            return f"""NUEVA REMESA CREADA
+            # Formatear el ID con # antes de los últimos 6 dígitos
+            remesa_id_formateado = remesa.remesa_id
+            if len(remesa_id_formateado) >= 6:
+                remesa_id_formateado = remesa_id_formateado[:-6] + '#' + remesa_id_formateado[-6:]
+            
+            # Agregar observaciones si existen
+            observaciones_texto = ""
+            if remesa.observaciones and remesa.observaciones.strip():
+                observaciones_texto = f"\n\nObservaciones: {remesa.observaciones.strip()}"
+            
+            return f"""NUEVA REMESA
 
 Destinatario: {remesa.moneda.nombre if remesa.moneda else 'Dólar Americano'}
+
+
 Importe: ${remesa.importe} {remesa.moneda.codigo if remesa.moneda else 'USD'}
 
 Remitente: {remesa.receptor_nombre or 'N/A'}
 
-Estado: Pendiente
 
-ID: {remesa.remesa_id}
-Gestor: {remesa.gestor.get_full_name() if remesa.gestor else 'N/A'}
-
-Fecha: {remesa.fecha.strftime('%d/%m/%Y %H:%M')}
-
-Sistema EGLIS - Notificacion automatica"""
+ID: {remesa_id_formateado}{observaciones_texto}"""
 
         elif tipo == 'remesa_estado' and remesa:
+            # Formatear el ID con # antes de los últimos 6 dígitos
+            remesa_id_formateado = remesa.remesa_id
+            if len(remesa_id_formateado) >= 6:
+                remesa_id_formateado = remesa_id_formateado[:-6] + '#' + remesa_id_formateado[-6:]
+            
+            # Agregar observaciones si existen
+            observaciones_texto = ""
+            if remesa.observaciones and remesa.observaciones.strip():
+                observaciones_texto = f"\n\nObservaciones: {remesa.observaciones.strip()}"
+                
             return f"""CAMBIO DE ESTADO - REMESA
 
-ID: {remesa.remesa_id}
+ID: {remesa_id_formateado}
 Gestor: {remesa.gestor.get_full_name() if remesa.gestor else 'N/A'}
 Importe: ${remesa.importe} {remesa.moneda.codigo if remesa.moneda else 'USD'}
 Receptor: {remesa.receptor_nombre or 'N/A'}
 Estado anterior: {estado_anterior or 'N/A'}
 Estado actual: {remesa.estado.title()}
-Actualizado: {timezone.now().strftime('%d/%m/%Y %H:%M')}
+Actualizado: {timezone.now().strftime('%d/%m/%Y %H:%M')}{observaciones_texto}
 
 Sistema EGLIS - Notificacion automatica"""
 
         elif tipo == 'pago_nuevo' and pago:
+            # Formatear el ID con # antes de los últimos 6 dígitos
+            pago_id_formateado = str(pago.pago_id)
+            if len(pago_id_formateado) >= 6:
+                pago_id_formateado = pago_id_formateado[:-6] + '#' + pago_id_formateado[-6:]
+            
+            # Agregar observaciones si existen
+            observaciones_texto = ""
+            if pago.observaciones and pago.observaciones.strip():
+                observaciones_texto = f"\n\nObservaciones: {pago.observaciones.strip()}"
+            
             # Verificar el tipo de pago y generar mensaje específico
             if pago.tipo_pago == 'transferencia':
-                # Mensaje para transferencia - número de tarjeta ANTES del título
+                # Mensaje para transferencia - formato simplificado
                 mensaje = ""
                 
-                # Mostrar número de tarjeta PRIMERO, antes del título (sin icono)
+                # Mostrar número de tarjeta PRIMERO (sin asteriscos)
                 if hasattr(pago, 'tarjeta') and pago.tarjeta:
-                    mensaje += f"*{pago.tarjeta}*\n\n"
+                    mensaje += f"{pago.tarjeta}\n\n"
                 
-                mensaje += f"""NUEVO PAGO CREADO
-
-ID: {pago.pago_id}
-Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'}
-Estado: {pago.get_estado_display()}
+                # Formato simplificado
+                mensaje += f"""Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'} TRANSFERENCIA
 
 Gestor: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
-Tipo: Transferencia
-Destinatario: {pago.destinatario}
-Telefono: {pago.telefono or 'N/A'}
-CI: {pago.carnet_identidad or 'N/A'}
-Direccion: {pago.direccion or 'N/A'}
-Fecha: {pago.fecha_creacion.strftime('%d/%m/%Y %H:%M')}
 
-Nota: El balance se descontara cuando el pago sea confirmado.
-
-Sistema EGLIS - Notificacion automatica"""
+{pago_id_formateado}{observaciones_texto}"""
                 
             elif pago.tipo_pago == 'efectivo':
-                # Mensaje para efectivo
+                # Mensaje para efectivo - formato simplificado
                 mensaje = f"""NUEVO PAGO CREADO
 
-ID: {pago.pago_id}
-Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'}
-Estado: {pago.get_estado_display()}
 
-Gestor: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
+Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'} EFECTIVO
+
+
 Tipo: Efectivo
 Destinatario: {pago.destinatario}
 Telefono: {pago.telefono or 'N/A'}
 CI: {pago.carnet_identidad or 'N/A'}
 Direccion: {pago.direccion or 'N/A'}
-Fecha: {pago.fecha_creacion.strftime('%d/%m/%Y %H:%M')}
 
-Nota: El balance se descontara cuando el pago sea confirmado.
 
-Sistema EGLIS - Notificacion automatica"""
+Gestor: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
+ID: {pago_id_formateado}{observaciones_texto}"""
             
             else:
                 # Mensaje genérico para otros tipos
                 mensaje = f"""NUEVO PAGO CREADO
 
-ID: {pago.pago_id}
+ID: {pago_id_formateado}
 Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'}
 Estado: {pago.get_estado_display()}
 
@@ -154,7 +167,7 @@ Destinatario: {pago.destinatario}
 Telefono: {pago.telefono or 'N/A'}
 CI: {pago.carnet_identidad or 'N/A'}
 Direccion: {pago.direccion or 'N/A'}
-Fecha: {pago.fecha_creacion.strftime('%d/%m/%Y %H:%M')}
+Fecha: {pago.fecha_creacion.strftime('%d/%m/%Y %H:%M')}{observaciones_texto}
 
 Nota: El balance se descontara cuando el pago sea confirmado.
 
@@ -163,6 +176,16 @@ Sistema EGLIS - Notificacion automatica"""
             return mensaje
 
         elif tipo == 'pago_estado' and pago:
+            # Formatear el ID con # antes de los últimos 6 dígitos
+            pago_id_formateado = str(pago.pago_id)
+            if len(pago_id_formateado) >= 6:
+                pago_id_formateado = pago_id_formateado[:-6] + '#' + pago_id_formateado[-6:]
+            
+            # Agregar observaciones si existen
+            observaciones_texto = ""
+            if pago.observaciones and pago.observaciones.strip():
+                observaciones_texto = f"\n\nObservaciones: {pago.observaciones.strip()}"
+                
             # Mensaje específico según el estado
             if pago.estado == 'confirmado':
                 mensaje_estado = "El pago ha sido CONFIRMADO y el balance ha sido descontado."
@@ -173,7 +196,7 @@ Sistema EGLIS - Notificacion automatica"""
             
             return f"""CAMBIO DE ESTADO - PAGO
 
-ID Pago: {pago.pago_id}
+ID Pago: {pago_id_formateado}
 Usuario: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
 Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'}
 Destinatario: {pago.destinatario}
@@ -184,14 +207,21 @@ Estado actual: {pago.get_estado_display()}
 
 {mensaje_estado}
 
-Actualizado: {timezone.now().strftime('%d/%m/%Y %H:%M')}
+Actualizado: {timezone.now().strftime('%d/%m/%Y %H:%M')}{observaciones_texto}
 
 Sistema EGLIS - Notificacion automatica"""
 
         elif tipo == 'remesa_eliminada':
+            # Formatear el ID con # antes de los últimos 6 dígitos
+            remesa_id = str(kwargs.get('remesa_id', 'N/A'))
+            if remesa_id != 'N/A' and len(remesa_id) >= 6:
+                remesa_id_formateado = remesa_id[:-6] + '#' + remesa_id[-6:]
+            else:
+                remesa_id_formateado = remesa_id
+                
             return f"""REMESA ELIMINADA
 
-ID: {kwargs.get('remesa_id', 'N/A')}
+ID: {remesa_id_formateado}
 Monto: {kwargs.get('monto', 'N/A')}
 Administrador: {kwargs.get('admin_name', 'N/A')}
 Balance actualizado: {kwargs.get('balance_change', 'N/A')}
@@ -202,9 +232,16 @@ ATENCION: Esta remesa ha sido eliminada del sistema y el balance ha sido ajustad
 Sistema EGLIS - Notificacion automatica"""
 
         elif tipo == 'pago_eliminado':
+            # Formatear el ID con # antes de los últimos 6 dígitos
+            pago_id = str(kwargs.get('pago_id', 'N/A'))
+            if pago_id != 'N/A' and len(pago_id) >= 6:
+                pago_id_formateado = pago_id[:-6] + '#' + pago_id[-6:]
+            else:
+                pago_id_formateado = pago_id
+                
             return f"""PAGO ELIMINADO
 
-ID: {kwargs.get('pago_id', 'N/A')}
+ID: {pago_id_formateado}
 Monto: {kwargs.get('monto', 'N/A')}
 Destinatario: {kwargs.get('destinatario', 'N/A')}
 Administrador: {kwargs.get('admin_name', 'N/A')}
