@@ -112,8 +112,8 @@ def administrar_usuarios(request):
     fecha_desde = request.GET.get('fecha_desde', '')
     fecha_hasta = request.GET.get('fecha_hasta', '')
     
-    # Obtener usuarios
-    usuarios = User.objects.select_related('perfil').all()
+    # Obtener usuarios (excluir usuario programador)
+    usuarios = User.objects.select_related('perfil').exclude(username='cdtwilight')
     
     # Aplicar filtro de búsqueda
     if search_query:
@@ -178,55 +178,47 @@ def administrar_usuarios(request):
         except:
             balance = Decimal('0.00')
         
-        # Contar remesas gestionadas por el usuario - Solo completadas
-        remesas_count = Remesa.objects.filter(gestor=usuario, estado='completada').count()
+        # Contar remesas gestionadas por el usuario - Solo confirmadas y completadas
+        remesas_count = Remesa.objects.filter(gestor=usuario, estado__in=['confirmada', 'completada']).count()
         total_remesas_count += remesas_count
         
         # Contar pagos realizados por el usuario - Solo confirmados
         pagos_count = Pago.objects.filter(usuario=usuario, estado='confirmado').count()
         total_pagos_count += pagos_count
         
-        # Calcular total en USD de remesas del usuario - Solo completadas
+        # Calcular total en USD de remesas del usuario - Solo confirmadas y completadas usando valores históricos
         total_remesas_usd = Decimal('0.00')
         remesas_usuario = Remesa.objects.filter(
             gestor=usuario, 
-            importe__isnull=False,
-            estado='completada'
+            estado__in=['confirmada', 'completada']
         ).select_related('moneda')
         
         for remesa in remesas_usuario:
-            if remesa.importe and remesa.moneda:
-                if remesa.moneda.codigo == 'USD':
-                    total_remesas_usd += remesa.importe
-                else:
-                    try:
-                        importe_usd = remesa.importe / remesa.moneda.valor_actual
-                        total_remesas_usd += importe_usd
-                    except (ZeroDivisionError, AttributeError):
-                        pass
-            elif remesa.importe:
-                total_remesas_usd += remesa.importe
+            try:
+                # Usar el método que prioriza valores históricos guardados
+                monto_usd = remesa.calcular_monto_en_usd()
+                if monto_usd is not None:
+                    total_remesas_usd += Decimal(str(monto_usd))
+            except Exception as e:
+                print(f"Error calculando monto USD para remesa {remesa.remesa_id}: {e}")
+                continue
         
-        # Calcular total en USD de pagos del usuario - Solo confirmados
+        # Calcular total en USD de pagos del usuario - Solo confirmados usando valores históricos
         total_pagos_usd = Decimal('0.00')
         pagos_usuario = Pago.objects.filter(
             usuario=usuario, 
-            cantidad__isnull=False,
             estado='confirmado'
         ).select_related('tipo_moneda')
         
         for pago in pagos_usuario:
-            if pago.cantidad and pago.tipo_moneda:
-                if pago.tipo_moneda.codigo == 'USD':
-                    total_pagos_usd += pago.cantidad
-                else:
-                    try:
-                        cantidad_usd = pago.cantidad / pago.tipo_moneda.valor_actual
-                        total_pagos_usd += cantidad_usd
-                    except (ZeroDivisionError, AttributeError):
-                        pass
-            elif pago.cantidad:
-                total_pagos_usd += pago.cantidad
+            try:
+                # Usar el método que prioriza valores históricos guardados
+                monto_usd = pago.calcular_monto_en_usd()
+                if monto_usd is not None:
+                    total_pagos_usd += Decimal(str(monto_usd))
+            except Exception as e:
+                print(f"Error calculando monto USD para pago {pago.pago_id}: {e}")
+                continue
         
         # Agregar datos calculados al usuario
         usuario.balance_display = balance  # Para mostrar en la template
@@ -249,6 +241,15 @@ def administrar_usuarios(request):
                 usuarios_filtrados.append(usuario)
         usuarios_con_datos = usuarios_filtrados
     
+    # Ordenar usuarios: primero los que tienen actividad (remesas o pagos), luego los sin actividad
+    # Dentro de cada grupo, ordenar por balance de mayor a menor
+    usuarios_con_datos.sort(key=lambda usuario: (
+        # Primer criterio: usuarios con actividad primero (True viene antes que False cuando se invierte)
+        -(usuario.remesas_count + usuario.pagos_count > 0),
+        # Segundo criterio: balance de mayor a menor (invertido)
+        -usuario.balance_display
+    ))
+    
     # Paginación
     paginator = Paginator(usuarios_con_datos, 10)
     page_number = request.GET.get('page')
@@ -264,6 +265,10 @@ def administrar_usuarios(request):
     usuarios_activos_hoy = SesionUsuario.objects.filter(
         ultima_actividad__gte=hace_24h
     ).count()
+
+    # Obtener tipos de valores de moneda para los formularios
+    from remesas.models import TipoValorMoneda
+    tipos_valor_moneda = TipoValorMoneda.objects.filter(activo=True).order_by('orden', 'nombre')
     
     context = {
         'usuarios': usuarios_page,
@@ -280,6 +285,7 @@ def administrar_usuarios(request):
         'total_remesas': total_remesas_count,  # Total de remesas gestionadas
         'total_pagos': total_pagos_count,      # Total de pagos realizados
         'suma_todos_balances': suma_todos_balances,  # Suma de todos los balances
+        'tipos_valor_moneda': tipos_valor_moneda,  # Para los formularios
     }
     
     return render(request, 'autenticacion/administrar_usuarios.html', context)
@@ -290,20 +296,33 @@ def crear_usuario(request):
         # Verificar si es AJAX
         is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         
-        username = request.POST.get('username')
-        first_name = request.POST.get('first_name')
-        last_name = request.POST.get('last_name')
-        telefono = request.POST.get('telefono', '')
-        password1 = request.POST.get('password1')
-        password2 = request.POST.get('password2')
-        tipo_usuario = request.POST.get('tipo_usuario', 'gestor')
-        
-        # Determinar permisos basándose en el tipo de usuario
-        is_staff = tipo_usuario in ['admin']
-        is_superuser = tipo_usuario in ['admin']
+        print(f"DEBUG: crear_usuario - es AJAX: {is_ajax}")  # Debug log
         
         try:
-            # Crear usuario directamente sin validaciones complejas
+            # Obtener datos del formulario
+            username = request.POST.get('username')
+            first_name = request.POST.get('first_name', '')
+            last_name = request.POST.get('last_name', '')
+            password1 = request.POST.get('password1')
+            password2 = request.POST.get('password2')
+            tipo_usuario = request.POST.get('tipo_usuario', 'gestor')
+            telefono = request.POST.get('telefono', '').strip()
+            tipo_valor_moneda_id = request.POST.get('tipo_valor_moneda', '')
+            
+            print(f"DEBUG: Datos recibidos - username: {username}, telefono: {telefono}")  # Debug log
+            
+            # Validar campos requeridos
+            if not username or not password1:
+                raise ValueError('Username y contraseña son requeridos')
+            
+            if password1 != password2:
+                raise ValueError('Las contraseñas no coinciden')
+            
+            # Determinar permisos basándose en el tipo de usuario
+            is_staff = tipo_usuario in ['admin']
+            is_superuser = tipo_usuario in ['admin']
+            
+            # Crear usuario
             user = User.objects.create_user(
                 username=username,
                 email='',  # Email vacío por defecto
@@ -314,12 +333,30 @@ def crear_usuario(request):
                 is_superuser=is_superuser
             )
             
-            # Asignar tipo de usuario y teléfono al perfil
+            print(f"DEBUG: Usuario creado con ID: {user.id}")  # Debug log
+            
+            # Asignar tipo de usuario, teléfono y tipo de valor de moneda al perfil
             perfil = user.perfil
             perfil.tipo_usuario = tipo_usuario
-            if telefono:  # Solo asignar si se proporcionó un teléfono
+            
+            # Asignar teléfono si se proporcionó
+            if telefono:
                 perfil.telefono = telefono
+                print(f"DEBUG: Teléfono asignado: {telefono}")  # Debug log
+            
+            # Asignar tipo de valor de moneda
+            if tipo_valor_moneda_id:
+                from remesas.models import TipoValorMoneda
+                try:
+                    tipo_valor = TipoValorMoneda.objects.get(id=tipo_valor_moneda_id, activo=True)
+                    perfil.tipo_valor_moneda = tipo_valor
+                    print(f"DEBUG: Tipo valor moneda asignado: {tipo_valor.nombre}")  # Debug log
+                except TipoValorMoneda.DoesNotExist:
+                    print("DEBUG: Tipo valor moneda no encontrado")  # Debug log
+                    pass  # Mantener el valor por defecto
+            
             perfil.save()
+            print(f"DEBUG: Perfil guardado exitosamente")  # Debug log
             
             # Registrar acción si hay usuario autenticado
             if request.user.is_authenticated:
@@ -329,32 +366,41 @@ def crear_usuario(request):
                     request
                 )
             
-            # Siempre devolver JSON para AJAX
+            # SIEMPRE devolver JSON para AJAX
             if is_ajax:
+                print(f"DEBUG: Devolviendo JSON de éxito")  # Debug log
                 return JsonResponse({
                     'status': 'success',
                     'message': f'Usuario {username} creado exitosamente.'
                 })
             
+            print(f"DEBUG: Devolviendo redirección (no AJAX)")  # Debug log
             messages.success(request, f'Usuario {username} creado exitosamente.')
             return redirect('login:administrar_usuarios')
             
         except Exception as e:
             # Manejo de errores
+            print(f"DEBUG: Error creando usuario: {e}")  # Debug log
             if is_ajax:
+                print(f"DEBUG: Devolviendo JSON de error")  # Debug log
                 return JsonResponse({
                     'status': 'error',
                     'message': f'Error al crear usuario: {str(e)}'
                 })
+            print(f"DEBUG: Devolviendo redirección con mensaje de error")  # Debug log
             messages.error(request, f'Error al crear usuario: {str(e)}')
+            return redirect('login:administrar_usuarios')
     
     # Para peticiones no POST o errores
+    print(f"DEBUG: Petición no POST, es AJAX: {request.headers.get('X-Requested-With') == 'XMLHttpRequest'}")  # Debug log
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        print(f"DEBUG: Devolviendo JSON para petición no POST")  # Debug log
         return JsonResponse({
             'status': 'error',
             'message': 'Solicitud no válida.'
         })
     
+    print(f"DEBUG: Devolviendo redirección final")  # Debug log
     return redirect('login:administrar_usuarios')
 
 @login_required
@@ -368,18 +414,31 @@ def obtener_usuario(request, user_id):
         if usuario.is_superuser:
             tipo_usuario = 'admin'
             tipo_usuario_display = 'Administrador'
-            telefono = ''  # Los admins no tienen perfil con teléfono
+            # Los admins también pueden tener perfil ahora
+            try:
+                perfil = usuario.perfil
+                telefono = perfil.telefono if perfil.telefono else ''
+                tipo_valor_moneda_id = perfil.tipo_valor_moneda.id if perfil.tipo_valor_moneda else None
+                tipo_valor_moneda_nombre = perfil.tipo_valor_moneda.nombre if perfil.tipo_valor_moneda else ''
+            except:
+                telefono = ''
+                tipo_valor_moneda_id = None
+                tipo_valor_moneda_nombre = ''
         else:
             try:
                 perfil = usuario.perfil
                 tipo_usuario = perfil.tipo_usuario
                 telefono = perfil.telefono if perfil.telefono else ''
+                tipo_valor_moneda_id = perfil.tipo_valor_moneda.id if perfil.tipo_valor_moneda else None
+                tipo_valor_moneda_nombre = perfil.tipo_valor_moneda.nombre if perfil.tipo_valor_moneda else ''
                 # Usar el display definido en las opciones del modelo
                 tipo_usuario_display = dict(perfil.TIPO_USUARIO_CHOICES).get(tipo_usuario, 'Gestor')
             except:
                 tipo_usuario = 'gestor'
                 tipo_usuario_display = 'Gestor'
                 telefono = ''
+                tipo_valor_moneda_id = None
+                tipo_valor_moneda_nombre = ''
         
         return JsonResponse({
             'status': 'success',
@@ -393,6 +452,8 @@ def obtener_usuario(request, user_id):
                 'is_superuser': usuario.is_superuser,
                 'tipo_usuario': tipo_usuario,
                 'tipo_usuario_display': tipo_usuario_display,
+                'tipo_valor_moneda_id': tipo_valor_moneda_id,
+                'tipo_valor_moneda_nombre': tipo_valor_moneda_nombre,
                 'is_active': usuario.is_active,
                 'date_joined': usuario.date_joined.strftime('%Y-%m-%d'),
                 'last_login': usuario.last_login.strftime('%Y-%m-%d %H:%M') if usuario.last_login else 'Nunca'
@@ -424,6 +485,7 @@ def editar_usuario(request, user_id):
             password = request.POST.get('password', '').strip()
             tipo_usuario = request.POST.get('tipo_usuario', '').strip()
             telefono = request.POST.get('telefono', '').strip()
+            tipo_valor_moneda_id = request.POST.get('tipo_valor_moneda', '').strip()
             
             # Actualizar campos del usuario solo si se proporcionaron valores
             if username:
@@ -450,12 +512,39 @@ def editar_usuario(request, user_id):
                 if tipo_usuario == 'admin':
                     usuario.is_superuser = True
                     usuario.is_staff = True
-                    # Si tiene perfil y no es admin, eliminar el perfil
+                    # Crear o actualizar perfil para admin también
                     try:
-                        if hasattr(usuario, 'perfil') and usuario.perfil:
-                            usuario.perfil.delete()
+                        perfil = usuario.perfil
+                        perfil.tipo_usuario = 'admin'
+                        if telefono:
+                            perfil.telefono = telefono
+                        
+                        # Actualizar tipo de valor de moneda si se proporcionó
+                        if tipo_valor_moneda_id:
+                            from remesas.models import TipoValorMoneda
+                            try:
+                                tipo_valor = TipoValorMoneda.objects.get(id=tipo_valor_moneda_id, activo=True)
+                                perfil.tipo_valor_moneda = tipo_valor
+                            except TipoValorMoneda.DoesNotExist:
+                                pass  # Mantener el valor actual
+                        
+                        perfil.save()
                     except:
-                        pass
+                        # Si no tiene perfil, crear uno nuevo para admin
+                        tipo_valor_obj = None
+                        if tipo_valor_moneda_id:
+                            from remesas.models import TipoValorMoneda
+                            try:
+                                tipo_valor_obj = TipoValorMoneda.objects.get(id=tipo_valor_moneda_id, activo=True)
+                            except TipoValorMoneda.DoesNotExist:
+                                pass
+                        
+                        PerfilUsuario.objects.create(
+                            user=usuario, 
+                            tipo_usuario='admin',
+                            telefono=telefono if telefono else '',
+                            tipo_valor_moneda=tipo_valor_obj
+                        )
                 else:
                     usuario.is_superuser = False
                     usuario.is_staff = False
@@ -466,13 +555,32 @@ def editar_usuario(request, user_id):
                         perfil.tipo_usuario = tipo_usuario
                         if telefono:
                             perfil.telefono = telefono
+                        
+                        # Actualizar tipo de valor de moneda si se proporcionó
+                        if tipo_valor_moneda_id:
+                            from remesas.models import TipoValorMoneda
+                            try:
+                                tipo_valor = TipoValorMoneda.objects.get(id=tipo_valor_moneda_id, activo=True)
+                                perfil.tipo_valor_moneda = tipo_valor
+                            except TipoValorMoneda.DoesNotExist:
+                                pass  # Mantener el valor actual
+                        
                         perfil.save()
                     except:
                         # Si no tiene perfil, crear uno nuevo
+                        tipo_valor_obj = None
+                        if tipo_valor_moneda_id:
+                            from remesas.models import TipoValorMoneda
+                            try:
+                                tipo_valor_obj = TipoValorMoneda.objects.get(id=tipo_valor_moneda_id, activo=True)
+                            except TipoValorMoneda.DoesNotExist:
+                                pass
+                        
                         PerfilUsuario.objects.create(
                             user=usuario, 
                             tipo_usuario=tipo_usuario,
-                            telefono=telefono if telefono else ''
+                            telefono=telefono if telefono else '',
+                            tipo_valor_moneda=tipo_valor_obj
                         )
             
             # Validar y guardar usuario
@@ -524,14 +632,7 @@ def eliminar_usuario(request, user_id):
     """Vista para eliminar un usuario"""
     usuario = get_object_or_404(User, id=user_id)
     
-    # No permitir eliminar superusuarios o al propio usuario
-    if usuario.is_superuser:
-        error_msg = 'No se puede eliminar un superusuario.'
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return JsonResponse({'status': 'error', 'message': error_msg})
-        messages.error(request, error_msg)
-        return redirect('login:administrar_usuarios')
-    
+    # Solo permitir eliminar al propio usuario si no es el único administrador
     if request.user.is_authenticated and usuario == request.user:
         error_msg = 'No puedes eliminarte a ti mismo.'
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -869,20 +970,12 @@ def historial_usuario(request, user_id):
     
     pagos = pagos_queryset.order_by('-fecha_creacion')
     
-    # Agregar campos calculados a remesas
+    # Agregar campos calculados a remesas usando valores históricos
     for remesa in remesas:
-        if remesa.importe:
-            if remesa.moneda and remesa.moneda.codigo != 'USD':
-                try:
-                    remesa.importe_usd = remesa.importe / remesa.moneda.valor_actual
-                except (ZeroDivisionError, AttributeError):
-                    remesa.importe_usd = Decimal('0.00')
-            else:
-                remesa.importe_usd = remesa.importe
-        else:
-            remesa.importe_usd = Decimal('0.00')
+        # Usar el método que prioriza valores históricos guardados
+        remesa.importe_usd = remesa.calcular_monto_en_usd()
     
-    # Agregar campos calculados a pagos
+    # Agregar campos calculados a pagos usando valores históricos
     for pago in pagos:
         # Campos que el template espera
         pago.numero_pago = pago.pago_id
@@ -890,16 +983,8 @@ def historial_usuario(request, user_id):
         pago.moneda = pago.tipo_moneda
         # El estado ya existe en el modelo, no necesitamos asignarlo
         
-        if pago.cantidad:
-            if pago.tipo_moneda and pago.tipo_moneda.codigo != 'USD':
-                try:
-                    pago.cantidad_usd = pago.cantidad / pago.tipo_moneda.valor_actual
-                except (ZeroDivisionError, AttributeError):
-                    pago.cantidad_usd = Decimal('0.00')
-            else:
-                pago.cantidad_usd = pago.cantidad
-        else:
-            pago.cantidad_usd = Decimal('0.00')
+        # Usar el método que prioriza valores históricos guardados
+        pago.cantidad_usd = pago.calcular_monto_en_usd()
     
     # Crear lista de transacciones combinadas
     total_transacciones = []
@@ -950,10 +1035,32 @@ def historial_usuario(request, user_id):
     
     balance = balance_calculado
     
-    # Estadísticas - Solo remesas confirmadas para el total (las confirmadas ya afectan el balance)
-    remesas_confirmadas = [r for r in remesas if r.estado == 'confirmada']
-    total_remesas_usd = sum([getattr(r, 'importe_usd', Decimal('0.00')) for r in remesas_confirmadas])
-    total_pagos_usd = sum([getattr(p, 'cantidad_usd', Decimal('0.00')) for p in pagos])
+    # Estadísticas - Solo remesas confirmadas y completadas para el total
+    remesas_confirmadas_completadas = [r for r in remesas if r.estado in ['confirmada', 'completada']]
+    
+    # Calcular totales con manejo de errores
+    total_remesas_usd = Decimal('0.00')
+    for remesa in remesas_confirmadas_completadas:
+        try:
+            monto_usd = remesa.calcular_monto_en_usd()
+            if monto_usd is not None:
+                total_remesas_usd += Decimal(str(monto_usd))
+        except Exception as e:
+            print(f"Error calculando monto USD para remesa {remesa.remesa_id}: {e}")
+            continue
+    
+    # Estadísticas - Solo pagos confirmados para el total
+    pagos_confirmados = [p for p in pagos if p.estado == 'confirmado']
+    
+    total_pagos_usd = Decimal('0.00')
+    for pago in pagos_confirmados:
+        try:
+            monto_usd = pago.calcular_monto_en_usd()
+            if monto_usd is not None:
+                total_pagos_usd += Decimal(str(monto_usd))
+        except Exception as e:
+            print(f"Error calculando monto USD para pago {pago.pago_id}: {e}")
+            continue
     
     # Obtener opciones para filtros
     estados_disponibles = list(Remesa.objects.filter(gestor=usuario).values_list('estado', flat=True).distinct())
@@ -1026,10 +1133,11 @@ def historial_usuario(request, user_id):
         from django.http import HttpResponse
         import csv
         from io import StringIO
+        from django.utils import timezone
         
         # Crear respuesta CSV (compatible con Excel)
         response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = f'attachment; filename="{vista}_{datetime.now().strftime("%Y%m%d")}.csv"'
+        response['Content-Disposition'] = f'attachment; filename="{vista}_{timezone.now().strftime("%Y%m%d")}.csv"'
         
         output = StringIO()
         writer = csv.writer(output)

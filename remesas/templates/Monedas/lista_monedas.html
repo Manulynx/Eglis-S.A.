@@ -1,21 +1,512 @@
 {% extends 'eglisapp/base.html' %}
 {% load static %}
+{% load remesas_filters %}
 
 {% block content %}
 {% csrf_token %}
+<style>
+/* Estilos para modal fallback */
+.modal.show {
+    display: block !important;
+}
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1040;
+    width: 100vw;
+    height: 100vh;
+    background-color: #000;
+    opacity: 0.5;
+}
+.modal {
+    z-index: 1050;
+}
+
+/* Estilos mejorados para vista móvil */
+@media (max-width: 991.98px) {
+    .mobile-currency-card {
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        background: linear-gradient(145deg, #3a3a3a 0%, #4a4a4a 100%);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .mobile-currency-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+    }
+    
+    .currency-header {
+        background: linear-gradient(135deg, #495057 0%, #6c757d 100%);
+        padding: 1rem;
+        margin: -1rem -1rem 1rem -1rem;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .currency-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(45deg, transparent 49%, rgba(255, 255, 255, 0.1) 50%, transparent 51%);
+        animation: shimmer 3s infinite;
+    }
+    
+    @keyframes shimmer {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+    }
+    
+    .currency-title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        margin: 0;
+        color: #fff;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+        z-index: 1;
+        position: relative;
+    }
+    
+    .currency-subtitle {
+        font-size: 0.9rem;
+        opacity: 0.9;
+        margin: 0.25rem 0;
+        color: #fff;
+        z-index: 1;
+        position: relative;
+    }
+    
+    .valores-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+    
+    .valor-item {
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        padding: 0.75rem;
+        border-left: 4px solid #007bff;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+    }
+    
+    .valor-item:hover {
+        background: rgba(255, 255, 255, 0.12);
+        border-left-color: #0056b3;
+        transform: translateX(4px);
+    }
+    
+    .valor-label {
+        font-size: 0.75rem;
+        color: #adb5bd;
+        margin-bottom: 0.25rem;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        font-weight: 600;
+    }
+    
+    .valor-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .valor-amount {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #fff;
+        font-family: 'Courier New', monospace;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+    
+    .btn-edit-valor {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.7rem;
+        border-radius: 6px;
+        border: 1px solid #007bff;
+        background: rgba(0, 123, 255, 0.1);
+        color: #007bff;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(5px);
+    }
+    
+    .btn-edit-valor:hover {
+        background: #007bff;
+        color: #fff;
+        transform: scale(1.1);
+        box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+    }
+    
+    .currency-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        flex-wrap: wrap;
+    }
+    
+    .currency-actions .btn {
+        flex: 1;
+        min-width: 0;
+        font-size: 0.8rem;
+        padding: 0.5rem 0.25rem;
+        border-radius: 6px;
+        transition: all 0.3s ease;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .currency-actions .btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    
+    .currency-meta {
+        font-size: 0.7rem;
+        color: #6c757d;
+        text-align: center;
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        font-style: italic;
+    }
+    
+    /* Responsive grid para múltiples tipos */
+    @media (min-width: 576px) and (max-width: 991.98px) {
+        .valores-grid {
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+        
+        .currency-actions {
+            flex-wrap: nowrap;
+        }
+        
+        .currency-actions .btn {
+            font-size: 0.85rem;
+            padding: 0.6rem 0.5rem;
+        }
+    }
+    
+    /* Para pantallas muy pequeñas */
+    @media (max-width: 350px) {
+        .currency-title {
+            font-size: 1rem;
+        }
+        
+        .currency-actions {
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        
+        .currency-actions .btn {
+            flex: none;
+            width: 100%;
+        }
+        
+        .valor-amount {
+            font-size: 1rem;
+        }
+    }
+}
+
+/* Estilos para los botones de header en móvil */
+@media (max-width: 576px) {
+    .btn-group {
+        flex-direction: column;
+        width: 100%;
+        gap: 0.5rem;
+    }
+    
+    .btn-group .btn {
+        border-radius: 0.375rem !important;
+        margin-bottom: 0;
+        width: 100%;
+    }
+}
+
+/* Mejoras en el estado vacío */
+.text-center.text-muted.py-5 {
+    padding: 3rem 1rem !important;
+}
+
+.text-center.text-muted.py-5 .fa-coins {
+    opacity: 0.3;
+    margin-bottom: 1rem;
+}
+
+/* Animación de carga suave */
+.mobile-currency-card {
+    animation: fadeInUp 0.5s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Delay progresivo para las tarjetas */
+.mobile-currency-card:nth-child(1) { animation-delay: 0.1s; }
+.mobile-currency-card:nth-child(2) { animation-delay: 0.2s; }
+.mobile-currency-card:nth-child(3) { animation-delay: 0.3s; }
+.mobile-currency-card:nth-child(4) { animation-delay: 0.4s; }
+.mobile-currency-card:nth-child(5) { animation-delay: 0.5s; }
+
+/* Estilos para el panel de gestión de tipos */
+.panel-gestion-tipos {
+    animation: slideDown 0.3s ease-out;
+    overflow: hidden;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        max-height: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        max-height: 1000px;
+        transform: translateY(0);
+    }
+}
+
+/* Estilos específicos para las tarjetas de tipos en móvil */
+.tipo-card {
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+    background: linear-gradient(145deg, #2a2a2a 0%, #3a3a3a 100%);
+}
+
+.tipo-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    border-color: rgba(0, 123, 255, 0.3);
+}
+
+/* Responsive para el panel de gestión */
+@media (max-width: 767.98px) {
+    .panel-gestion-tipos .card-header {
+        padding: 0.75rem;
+    }
+    
+    .panel-gestion-tipos .card-body {
+        padding: 0.75rem;
+    }
+    
+    .tipo-card .card-body {
+        padding: 0.75rem;
+    }
+    
+    .tipo-card h6 {
+        font-size: 0.95rem;
+    }
+    
+    .tipo-card .btn-group-sm .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
+}
+
+/* Mejoras en el header del panel */
+.panel-gestion-tipos .card-header {
+    background: linear-gradient(135deg, #495057 0%, #6c757d 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.panel-gestion-tipos .card-header h5 {
+    color: #fff;
+    font-weight: 600;
+}
+</style>
+
+<!-- SweetAlert2 CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+
+<!-- SweetAlert2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+
 <div class="container mt-5">
     <div class="card bg-dark text-white">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h3 class="mb-0">
-                <i class="fas fa-coins me-2"></i>Gestión de Monedas
+        <div class="card-header d-flex flex-column flex-sm-row justify-content-between align-items-center">
+            <h3 class="mb-2 mb-sm-0">
+                <i class="fas fa-coins me-2"></i>Gestión de Monedas y Valores
             </h3>
-            <a href="{% url 'remesas:crear_moneda' %}" class="btn btn-success">
-                <i class="fas fa-plus me-2"></i>Nueva Moneda
-            </a>
-            <!-- Botón de información -->
-            
+            <div class="btn-group flex-column flex-sm-row">
+                <button type="button" class="btn btn-info btn-sm" onclick="abrirModalCrearTipo()">
+                    <i class="fas fa-plus me-2"></i>Nuevo Tipo Valor
+                </button>
+                <a href="{% url 'remesas:crear_moneda' %}" class="btn btn-success btn-sm">
+                    <i class="fas fa-plus me-2"></i>Nueva Moneda
+                </a>
+            </div>
         </div>
         <div class="card-body">
+            <!-- Información de resumen -->
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card bg-secondary">
+                        <div class="card-body text-center">
+                            <h5><i class="fas fa-coins me-2"></i>Total Monedas</h5>
+                            <h3 class="text-success">{{ total_monedas }}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-secondary">
+                        <div class="card-body text-center">
+                            <h5><i class="fas fa-tags me-2"></i>Tipos de Valores</h5>
+                            <h3 class="text-info">{{ total_tipos }}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-secondary">
+                        <div class="card-body text-center">
+                            <button type="button" class="btn btn-outline-light btn-sm" onclick="mostrarGestionTipos()">
+                                <i class="fas fa-cog me-2"></i>Gestionar Tipos
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel de gestión de tipos de valor (inicialmente oculto) -->
+            <div id="panelGestionTipos" class="card bg-secondary mb-4 panel-gestion-tipos" style="display: none;">
+                <div class="card-header d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center">
+                    <h5 class="mb-2 mb-sm-0">
+                        <i class="fas fa-cog me-2"></i>Gestión de Tipos de Valor
+                    </h5>
+                    <button type="button" class="btn btn-sm btn-outline-light" onclick="ocultarGestionTipos()">
+                        <i class="fas fa-times me-1"></i>Cerrar
+                    </button>
+                </div>
+                <div class="card-body">
+                    <!-- Vista Desktop de la tabla -->
+                    <div class="d-none d-md-block">
+                        <div class="table-responsive">
+                            <table class="table table-dark table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Nombre</th>
+                                        <th>Descripción</th>
+                                        <th>Orden</th>
+                                        <th>Estado</th>
+                                        <th class="text-end">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for tipo in tipos_valores %}
+                                    <tr id="tipo-row-{{ tipo.id }}">
+                                        <td><strong>{{ tipo.nombre }}</strong></td>
+                                        <td>{{ tipo.descripcion|default:"-" }}</td>
+                                        <td>{{ tipo.orden }}</td>
+                                        <td>
+                                            <span class="badge {% if tipo.activo %}bg-success{% else %}bg-danger{% endif %}">
+                                                {% if tipo.activo %}Activo{% else %}Inactivo{% endif %}
+                                            </span>
+                                        </td>
+                                        <td class="text-end">
+                                            <div class="btn-group btn-group-sm">
+                                                <button type="button" 
+                                                        class="btn btn-outline-primary editar-tipo"
+                                                        data-tipo-id="{{ tipo.id }}"
+                                                        data-nombre="{{ tipo.nombre }}"
+                                                        data-descripcion="{{ tipo.descripcion }}"
+                                                        data-orden="{{ tipo.orden }}"
+                                                        title="Editar tipo">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button type="button" 
+                                                        class="btn btn-outline-danger eliminar-tipo"
+                                                        data-tipo-id="{{ tipo.id }}"
+                                                        data-nombre="{{ tipo.nombre }}"
+                                                        title="Eliminar tipo">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted">
+                                            No hay tipos de valor registrados
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Vista Móvil de tarjetas -->
+                    <div class="d-md-none">
+                        {% for tipo in tipos_valores %}
+                        <div class="card bg-dark mb-3 tipo-card" id="tipo-card-{{ tipo.id }}">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="mb-0 fw-bold text-primary">{{ tipo.nombre }}</h6>
+                                    <span class="badge {% if tipo.activo %}bg-success{% else %}bg-danger{% endif %}">
+                                        {% if tipo.activo %}Activo{% else %}Inactivo{% endif %}
+                                    </span>
+                                </div>
+                                
+                                {% if tipo.descripcion %}
+                                <p class="text-muted small mb-2">{{ tipo.descripcion }}</p>
+                                {% endif %}
+                                
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">
+                                        <i class="fas fa-sort-numeric-up me-1"></i>Orden: {{ tipo.orden }}
+                                    </small>
+                                    <div class="btn-group btn-group-sm">
+                                        <button type="button" 
+                                                class="btn btn-outline-primary btn-sm editar-tipo"
+                                                data-tipo-id="{{ tipo.id }}"
+                                                data-nombre="{{ tipo.nombre }}"
+                                                data-descripcion="{{ tipo.descripcion }}"
+                                                data-orden="{{ tipo.orden }}"
+                                                title="Editar">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button type="button" 
+                                                class="btn btn-outline-danger btn-sm eliminar-tipo"
+                                                data-tipo-id="{{ tipo.id }}"
+                                                data-nombre="{{ tipo.nombre }}"
+                                                title="Eliminar">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-tags fa-2x mb-2 opacity-50"></i>
+                            <p class="mb-0">No hay tipos de valor registrados</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
             <!-- Vista Desktop -->
             <div class="d-none d-lg-block">
                 <div class="table-responsive">
@@ -25,17 +516,24 @@
                                 <th>Código</th>
                                 <th>Nombre</th>
                                 <th>Tipo</th>
-                                <th>Valor Actual</th>
-                                <th>Valor Comercial</th>
+                                {% for tipo in tipos_valores %}
+                                <th class="text-center">
+                                    {{ tipo.nombre }}
+                                    {% if tipo.descripcion %}
+                                        <br><small class="text-muted">{{ tipo.descripcion }}</small>
+                                    {% endif %}
+                                </th>
+                                {% endfor %}
                                 <th>Estado</th>
                                 <th>Última Actualización</th>
                                 <th class="text-end">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for moneda in monedas %}
-                            <tr>
-                                <td>{{ moneda.codigo }}</td>
+                            {% for item in monedas_con_valores %}
+                            {% with moneda=item.moneda valores=item.valores %}
+                            <tr data-moneda-id="{{ moneda.id }}">
+                                <td><strong>{{ moneda.codigo }}</strong></td>
                                 <td>{{ moneda.nombre }}</td>
                                 <td>
                                     <span class="badge {% if moneda.tipo_moneda == 'efectivo' %}bg-success{% else %}bg-info{% endif %}">
@@ -43,17 +541,32 @@
                                         {{ moneda.get_tipo_moneda_display }}
                                     </span>
                                 </td>
-                                <td>{{ moneda.valor_actual|floatformat:2 }}</td>
-                                <td>{{ moneda.valor_comercial|floatformat:2 }}</td>
+                                {% for tipo in tipos_valores %}
+                                <td class="text-center">
+                                    <div class="d-flex align-items-center justify-content-center">
+                                        <span class="valor-display me-2" id="valor-{{ moneda.id }}-{{ tipo.id }}">
+                                            {{ valores|getitem:tipo.id|default:0|floatformat:3 }}
+                                        </span>
+                                        <button type="button" 
+                                                class="btn btn-sm btn-outline-primary editar-valor"
+                                                data-moneda-id="{{ moneda.id }}"
+                                                data-tipo-id="{{ tipo.id }}"
+                                                data-valor-actual="{{ valores|getitem:tipo.id|default:0 }}"
+                                                data-moneda-codigo="{{ moneda.codigo }}"
+                                                data-tipo-nombre="{{ tipo.nombre }}"
+                                                title="Editar valor">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                                {% endfor %}
                                 <td>
                                     <button type="button" 
-                                            class="btn btn-sm {% if moneda.activa %}btn-success{% else %}btn-outline-danger{% endif %}"
+                                            class="btn btn-sm toggle-estado {% if moneda.activa %}btn-success{% else %}btn-outline-danger{% endif %}"
                                             data-moneda-id="{{ moneda.pk }}"
                                             data-estado-actual="{% if moneda.activa %}true{% else %}false{% endif %}"
-                                            onclick="toggleEstadoMoneda(this.dataset.monedaId, this.dataset.estadoActual === 'true')"
-                                            {% if moneda.codigo == 'USD' %}disabled{% endif %}
-                                            title="{% if moneda.activa %}Desactivar moneda{% else %}Activar moneda{% endif %}">
-                                        <i class="fas {% if moneda.activa %}fa-toggle-on{% else %}fa-toggle-off{% endif %} me-1"></i>
+                                            title="{% if moneda.activa %}Desactivar{% else %}Activar{% endif %} moneda">
+                                        <i class="fas {% if moneda.activa %}fa-check-circle{% else %}fa-times-circle{% endif %}"></i>
                                         {% if moneda.activa %}Activa{% else %}Inactiva{% endif %}
                                     </button>
                                 </td>
@@ -62,23 +575,27 @@
                                     <div class="btn-group btn-group-sm">
                                         <a href="{% url 'remesas:editar_moneda' moneda.pk %}" 
                                            class="btn btn-primary" 
-                                           {% if moneda.codigo == 'USD' %}disabled{% endif %}
-                                           title="Editar">
+                                           title="Editar moneda">
                                             <i class="fas fa-edit"></i>
                                         </a>
                                         <button type="button" 
-                                                class="btn btn-danger" 
-                                                onclick="eliminarMoneda('{{ moneda.pk }}', '{{ moneda.codigo }}', '{{ moneda.nombre }}')"
-                                                {% if moneda.codigo == 'USD' %}disabled{% endif %}
+                                                class="btn btn-danger eliminar-moneda" 
+                                                data-moneda-id="{{ moneda.pk }}"
+                                                data-moneda-codigo="{{ moneda.codigo }}"
+                                                data-moneda-nombre="{{ moneda.nombre }}"
                                                 title="Eliminar moneda">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </div>
                                 </td>
                             </tr>
+                            {% endwith %}
                             {% empty %}
                             <tr>
-                                <td colspan="8" class="text-center">No hay monedas registradas</td>
+                                <td colspan="{{ tipos_valores.count|add:6 }}" class="text-center text-muted">
+                                    <i class="fas fa-coins fa-3x mb-3"></i>
+                                    <br>No hay monedas registradas
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -88,75 +605,86 @@
 
             <!-- Vista Móvil -->
             <div class="d-lg-none">
-                {% for moneda in monedas %}
-                <div class="card bg-dark border-secondary mb-3">
+                {% for item in monedas_con_valores %}
+                {% with moneda=item.moneda valores=item.valores %}
+                <div class="card bg-secondary mb-3 mobile-currency-card">
                     <div class="card-body">
-                        <!-- Encabezado con código y estado -->
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h5 class="text-primary mb-0">{{ moneda.codigo }}</h5>
-                            <button type="button" 
-                                    class="btn btn-sm {% if moneda.activa %}btn-success{% else %}btn-outline-danger{% endif %}"
-                                    data-moneda-id="{{ moneda.pk }}"
-                                    data-estado-actual="{% if moneda.activa %}true{% else %}false{% endif %}"
-                                    onclick="toggleEstadoMoneda(this.dataset.monedaId, this.dataset.estadoActual === 'true')"
-                                    {% if moneda.codigo == 'USD' %}disabled{% endif %}
-                                    title="{% if moneda.activa %}Desactivar moneda{% else %}Activar moneda{% endif %}">
-                                <i class="fas {% if moneda.activa %}fa-toggle-on{% else %}fa-toggle-off{% endif %} me-1"></i>
-                                {% if moneda.activa %}Activa{% else %}Inactiva{% endif %}
-                            </button>
-                        </div>
-                        
-                        <!-- Información principal -->
-                        <div class="mb-3">
-                            <h6 class="text-white mb-3">{{ moneda.nombre }}</h6>
-                            
-                            <!-- Tipo de moneda -->
-                            <div class="mb-3">
+                        <!-- Header de la tarjeta -->
+                        <div class="currency-header">
+                            <h5 class="currency-title">
+                                <i class="fas fa-coins me-2"></i>{{ moneda.codigo }}
+                            </h5>
+                            <p class="currency-subtitle">{{ moneda.nombre }}</p>
+                            <div class="d-flex justify-content-between align-items-center mt-2">
                                 <span class="badge {% if moneda.tipo_moneda == 'efectivo' %}bg-success{% else %}bg-info{% endif %}">
                                     <i class="fas {% if moneda.tipo_moneda == 'efectivo' %}fa-money-bill-wave{% else %}fa-credit-card{% endif %} me-1"></i>
                                     {{ moneda.get_tipo_moneda_display }}
                                 </span>
+                                <span class="badge {% if moneda.activa %}bg-success{% else %}bg-danger{% endif %}">
+                                    <i class="fas {% if moneda.activa %}fa-check-circle{% else %}fa-times-circle{% endif %} me-1"></i>
+                                    {% if moneda.activa %}Activa{% else %}Inactiva{% endif %}
+                                </span>
                             </div>
-                            
-                            <div class="row g-2 mb-2">
-                                <div class="col-6">
-                                    <div class="p-2 bg-dark rounded border border-secondary">
-                                        <small class="text-muted d-block">Valor Actual</small>
-                                        <span class="text-info">{{ moneda.valor_actual|floatformat:2 }}</span>
-                                    </div>
-                                </div>
-                                <div class="col-6">
-                                    <div class="p-2 bg-dark rounded border border-secondary">
-                                        <small class="text-muted d-block">Valor Comercial</small>
-                                        <span class="text-warning">{{ moneda.valor_comercial|floatformat:2 }}</span>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <small class="text-muted d-block mt-2">
-                                Última actualización: {{ moneda.fecha_actualizacion|date:"d/m/Y H:i" }}
-                            </small>
                         </div>
-
-                        <!-- Botones de acción -->
-                        <div class="d-flex gap-2">
-                            <a href="{% url 'remesas:editar_moneda' moneda.pk %}" 
-                               class="btn btn-primary btn-sm flex-grow-1"
-                               {% if moneda.codigo == 'USD' %}disabled{% endif %}>
+                        
+                        <!-- Grid de valores -->
+                        <div class="valores-grid">
+                            {% for tipo in tipos_valores %}
+                            <div class="valor-item">
+                                <div class="valor-label">{{ tipo.nombre }}</div>
+                                <div class="valor-content">
+                                    <span class="valor-amount" id="valor-mobile-{{ moneda.id }}-{{ tipo.id }}">
+                                        ${{ valores|getitem:tipo.id|default:0|floatformat:3 }}
+                                    </span>
+                                    <button type="button" 
+                                            class="btn-edit-valor editar-valor"
+                                            data-moneda-id="{{ moneda.id }}"
+                                            data-tipo-id="{{ tipo.id }}"
+                                            data-valor-actual="{{ valores|getitem:tipo.id|default:0 }}"
+                                            data-moneda-codigo="{{ moneda.codigo }}"
+                                            data-tipo-nombre="{{ tipo.nombre }}"
+                                            title="Editar {{ tipo.nombre }}">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <!-- Acciones de la moneda -->
+                        <div class="currency-actions">
+                            <a href="{% url 'remesas:editar_moneda' moneda.pk %}" class="btn btn-primary btn-sm">
                                 <i class="fas fa-edit me-1"></i>Editar
                             </a>
                             <button type="button" 
-                                    class="btn btn-danger btn-sm flex-grow-1"
-                                    onclick="eliminarMoneda('{{ moneda.pk }}', '{{ moneda.codigo }}', '{{ moneda.nombre }}')"
-                                    {% if moneda.codigo == 'USD' %}disabled{% endif %}>
+                                    class="btn btn-sm toggle-estado {% if moneda.activa %}btn-outline-warning{% else %}btn-outline-success{% endif %}"
+                                    data-moneda-id="{{ moneda.pk }}"
+                                    data-estado-actual="{% if moneda.activa %}true{% else %}false{% endif %}"
+                                    title="{% if moneda.activa %}Desactivar{% else %}Activar{% endif %} moneda">
+                                <i class="fas {% if moneda.activa %}fa-pause{% else %}fa-play{% endif %} me-1"></i>
+                                {% if moneda.activa %}Desactivar{% else %}Activar{% endif %}
+                            </button>
+                            <button type="button" class="btn btn-danger btn-sm eliminar-moneda" 
+                                    data-moneda-id="{{ moneda.pk }}"
+                                    data-moneda-codigo="{{ moneda.codigo }}"
+                                    data-moneda-nombre="{{ moneda.nombre }}">
                                 <i class="fas fa-trash me-1"></i>Eliminar
                             </button>
                         </div>
+                        
+                        <!-- Meta información -->
+                        <div class="currency-meta">
+                            <i class="fas fa-clock me-1"></i>
+                            Actualizado: {{ moneda.fecha_actualizacion|date:"d/m/Y H:i" }}
+                        </div>
                     </div>
                 </div>
+                {% endwith %}
                 {% empty %}
-                <div class="text-center py-4">
-                    <p class="text-muted mb-0">No hay monedas registradas</p>
+                <div class="text-center text-muted py-5">
+                    <i class="fas fa-coins fa-4x mb-3 opacity-50"></i>
+                    <h5>No hay monedas registradas</h5>
+                    <p class="mb-0">Comience agregando una nueva moneda</p>
                 </div>
                 {% endfor %}
             </div>
@@ -164,387 +692,480 @@
     </div>
 </div>
 
-<!-- Modal de información -->
-<div class="modal fade" id="infoModal" tabindex="-1" aria-labelledby="infoModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content bg-dark text-white border border-secondary">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title" id="infoModalLabel">
-                    <i class="fas fa-info-circle me-2"></i>Información sobre Gestión de Monedas
+<!-- Modal para crear nuevo tipo de valor -->
+<div class="modal fade" id="crearTipoValorModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus me-2"></i>Nuevo Tipo de Valor
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="cerrarModal('crearTipoValorModal')"></button>
             </div>
-            <div class="modal-body">
-                <div class="row">
-                    <div class="col-12">
-                        <h6 class="text-warning mb-3">
-                            <i class="fas fa-shield-alt me-2"></i>Protección de Datos Históricos
-                        </h6>
-                        <p class="mb-3">
-                            Este sistema está diseñado para preservar la integridad de los datos históricos. 
-                            Las siguientes políticas se aplican a la gestión de monedas:
-                        </p>
-                        
-                        <div class="mb-4">
-                            <h6 class="text-info">
-                                <i class="fas fa-edit me-2"></i>Edición de Monedas
-                            </h6>
-                            <ul class="list-unstyled ms-3">
-                                <li class="mb-2">
-                                    <i class="fas fa-check-circle text-success me-2"></i>
-                                    Se pueden modificar todos los campos (nombre, valores, estado)
-                                </li>
-                                <li class="mb-2">
-                                    <i class="fas fa-check-circle text-success me-2"></i>
-                                    Los cambios no afectan los registros históricos existentes
-                                </li>
-                                <li class="mb-2">
-                                    <i class="fas fa-times-circle text-danger me-2"></i>
-                                    No se puede cambiar el código de la moneda USD (protegida)
-                                </li>
-                                <li class="mb-2">
-                                    <i class="fas fa-exclamation-triangle text-warning me-2"></i>
-                                    Se muestra advertencia si la moneda está en uso
-                                </li>
-                            </ul>
-                        </div>
-                        
-                        <div class="mb-4">
-                            <h6 class="text-danger">
-                                <i class="fas fa-trash me-2"></i>Eliminación de Monedas
-                            </h6>
-                            <ul class="list-unstyled ms-3">
-                                <li class="mb-2">
-                                    <i class="fas fa-times-circle text-danger me-2"></i>
-                                    No se puede eliminar la moneda USD (protegida)
-                                </li>
-                                <li class="mb-2">
-                                    <i class="fas fa-check-circle text-success me-2"></i>
-                                    Se pueden eliminar monedas aunque tengan registros asociados
-                                </li>
-                                <li class="mb-2">
-                                    <i class="fas fa-shield-alt text-info me-2"></i>
-                                    Los registros históricos se preservan automáticamente
-                                </li>
-                                <li class="mb-2">
-                                    <i class="fas fa-database text-warning me-2"></i>
-                                    Las referencias a la moneda eliminada se establecen como NULL
-                                </li>
-                            </ul>
-                        </div>
-                        
-                        <div class="alert alert-info border-info">
-                            <i class="fas fa-lightbulb me-2"></i>
-                            <strong>Cómo funciona:</strong> Cuando eliminas una moneda, todos los registros 
-                            asociados (remesas, pagos, balances) se conservan intactos. Solo se elimina la 
-                            referencia a la moneda, estableciéndose como NULL. Esto garantiza que nunca se 
-                            pierdan datos históricos importantes.
-                        </div>
+            <form id="formCrearTipoValor">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nombre del Tipo</label>
+                        <input type="text" name="nombre" class="form-control" required
+                               placeholder="Ej: Especial, Mayorista, etc.">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descripción</label>
+                        <textarea name="descripcion" class="form-control" rows="3"
+                                  placeholder="Descripción opcional del tipo de valor"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Orden de Visualización</label>
+                        <input type="number" name="orden" class="form-control" min="0" value="0"
+                               placeholder="Orden para mostrar en la tabla">
+                        <small class="text-muted">Menor número aparece primero</small>
                     </div>
                 </div>
-            </div>
-            <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Entendido</button>
-            </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="cerrarModal('crearTipoValorModal')">Cancelar</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save me-2"></i>Crear Tipo
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
 
-<style>
-@media (max-width: 991px) {
-    .card-body {
-        padding: 1rem;
-    }
-    
-    .btn-sm {
-        padding: 0.5rem;
-        font-size: 0.9rem;
-    }
-    
-    h5 {
-        font-size: 1.1rem;
-    }
-    
-    h6 {
-        font-size: 1rem;
-    }
-    
-    .text-muted {
-        font-size: 0.85rem;
-    }
-    
-    .badge {
-        font-size: 0.8rem;
-        padding: 0.5em 0.7em;
-    }
-}
-
-/* Estilos para los botones de acción */
-.btn-group .btn {
-    transition: all 0.3s ease;
-}
-
-.btn-group .btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-}
-
-.btn-danger:hover {
-    background-color: #c82333 !important;
-    border-color: #bd2130 !important;
-}
-
-.btn-primary:hover {
-    background-color: #0056b3 !important;
-    border-color: #004085 !important;
-}
-
-/* Protección visual para USD */
-.btn[disabled] {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-.table-hover tbody tr:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-/* Estilos personalizados para SweetAlert2 */
-.swal-dark {
-    border: 1px solid #495057 !important;
-}
-
-.btn-custom-confirm {
-    background-color: var(--bs-primary) !important;
-    border-color: var(--bs-primary) !important;
-    color: white !important;
-    padding: 0.5rem 1rem !important;
-    border-radius: 0.375rem !important;
-    font-weight: 500 !important;
-    margin-right: 0.5rem !important;
-    transition: all 0.3s ease !important;
-}
-
-.btn-custom-confirm:hover {
-    background-color: var(--bs-primary-dark) !important;
-    border-color: var(--bs-primary-dark) !important;
-    transform: translateY(-1px) !important;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3) !important;
-}
-
-.btn-custom-cancel {
-    background-color: #6c757d !important;
-    border-color: #6c757d !important;
-    color: white !important;
-    padding: 0.5rem 1rem !important;
-    border-radius: 0.375rem !important;
-    font-weight: 500 !important;
-    transition: all 0.3s ease !important;
-}
-
-.btn-custom-cancel:hover {
-    background-color: #5a6268 !important;
-    border-color: #545b62 !important;
-    transform: translateY(-1px) !important;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3) !important;
-}
-
-/* Animaciones para los iconos de SweetAlert2 */
-.swal2-icon.swal2-success .swal2-success-ring {
-    border-color: #28a745 !important;
-}
-
-.swal2-icon.swal2-success .swal2-success-fix {
-    background-color: #212529 !important;
-}
-
-.swal2-icon.swal2-warning {
-    border-color: #ffc107 !important;
-    color: #ffc107 !important;
-}
-
-.swal2-icon.swal2-error {
-    border-color: #dc3545 !important;
-    color: #dc3545 !important;
-}
-
-/* Estilo para alertas internas de SweetAlert2 */
-.alert-dark {
-    background-color: rgba(33, 37, 41, 0.8) !important;
-    border-color: #495057 !important;
-    color: #fff !important;
-}
-
-/* Animación de pulso para botones de estado */
-@keyframes pulse-success {
-    0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
-    70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
-}
-
-@keyframes pulse-danger {
-    0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
-    70% { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
-}
-
-.btn-success:not(:disabled):hover {
-    animation: pulse-success 1.5s infinite;
-}
-
-.btn-outline-danger:not(:disabled):hover {
-    animation: pulse-danger 1.5s infinite;
-}
-</style>
-
-{% block extra_js %}
-<script>
-function eliminarMoneda(monedaId, codigo, nombre) {
-    // Verificar si es la moneda USD (protegida)
-    if (codigo === 'USD') {
-        Swal.fire({
-            title: 'Acción no permitida',
-            html: `
-                <div class="text-center">
-                    <i class="fas fa-shield-alt fa-3x mb-3" style="color: #ffc107"></i>
-                    <p><strong>La moneda USD está protegida</strong></p>
-                    <small class="text-muted">No se puede eliminar la moneda USD ya que es la moneda base del sistema.</small>
-                </div>
-            `,
-            icon: 'warning',
-            confirmButtonText: 'Entendido',
-            confirmButtonColor: '#6c757d',
-            background: '#212529',
-            color: '#fff',
-            customClass: {
-                popup: 'swal-dark'
-            }
-        });
-        return;
-    }
-
-    Swal.fire({
-        title: '¿Eliminar moneda?',
-        html: `
-            <div class="text-center">
-                <i class="fas fa-trash-alt fa-3x mb-3" style="color: #dc3545"></i>
-                <p>¿Está seguro que desea eliminar la moneda?</p>
-                <div class="alert alert-dark border-warning mt-3">
-                    <strong>${codigo} - ${nombre}</strong>
-                </div>
-                <div class="text-warning mt-3">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    <strong>Esta acción no se puede deshacer</strong>
-                </div>
-                <div class="text-info mt-2">
-                    <i class="fas fa-shield-alt me-2"></i>
-                    <small>Los registros históricos (remesas, pagos, balances) se preservarán automáticamente</small>
-                </div>
+<!-- Modal para editar tipo de valor -->
+<div class="modal fade" id="editarTipoValorModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit me-2"></i>Editar Tipo de Valor
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="cerrarModal('editarTipoValorModal')"></button>
             </div>
-        `,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc3545',
-        cancelButtonColor: '#6c757d',
-        confirmButtonText: '<i class="fas fa-trash me-2"></i>Sí, eliminar',
-        cancelButtonText: '<i class="fas fa-times me-2"></i>Cancelar',
-        background: '#212529',
-        color: '#fff',
-        customClass: {
-            popup: 'swal-dark'
-        },
-        buttonsStyling: false
-    }).then((result) => {
-        if (result.isConfirmed) {
-            // Mostrar loading con animación personalizada
-            Swal.fire({
-                title: 'Eliminando moneda...',
-                html: `
-                    <div class="text-center">
-                        <i class="fas fa-trash-alt fa-spin fa-2x mb-3" style="color: #dc3545"></i>
-                        <p>Eliminando <strong>${codigo} - ${nombre}</strong></p>
-                        <small class="text-muted">Preservando registros históricos...</small>
+            <form id="formEditarTipoValor">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nombre del Tipo</label>
+                        <input type="text" name="nombre" id="editarTipoNombre" class="form-control" required>
                     </div>
-                `,
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-                showConfirmButton: false,
-                background: '#212529',
-                color: '#fff',
-                customClass: {
-                    popup: 'swal-dark'
-                }
-            });
+                    <div class="mb-3">
+                        <label class="form-label">Descripción</label>
+                        <textarea name="descripcion" id="editarTipoDescripcion" class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Orden de Visualización</label>
+                        <input type="number" name="orden" id="editarTipoOrden" class="form-control" min="0">
+                        <small class="text-muted">Menor número aparece primero</small>
+                    </div>
+                    <input type="hidden" id="editarTipoId" name="tipo_id">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="cerrarModal('editarTipoValorModal')">Cancelar</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save me-2"></i>Actualizar Tipo
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
-            // Realizar petición para eliminar
-            fetch(`/remesas/monedas/eliminar/${monedaId}/`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': getCookie('csrftoken'),
-                    'Content-Type': 'application/json',
-                }
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data.success) {
-                    Swal.fire({
-                        title: '¡Moneda eliminada!',
-                        html: `
-                            <div class="text-center">
-                                <i class="fas fa-check-circle fa-3x mb-3" style="color: #28a745"></i>
-                                <p><strong>${codigo} - ${nombre}</strong> ha sido eliminada correctamente</p>
-                                <div class="alert alert-dark border-info mt-3">
-                                    <small>${data.message}</small>
-                                </div>
-                            </div>
-                        `,
-                        icon: 'success',
-                        timer: 3000,
-                        timerProgressBar: true,
-                        showConfirmButton: false,
-                        background: '#212529',
-                        color: '#fff',
-                        customClass: {
-                            popup: 'swal-dark'
-                        },
-                        willClose: () => {
-                            window.location.reload();
-                        }
-                    });
-                } else {
-                    throw new Error(data.message || 'Error desconocido');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                Swal.fire({
-                    title: 'Error al eliminar',
-                    html: `
-                        <div class="text-center">
-                            <i class="fas fa-exclamation-triangle fa-3x mb-3" style="color: #dc3545"></i>
-                            <p><strong>No se pudo eliminar la moneda</strong></p>
-                            <small class="text-muted">${error.message || 'Error de conexión con el servidor'}</small>
-                        </div>
-                    `,
-                    icon: 'error',
-                    confirmButtonText: 'Intentar de nuevo',
-                    confirmButtonColor: '#dc3545',
-                    background: '#212529',
-                    color: '#fff',
-                    customClass: {
-                        popup: 'swal-dark'
-                    }
-                });
-            });
+<!-- Modal para editar valor individual -->
+<div class="modal fade" id="editarValorModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit me-2"></i>Editar Valor de Moneda
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="cerrarModal('editarValorModal')"></button>
+            </div>
+            <form id="formEditarValor">
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Importante:</strong> Cambiar este valor no afectará las operaciones anteriores (remesas, pagos, balances). 
+                        Cada operación mantiene el valor que tenía al momento de realizarse.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Moneda</label>
+                        <input type="text" id="editarValorMoneda" class="form-control" readonly>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de Valor</label>
+                        <input type="text" id="editarValorTipo" class="form-control" readonly>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Valor Actual</label>
+                        <input type="text" id="editarValorActual" class="form-control" readonly>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Nuevo Valor</label>
+                        <input type="number" 
+                               id="editarValorNuevo" 
+                               name="nuevo_valor" 
+                               class="form-control" 
+                               step="0.000001" 
+                               min="0"
+                               required>
+                        <small class="text-muted">Ingrese el nuevo valor para esta moneda</small>
+                    </div>
+                    
+                    <input type="hidden" id="editarValorMonedaId" name="moneda_id">
+                    <input type="hidden" id="editarValorTipoId" name="tipo_id">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="cerrarModal('editarValorModal')">Cancelar</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save me-2"></i>Actualizar Valor
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Event listeners para botones de eliminar, cambiar estado y editar valores
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.eliminar-moneda')) {
+            const btn = e.target.closest('.eliminar-moneda');
+            const monedaId = btn.dataset.monedaId;
+            const codigo = btn.dataset.monedaCodigo;
+            const nombre = btn.dataset.monedaNombre;
+            eliminarMoneda(monedaId, codigo, nombre);
+        }
+        
+        if (e.target.closest('.toggle-estado')) {
+            const btn = e.target.closest('.toggle-estado');
+            const monedaId = btn.dataset.monedaId;
+            const estadoActual = btn.dataset.estadoActual === 'true';
+            toggleEstadoMoneda(monedaId, estadoActual);
+        }
+        
+        if (e.target.closest('.editar-valor')) {
+            const btn = e.target.closest('.editar-valor');
+            abrirModalEditarValor(btn);
+        }
+        
+        if (e.target.closest('.editar-tipo')) {
+            const btn = e.target.closest('.editar-tipo');
+            abrirModalEditarTipo(btn);
+        }
+        
+        if (e.target.closest('.eliminar-tipo')) {
+            const btn = e.target.closest('.eliminar-tipo');
+            const tipoId = btn.dataset.tipoId;
+            const nombre = btn.dataset.nombre;
+            eliminarTipoValor(tipoId, nombre);
         }
     });
-}
+    
+    // Formulario para crear tipo de valor
+    document.getElementById('formCrearTipoValor').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalBtnText = submitBtn.innerHTML;
+        
+        // Deshabilitar botón y mostrar loading
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creando...';
+        
+        fetch('{% url "remesas:crear_tipo_valor" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Cerrar modal
+                const modal = document.getElementById('crearTipoValorModal');
+                modal.style.display = 'none';
+                modal.classList.remove('show');
+                document.body.classList.remove('modal-open');
+                const backdrop = document.querySelector('.modal-backdrop');
+                if (backdrop) backdrop.remove();
+                
+                // Mostrar mensaje de éxito
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Éxito!',
+                        text: 'Tipo de valor creado exitosamente',
+                        timer: 2000,
+                        showConfirmButton: false,
+                        background: '#2c3e50',
+                        color: '#fff',
+                        iconColor: '#27ae60'
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    alert('Tipo de valor creado exitosamente');
+                    location.reload();
+                }
+            } else {
+                // Restaurar botón
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnText;
+                
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: data.message || 'Error desconocido',
+                        confirmButtonColor: '#e74c3c',
+                        background: '#2c3e50',
+                        color: '#fff'
+                    });
+                } else {
+                    alert('Error: ' + (data.message || 'Error desconocido'));
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            
+            // Restaurar botón
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnText;
+            
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error de Conexión',
+                    text: 'Error al crear el tipo de valor. Intente nuevamente.',
+                    confirmButtonColor: '#e74c3c',
+                    background: '#2c3e50',
+                    color: '#fff'
+                });
+            } else {
+                alert('Error al crear el tipo de valor');
+            }
+        });
+    });
+    
+    // Formulario para editar tipo de valor
+    document.getElementById('formEditarTipoValor').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const tipoId = formData.get('tipo_id');
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalBtnText = submitBtn.innerHTML;
+        
+        // Deshabilitar botón y mostrar loading
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Actualizando...';
+        
+        fetch(`{% url "remesas:editar_tipo_valor" 0 %}`.replace('0', tipoId), {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: formData
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Error en la respuesta del servidor');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                // Cerrar modal
+                const modal = document.getElementById('editarTipoValorModal');
+                modal.style.display = 'none';
+                modal.classList.remove('show');
+                document.body.classList.remove('modal-open');
+                const backdrop = document.querySelector('.modal-backdrop');
+                if (backdrop) backdrop.remove();
+                
+                // Mostrar mensaje de éxito
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Éxito!',
+                        text: 'Tipo de valor actualizado exitosamente',
+                        timer: 2000,
+                        showConfirmButton: false,
+                        background: '#2c3e50',
+                        color: '#fff',
+                        iconColor: '#27ae60'
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    alert('Tipo de valor actualizado exitosamente');
+                    location.reload();
+                }
+            } else {
+                // Restaurar botón
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnText;
+                
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: data.message || 'Error desconocido',
+                        confirmButtonColor: '#e74c3c',
+                        background: '#2c3e50',
+                        color: '#fff'
+                    });
+                } else {
+                    alert('Error: ' + (data.message || 'Error desconocido'));
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            
+            // Restaurar botón
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnText;
+            
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error de Conexión',
+                    text: 'Error al actualizar el tipo de valor. Intente nuevamente.',
+                    confirmButtonColor: '#e74c3c',
+                    background: '#2c3e50',
+                    color: '#fff'
+                });
+            } else {
+                alert('Error al actualizar el tipo de valor');
+            }
+        });
+    });
+    
+    // Formulario para editar valor individual
+    document.getElementById('formEditarValor').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const monedaId = formData.get('moneda_id');
+        const tipoId = formData.get('tipo_id');
+        const nuevoValor = formData.get('nuevo_valor');
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalBtnText = submitBtn.innerHTML;
+        
+        // Validar datos antes de enviar
+        if (!monedaId || !tipoId || !nuevoValor) {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Datos Incompletos',
+                    text: 'Por favor complete todos los campos requeridos.',
+                    confirmButtonColor: '#f39c12',
+                    background: '#2c3e50',
+                    color: '#fff'
+                });
+            } else {
+                alert('Faltan datos en el formulario');
+            }
+            return;
+        }
+        
+        // Deshabilitar botón y mostrar loading
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Guardando...';
+        
+        fetch('{% url "remesas:actualizar_valor_individual" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                moneda_id: monedaId,
+                tipo_id: tipoId,
+                valor: nuevoValor
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data && data.success) {
+                // Cerrar modal
+                const modal = document.getElementById('editarValorModal');
+                modal.style.display = 'none';
+                modal.classList.remove('show');
+                document.body.classList.remove('modal-open');
+                const backdrop = document.querySelector('.modal-backdrop');
+                if (backdrop) backdrop.remove();
+                
+                // Mostrar mensaje de éxito
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Éxito!',
+                        text: 'Valor actualizado exitosamente',
+                        timer: 2000,
+                        showConfirmButton: false,
+                        background: '#2c3e50',
+                        color: '#fff',
+                        iconColor: '#27ae60'
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    alert('Valor actualizado exitosamente');
+                    location.reload();
+                }
+            } else {
+                // Restaurar botón
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnText;
+                
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: data.message || 'Error desconocido',
+                        confirmButtonColor: '#e74c3c',
+                        background: '#2c3e50',
+                        color: '#fff'
+                    });
+                } else {
+                    alert('Error: ' + (data.message || 'Error desconocido'));
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            
+            // Restaurar botón
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnText;
+            
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error de Conexión',
+                    text: 'Error al actualizar el valor. Intente nuevamente.',
+                    confirmButtonColor: '#e74c3c',
+                    background: '#2c3e50',
+                    color: '#fff'
+                });
+            } else {
+                alert('Error al actualizar el valor');
+            }
+        });
+    });
+});
 
+// Función para obtener CSRF token
 function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
@@ -560,437 +1181,531 @@ function getCookie(name) {
     return cookieValue;
 }
 
-// Función para mostrar notificaciones toast
-function mostrarToast(tipo, titulo, mensaje) {
-    const Toast = Swal.mixin({
-        toast: true,
-        position: 'top-end',
-        showConfirmButton: false,
-        timer: 3000,
-        timerProgressBar: true,
-        background: '#212529',
-        color: '#fff',
-        customClass: {
-            popup: 'swal-dark'
-        },
-        didOpen: (toast) => {
-            toast.addEventListener('mouseenter', Swal.stopTimer);
-            toast.addEventListener('mouseleave', Swal.resumeTimer);
-        }
-    });
-
-    Toast.fire({
-        icon: tipo,
-        title: titulo,
-        text: mensaje
-    });
-}
-
-// Función para confirmar acciones destructivas
-function confirmarAccion(opciones) {
-    return Swal.fire({
-        title: opciones.titulo || '¿Está seguro?',
-        html: opciones.mensaje || 'Esta acción no se puede deshacer',
-        icon: opciones.icono || 'warning',
-        showCancelButton: true,
-        confirmButtonColor: opciones.colorConfirmar || '#dc3545',
-        cancelButtonColor: '#6c757d',
-        confirmButtonText: opciones.textoConfirmar || 'Sí, continuar',
-        cancelButtonText: 'Cancelar',
-        background: '#212529',
-        color: '#fff',
-        customClass: {
-            popup: 'swal-dark'
-        },
-        buttonsStyling: false
-    });
-}
-
-// Función para mostrar loading personalizado
-function mostrarLoading(titulo, mensaje) {
-    Swal.fire({
-        title: titulo || 'Cargando...',
-        html: mensaje || 'Por favor espere',
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        showConfirmButton: false,
-        background: '#212529',
-        color: '#fff',
-        customClass: {
-            popup: 'swal-dark'
-        },
-        didOpen: () => {
-            Swal.showLoading();
-        }
-    });
-}
-
-// Inicialización cuando se carga la página
-document.addEventListener('DOMContentLoaded', function() {
-    // Agregar tooltips a los botones deshabilitados
-    const botonesDeshabilitados = document.querySelectorAll('button[disabled], a[disabled]');
-    botonesDeshabilitados.forEach(boton => {
-        if (!boton.title) {
-            boton.title = 'Esta acción está deshabilitada para la moneda USD';
-        }
-    });
-
-    // Manejar mensajes de éxito y error desde parámetros URL
-    const params = new URLSearchParams(window.location.search);
+// Función para abrir modal de crear tipo de valor
+function abrirModalCrearTipo() {
+    // Limpiar formulario
+    document.getElementById('formCrearTipoValor').reset();
     
-    // Función para decodificar parámetros URL
-    function decodeParam(param) {
-        return param ? decodeURIComponent(param) : '';
+    // Detectar si tenemos Bootstrap 5 o 4
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        // Bootstrap 5
+        const modal = new bootstrap.Modal(document.getElementById('crearTipoValorModal'));
+        modal.show();
+    } else if (typeof $ !== 'undefined' && $.fn.modal) {
+        // Bootstrap 4
+        $('#crearTipoValorModal').modal('show');
+    } else {
+        // Fallback manual
+        const modal = document.getElementById('crearTipoValorModal');
+        modal.style.display = 'block';
+        modal.classList.add('show');
+        document.body.classList.add('modal-open');
+        
+        // Crear backdrop
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop fade show';
+        backdrop.id = 'modalBackdrop';
+        document.body.appendChild(backdrop);
+    }
+}
+
+// Función para cerrar modal manualmente
+function cerrarModal(modalId) {
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        // Bootstrap 5
+        const modal = bootstrap.Modal.getInstance(document.getElementById(modalId));
+        if (modal) modal.hide();
+    } else if (typeof $ !== 'undefined' && $.fn.modal) {
+        // Bootstrap 4
+        $('#' + modalId).modal('hide');
+    } else {
+        // Fallback manual
+        const modal = document.getElementById(modalId);
+        modal.style.display = 'none';
+        modal.classList.remove('show');
+        document.body.classList.remove('modal-open');
+        const backdrop = document.getElementById('modalBackdrop');
+        if (backdrop) backdrop.remove();
+    }
+}
+
+// Función para mostrar/ocultar panel de gestión de tipos
+function mostrarGestionTipos() {
+    document.getElementById('panelGestionTipos').style.display = 'block';
+}
+
+function ocultarGestionTipos() {
+    document.getElementById('panelGestionTipos').style.display = 'none';
+}
+
+// Función para abrir modal de editar tipo de valor
+function abrirModalEditarTipo(btn) {
+    const tipoId = btn.dataset.tipoId;
+    const nombre = btn.dataset.nombre;
+    const descripcion = btn.dataset.descripcion || '';
+    const orden = btn.dataset.orden || 0;
+    
+    // Llenar los campos del modal
+    document.getElementById('editarTipoId').value = tipoId;
+    document.getElementById('editarTipoNombre').value = nombre;
+    document.getElementById('editarTipoDescripcion').value = descripcion;
+    document.getElementById('editarTipoOrden').value = orden;
+    
+    // Mostrar el modal con compatibilidad para Bootstrap 4 y 5
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        // Bootstrap 5
+        const modal = new bootstrap.Modal(document.getElementById('editarTipoValorModal'));
+        modal.show();
+    } else if (typeof $ !== 'undefined' && $.fn.modal) {
+        // Bootstrap 4
+        $('#editarTipoValorModal').modal('show');
+    } else {
+        // Fallback manual
+        const modal = document.getElementById('editarTipoValorModal');
+        modal.style.display = 'block';
+        modal.classList.add('show');
+        document.body.classList.add('modal-open');
+        
+        // Crear backdrop
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop fade show';
+        backdrop.id = 'modalBackdrop';
+        document.body.appendChild(backdrop);
     }
     
-    // Mensajes de éxito
-    if (params.get('success')) {
-        const tipo = params.get('success');
-        const codigo = decodeParam(params.get('codigo')) || '';
-        const nombre = decodeParam(params.get('nombre')) || '';
-        
-        let titulo, mensaje, icono;
-        
-        switch(tipo) {
-            case 'edit':
-                titulo = '¡Moneda actualizada!';
-                mensaje = `La moneda <strong>${codigo} - ${nombre}</strong> ha sido actualizada correctamente`;
-                icono = `
-                    <div class="text-center">
-                        <i class="fas fa-edit fa-3x mb-3" style="color: #28a745"></i>
-                        <p>${mensaje}</p>
-                        <small class="text-muted">Todos los cambios han sido guardados exitosamente</small>
-                    </div>
-                `;
-                break;
-                
-            case 'create':
-                titulo = '¡Moneda creada!';
-                mensaje = `La moneda <strong>${codigo} - ${nombre}</strong> ha sido creada correctamente`;
-                icono = `
-                    <div class="text-center">
-                        <i class="fas fa-plus-circle fa-3x mb-3" style="color: #28a745"></i>
-                        <p>${mensaje}</p>
-                        <small class="text-muted">La nueva moneda está disponible para usar en el sistema</small>
-                    </div>
-                `;
-                break;
-                
-            default:
-                titulo = '¡Éxito!';
-                mensaje = 'Operación completada correctamente';
-                icono = `
-                    <div class="text-center">
-                        <i class="fas fa-check-circle fa-3x mb-3" style="color: #28a745"></i>
-                        <p>${mensaje}</p>
-                    </div>
-                `;
-        }
-        
+    // Enfocar el campo de nombre
+    setTimeout(() => {
+        document.getElementById('editarTipoNombre').focus();
+        document.getElementById('editarTipoNombre').select();
+    }, 500);
+}
+
+// Función para eliminar tipo de valor con SweetAlert2
+function eliminarTipoValor(tipoId, nombre) {
+    if (typeof Swal !== 'undefined') {
         Swal.fire({
-            title: titulo,
-            html: icono,
-            icon: 'success',
-            timer: 3000,
-            timerProgressBar: true,
-            showConfirmButton: false,
-            background: '#212529',
+            title: '¿Eliminar tipo de valor?',
+            html: `¿Está seguro que desea eliminar el tipo de valor <strong>"${nombre}"</strong>?<br><br>Esta acción eliminará todos los valores asociados a este tipo y no se puede deshacer.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e74c3c',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar',
+            background: '#2c3e50',
             color: '#fff',
-            customClass: {
-                popup: 'swal-dark'
+            reverseButtons: true,
+            showLoaderOnConfirm: true,
+            preConfirm: () => {
+                return fetch(`{% url "remesas:eliminar_tipo_valor" 0 %}`.replace('0', tipoId), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({})
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Error en la red');
+                    }
+                    return response.json();
+                })
+                .catch(error => {
+                    Swal.showValidationMessage(`Error: ${error}`);
+                });
             },
-            didOpen: () => {
-                // Limpiar URL sin recargar la página
-                window.history.replaceState({}, document.title, window.location.pathname);
+            allowOutsideClick: () => !Swal.isLoading()
+        }).then((result) => {
+            if (result.isConfirmed) {
+                if (result.value.success) {
+                    // Remover la fila de la tabla
+                    const row = document.getElementById(`tipo-row-${tipoId}`);
+                    if (row) {
+                        row.remove();
+                    }
+                    
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Eliminado!',
+                        text: 'Tipo de valor eliminado exitosamente',
+                        timer: 2000,
+                        showConfirmButton: false,
+                        background: '#2c3e50',
+                        color: '#fff'
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: result.value.message,
+                        confirmButtonColor: '#e74c3c',
+                        background: '#2c3e50',
+                        color: '#fff'
+                    });
+                }
             }
         });
-    }
-    
-    // Mensajes de error
-    else if (params.get('error')) {
-        const tipo = params.get('error');
-        const mensaje = decodeParam(params.get('message')) || 'Ocurrió un problema durante la operación';
-        
-        let titulo, descripcion;
-        
-        switch(tipo) {
-            case 'edit':
-                titulo = 'Error al actualizar moneda';
-                descripcion = 'No se pudo guardar los cambios en la moneda';
-                break;
-                
-            case 'create':
-                titulo = 'Error al crear moneda';
-                descripcion = 'No se pudo crear la nueva moneda';
-                break;
-                
-            default:
-                titulo = 'Error';
-                descripcion = 'Ocurrió un problema inesperado';
-        }
-        
-        Swal.fire({
-            title: titulo,
-            html: `
-                <div class="text-center">
-                    <i class="fas fa-exclamation-triangle fa-3x mb-3" style="color: #dc3545"></i>
-                    <p><strong>${descripcion}</strong></p>
-                    <div class="alert alert-dark border-danger mt-3">
-                        <small>${mensaje}</small>
-                    </div>
-                </div>
-            `,
-            icon: 'error',
-            confirmButtonText: 'Entendido',
-            confirmButtonColor: '#dc3545',
-            background: '#212529',
-            color: '#fff',
-            customClass: {
-                popup: 'swal-dark'
-            },
-            didOpen: () => {
-                // Limpiar URL sin recargar la página
-                window.history.replaceState({}, document.title, window.location.pathname);
-            }
-        });
-    }
-});
-
-function actualizarTasa(monedaId) {
-    Swal.fire({
-        title: 'Actualizar Tasa de Cambio',
-        html: `
-            <div class="text-center mb-3">
-                <i class="fas fa-exchange-alt fa-2x mb-3" style="color: #17a2b8"></i>
-                <p>Ingrese la nueva tasa de cambio respecto al USD</p>
-            </div>
-        `,
-        input: 'number',
-        inputAttributes: {
-            step: '0.01',
-            min: '0.01',
-            placeholder: 'Ej: 1.25',
-            class: 'form-control'
-        },
-        inputLabel: 'Nueva tasa (USD = 1.00)',
-        showCancelButton: true,
-        confirmButtonText: '<i class="fas fa-save me-2"></i>Actualizar',
-        cancelButtonText: '<i class="fas fa-times me-2"></i>Cancelar',
-        confirmButtonColor: '#17a2b8',
-        cancelButtonColor: '#6c757d',
-        background: '#212529',
-        color: '#fff',
-        customClass: {
-            popup: 'swal-dark'
-        },
-        buttonsStyling: false,
-        inputValidator: (value) => {
-            if (!value || parseFloat(value) <= 0) {
-                return 'Debe ingresar una tasa válida mayor a 0';
-            }
-            if (parseFloat(value) > 1000) {
-                return 'La tasa parece muy alta, verifique el valor';
-            }
-        },
-        preConfirm: (tasa) => {
-            mostrarLoading('Actualizando tasa...', 'Guardando nueva tasa de cambio');
-            
-            return fetch(`/remesas/monedas/actualizar-tasa/${monedaId}/`, {
+    } else {
+        // Fallback para confirm básico
+        if (confirm(`¿Está seguro que desea eliminar el tipo de valor "${nombre}"?\n\nEsta acción eliminará todos los valores asociados a este tipo y no se puede deshacer.`)) {
+            fetch(`{% url "remesas:eliminar_tipo_valor" 0 %}`.replace('0', tipoId), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': getCookie('csrftoken')
                 },
-                body: JSON.stringify({tasa: tasa})
+                body: JSON.stringify({})
             })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data.status === 'error') {
-                    throw new Error(data.message);
-                }
-                return data;
-            })
-            .catch(error => {
-                Swal.showValidationMessage(`Error: ${error.message}`);
-            });
-        },
-        allowOutsideClick: () => !Swal.isLoading()
-    }).then((result) => {
-        if (result.isConfirmed) {
-            Swal.fire({
-                title: '¡Tasa actualizada!',
-                html: `
-                    <div class="text-center">
-                        <i class="fas fa-check-circle fa-3x mb-3" style="color: #28a745"></i>
-                        <p>La tasa de cambio se actualizó correctamente</p>
-                        <small class="text-muted">La página se actualizará para mostrar los cambios</small>
-                    </div>
-                `,
-                icon: 'success',
-                timer: 2000,
-                timerProgressBar: true,
-                showConfirmButton: false,
-                background: '#212529',
-                color: '#fff',
-                customClass: {
-                    popup: 'swal-dark'
-                },
-                willClose: () => {
-                    window.location.reload();
-                }
-            });
-        }
-    });
-}
-
-function toggleEstadoMoneda(monedaId, estadoActual) {
-    // Buscar el botón que activó esta función para verificar si está deshabilitado
-    const botones = document.querySelectorAll(`button[data-moneda-id="${monedaId}"]`);
-    let esProtegida = false;
-    
-    botones.forEach(boton => {
-        if (boton.disabled) {
-            esProtegida = true;
-        }
-    });
-
-    // Verificar si es la moneda USD (protegida)
-    if (esProtegida) {
-        Swal.fire({
-            title: 'Acción no permitida',
-            text: 'No se puede cambiar el estado de la moneda USD ya que es la moneda base del sistema.',
-            icon: 'warning',
-            confirmButtonText: 'Entendido',
-            confirmButtonColor: '#6c757d',
-            background: '#212529',
-            color: '#fff',
-            customClass: {
-                popup: 'swal-dark'
-            }
-        });
-        return;
-    }
-
-    const accion = estadoActual ? 'desactivar' : 'activar';
-    const estadoTexto = estadoActual ? 'desactivada' : 'activada';
-    const iconoColor = estadoActual ? '#dc3545' : '#28a745';
-
-    Swal.fire({
-        title: `¿${accion.charAt(0).toUpperCase() + accion.slice(1)} moneda?`,
-        html: `
-            <div class="text-center">
-                <i class="fas ${estadoActual ? 'fa-toggle-off' : 'fa-toggle-on'} fa-3x mb-3" style="color: ${iconoColor}"></i>
-                <p>¿Está seguro que desea <strong>${accion}</strong> esta moneda?</p>
-                ${!estadoActual ? '<small class="text-warning">La moneda estará disponible en formularios de remesas y pagos</small>' : 
-                  '<small class="text-info">La moneda se ocultará de formularios pero mantendrá registros históricos</small>'}
-            </div>
-        `,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: iconoColor,
-        cancelButtonColor: '#6c757d',
-        confirmButtonText: `<i class="fas ${estadoActual ? 'fa-toggle-off' : 'fa-toggle-on'} me-2"></i>Sí, ${accion}`,
-        cancelButtonText: '<i class="fas fa-times me-2"></i>Cancelar',
-        background: '#212529',
-        color: '#fff',
-        customClass: {
-            popup: 'swal-dark',
-            confirmButton: 'btn-custom-confirm',
-            cancelButton: 'btn-custom-cancel'
-        },
-        buttonsStyling: false
-    }).then((result) => {
-        if (result.isConfirmed) {
-            // Mostrar loading con animación personalizada
-            Swal.fire({
-                title: 'Actualizando estado...',
-                html: `
-                    <div class="text-center">
-                        <i class="fas fa-sync-alt fa-spin fa-2x mb-3" style="color: ${iconoColor}"></i>
-                        <p>Por favor espere mientras se actualiza la moneda</p>
-                    </div>
-                `,
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-                showConfirmButton: false,
-                background: '#212529',
-                color: '#fff',
-                customClass: {
-                    popup: 'swal-dark'
-                }
-            });
-
-            // Realizar petición para cambiar estado
-            fetch(`/remesas/monedas/toggle-estado/${monedaId}/`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': getCookie('csrftoken'),
-                    'Content-Type': 'application/json',
-                }
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
+            .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    Swal.fire({
-                        title: '¡Estado actualizado!',
-                        html: `
-                            <div class="text-center">
-                                <i class="fas fa-check-circle fa-3x mb-3" style="color: #28a745"></i>
-                                <p>La moneda ha sido <strong>${estadoTexto}</strong> correctamente</p>
-                                <small class="text-muted">La página se actualizará automáticamente</small>
-                            </div>
-                        `,
-                        icon: 'success',
-                        timer: 2000,
-                        timerProgressBar: true,
-                        showConfirmButton: false,
-                        background: '#212529',
-                        color: '#fff',
-                        customClass: {
-                            popup: 'swal-dark'
-                        },
-                        willClose: () => {
-                            window.location.reload();
-                        }
-                    });
+                    mostrarAlerta('success', 'Tipo de valor eliminado exitosamente');
+                    
+                    // Remover la fila de la tabla
+                    const row = document.getElementById(`tipo-row-${tipoId}`);
+                    if (row) {
+                        row.remove();
+                    }
+                    
+                    // Recargar página después de un momento
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
                 } else {
-                    throw new Error(data.message || 'Error desconocido');
+                    mostrarAlerta('error', 'Error: ' + data.message);
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                Swal.fire({
-                    title: 'Error al actualizar',
-                    html: `
-                        <div class="text-center">
-                            <i class="fas fa-exclamation-triangle fa-3x mb-3" style="color: #dc3545"></i>
-                            <p><strong>No se pudo actualizar el estado de la moneda</strong></p>
-                            <small class="text-muted">${error.message || 'Error de conexión con el servidor'}</small>
-                        </div>
-                    `,
-                    icon: 'error',
-                    confirmButtonText: 'Intentar de nuevo',
-                    confirmButtonColor: '#dc3545',
-                    background: '#212529',
-                    color: '#fff',
-                    customClass: {
-                        popup: 'swal-dark'
-                    }
-                });
+                mostrarAlerta('error', 'Error al eliminar el tipo de valor');
             });
         }
-    });
+    }
 }
+
+// Función para abrir modal de editar valor
+function abrirModalEditarValor(btn) {
+    const monedaId = btn.dataset.monedaId;
+    const tipoId = btn.dataset.tipoId;
+    const valorActual = btn.dataset.valorActual;
+    const monedaCodigo = btn.dataset.monedaCodigo;
+    const tipoNombre = btn.dataset.tipoNombre;
+    
+    // Llenar los campos del modal
+    document.getElementById('editarValorMoneda').value = monedaCodigo;
+    document.getElementById('editarValorTipo').value = tipoNombre;
+    document.getElementById('editarValorActual').value = parseFloat(valorActual).toFixed(3);
+    document.getElementById('editarValorNuevo').value = valorActual;
+    document.getElementById('editarValorMonedaId').value = monedaId;
+    document.getElementById('editarValorTipoId').value = tipoId;
+    
+    // Mostrar el modal con compatibilidad para Bootstrap 4 y 5
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        // Bootstrap 5
+        const modal = new bootstrap.Modal(document.getElementById('editarValorModal'));
+        modal.show();
+    } else if (typeof $ !== 'undefined' && $.fn.modal) {
+        // Bootstrap 4
+        $('#editarValorModal').modal('show');
+    } else {
+        // Fallback manual
+        const modal = document.getElementById('editarValorModal');
+        modal.style.display = 'block';
+        modal.classList.add('show');
+        document.body.classList.add('modal-open');
+        
+        // Crear backdrop
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop fade show';
+        backdrop.id = 'modalBackdrop';
+        document.body.appendChild(backdrop);
+    }
+    
+    // Enfocar el campo de nuevo valor
+    setTimeout(() => {
+        document.getElementById('editarValorNuevo').focus();
+        document.getElementById('editarValorNuevo').select();
+    }, 500);
+}
+
+// Función para actualizar valor en la página sin recargar
+function actualizarValorEnPagina(monedaId, tipoId, nuevoValor) {
+    try {
+        // Validar parámetros
+        if (!monedaId || !tipoId || nuevoValor === undefined || nuevoValor === null) {
+            console.warn('Parámetros inválidos para actualizar valor en página:', { monedaId, tipoId, nuevoValor });
+            return;
+        }
+        
+        // Convertir valor de forma segura
+        let valorFormatted;
+        try {
+            valorFormatted = parseFloat(nuevoValor).toFixed(3);
+        } catch (parseError) {
+            console.error('Error parseando valor:', nuevoValor, parseError);
+            valorFormatted = String(nuevoValor);
+        }
+        
+        let elementosActualizados = 0;
+        
+        // Actualizar en vista desktop
+        const elementoDesktop = document.getElementById(`valor-${monedaId}-${tipoId}`);
+        if (elementoDesktop) {
+            elementoDesktop.textContent = valorFormatted;
+            elementosActualizados++;
+        }
+        
+        // Actualizar en vista móvil
+        const elementoMobile = document.getElementById(`valor-mobile-${monedaId}-${tipoId}`);
+        if (elementoMobile) {
+            elementoMobile.textContent = valorFormatted;
+            elementosActualizados++;
+        }
+        
+        // Actualizar el atributo data-valor-actual en todos los botones de editar
+        const botones = document.querySelectorAll(`[data-moneda-id="${monedaId}"][data-tipo-id="${tipoId}"]`);
+        botones.forEach(btn => {
+            if (btn.classList.contains('editar-valor')) {
+                btn.dataset.valorActual = nuevoValor;
+                elementosActualizados++;
+            }
+        });
+        
+        console.log(`Valor actualizado en página: Moneda ${monedaId}, Tipo ${tipoId}, Valor ${valorFormatted}, Elementos actualizados: ${elementosActualizados}`);
+        
+        if (elementosActualizados === 0) {
+            console.warn('No se encontraron elementos para actualizar');
+        }
+        
+    } catch (error) {
+        console.error('Error actualizando valor en página:', error);
+        // No lanzar el error para evitar que se propague al catch principal
+    }
+}
+
+// Función para mostrar alertas con SweetAlert2
+function mostrarAlerta(tipo, mensaje) {
+    try {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: tipo === 'success' ? 'success' : 'error',
+                title: tipo === 'success' ? '¡Éxito!' : '¡Error!',
+                text: mensaje,
+                timer: 3000,
+                showConfirmButton: false,
+                toast: true,
+                position: 'top-end',
+                background: '#2c3e50',
+                color: '#fff',
+                iconColor: tipo === 'success' ? '#27ae60' : '#e74c3c'
+            });
+        } else {
+            // Fallback simple para alertas básicas
+            alert((tipo === 'success' ? 'Éxito: ' : 'Error: ') + mensaje);
+        }
+    } catch (alertError) {
+        console.error('Error mostrando alerta:', alertError);
+        // Fallback final
+        alert((tipo === 'success' ? 'Éxito: ' : 'Error: ') + mensaje);
+    }
+}
+
+// Función para eliminar moneda con SweetAlert2
+function eliminarMoneda(monedaId, codigo, nombre) {
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            title: '¿Eliminar moneda?',
+            html: `¿Está seguro que desea eliminar la moneda <strong>${codigo} - ${nombre}</strong>?<br><br><small class="text-muted">Esta acción no se puede deshacer.</small>`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e74c3c',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar',
+            background: '#2c3e50',
+            color: '#fff',
+            reverseButtons: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Mostrar loading
+                Swal.fire({
+                    title: 'Eliminando...',
+                    text: 'Por favor espere',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    },
+                    background: '#2c3e50',
+                    color: '#fff'
+                });
+                
+                fetch(`{% url 'remesas:eliminar_moneda' 0 %}`.replace('0', monedaId), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: '¡Eliminado!',
+                            text: 'La moneda ha sido eliminada exitosamente',
+                            timer: 2000,
+                            showConfirmButton: false,
+                            background: '#2c3e50',
+                            color: '#fff'
+                        }).then(() => {
+                            location.reload();
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: data.message,
+                            confirmButtonColor: '#e74c3c',
+                            background: '#2c3e50',
+                            color: '#fff'
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Error al eliminar la moneda',
+                        confirmButtonColor: '#e74c3c',
+                        background: '#2c3e50',
+                        color: '#fff'
+                    });
+                });
+            }
+        });
+    } else {
+        // Fallback para confirm básico
+        if (confirm(`¿Está seguro que desea eliminar la moneda ${codigo} - ${nombre}?`)) {
+            fetch(`{% url 'remesas:eliminar_moneda' 0 %}`.replace('0', monedaId), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    mostrarAlerta('success', 'Moneda eliminada exitosamente');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    mostrarAlerta('error', 'Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                mostrarAlerta('error', 'Error al eliminar la moneda');
+            });
+        }
+    }
+}
+
+// Función para cambiar estado de moneda con SweetAlert2
+function toggleEstadoMoneda(monedaId, estadoActual) {
+    const nuevoEstado = !estadoActual;
+    const accion = nuevoEstado ? 'activar' : 'desactivar';
+    const color = nuevoEstado ? '#27ae60' : '#e74c3c';
+    
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            title: `¿${accion.charAt(0).toUpperCase() + accion.slice(1)} moneda?`,
+            text: `¿Está seguro que desea ${accion} esta moneda?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: color,
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: `Sí, ${accion}`,
+            cancelButtonText: 'Cancelar',
+            background: '#2c3e50',
+            color: '#fff',
+            reverseButtons: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                fetch(`{% url 'remesas:toggle_estado_moneda' 0 %}`.replace('0', monedaId), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: '¡Actualizado!',
+                            text: `Moneda ${accion}da exitosamente`,
+                            timer: 2000,
+                            showConfirmButton: false,
+                            background: '#2c3e50',
+                            color: '#fff'
+                        }).then(() => {
+                            location.reload();
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: data.message,
+                            confirmButtonColor: '#e74c3c',
+                            background: '#2c3e50',
+                            color: '#fff'
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Error al cambiar el estado de la moneda',
+                        confirmButtonColor: '#e74c3c',
+                        background: '#2c3e50',
+                        color: '#fff'
+                    });
+                });
+            }
+        });
+    } else {
+        // Fallback para confirm básico
+        if (confirm(`¿Está seguro que desea ${accion} esta moneda?`)) {
+            fetch(`{% url 'remesas:toggle_estado_moneda' 0 %}`.replace('0', monedaId), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    mostrarAlerta('success', `Moneda ${accion}da exitosamente`);
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    mostrarAlerta('error', 'Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                mostrarAlerta('error', 'Error al cambiar el estado de la moneda');
+            });
+        }
+    }
+}
+
 </script>
-{% endblock %}
 {% endblock %}

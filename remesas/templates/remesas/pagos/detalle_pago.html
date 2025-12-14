@@ -198,6 +198,30 @@
                                 </div>
                             </div>
                             {% endif %}
+
+                            {% if pago.usuario %}
+                            <div class="mb-3">
+                                <label class="text-muted small">Gestor Asignado:</label>
+                                <div class="text-white">
+                                    <i class="fas fa-user-tie mr-1"></i>
+                                    <span class="word-break">{{ pago.usuario.get_full_name|default:pago.usuario.username }}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="text-muted small">Teléfono del Gestor:</label>
+                                <div class="text-white">
+                                    <i class="fas fa-phone mr-1"></i>
+                                    {% if pago.usuario.perfil.telefono %}
+                                        <a href="tel:{{ pago.usuario.perfil.telefono }}" class="text-success word-break">
+                                            {{ pago.usuario.perfil.telefono }}
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
                         </div>
                     </div>
 

@@ -25,7 +25,7 @@
             <div class="card bg-dark border-secondary mb-4" id="infoCallMeBot" style="display: none;">
                 <div class="card-header">
                     <h6 class="mb-0 text-white">
-                        <i class="fas fa-robot me-2"></i>Configuración CallMeBot (SÚPER FÁCIL y GRATIS)
+                        <i class="fas fa-robot me-2"></i>Configuración CallMeBot
                     </h6>
                 </div>
                 <div class="card-body">
@@ -390,7 +390,7 @@ document.getElementById('guardarDestinatario').addEventListener('click', functio
     formData.set('recibir_cambios_estado', document.getElementById('recibir_cambios_estado').checked);
     
     const url = destinatarioId ? 
-        `{% url "notificaciones:destinatarios" %}${destinatarioId}/editar/` : 
+        `/notificaciones/destinatarios/${destinatarioId}/editar/` : 
         '{% url "notificaciones:destinatarios" %}';
     
     // Mostrar loading
@@ -533,7 +533,7 @@ function toggleEstadoDestinatario(destinatarioId, estadoActual) {
         color: '#fff'
     }).then((result) => {
         if (result.isConfirmed) {
-            fetch(`{% url "notificaciones:destinatarios" %}${destinatarioId}/toggle-estado/`, {
+            fetch(`/notificaciones/destinatarios/${destinatarioId}/toggle-estado/`, {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': getCookie('csrftoken'),
@@ -599,7 +599,7 @@ function enviarTestDestinatario(destinatarioId, telefono) {
                 }
             });
             
-            fetch(`{% url "notificaciones:destinatarios" %}${destinatarioId}/enviar-test/`, {
+            fetch(`/notificaciones/destinatarios/${destinatarioId}/enviar-test/`, {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': getCookie('csrftoken'),
@@ -653,7 +653,7 @@ function eliminarDestinatario(destinatarioId, nombre) {
         color: '#fff'
     }).then((result) => {
         if (result.isConfirmed) {
-            fetch(`{% url "notificaciones:destinatarios" %}${destinatarioId}/eliminar/`, {
+            fetch(`/notificaciones/destinatarios/${destinatarioId}/eliminar/`, {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': getCookie('csrftoken')
