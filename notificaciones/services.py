@@ -200,13 +200,13 @@ Sistema EGLIS - Notificacion automatica"""
             return f"""CAMBIO DE ESTADO - PAGO
 
 ID Pago: {pago_id_formateado}
+            return f"""CAMBIO DE ESTADO - PAGO
+
+ID Pago: {pago_id_formateado}
 Gestor: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
 Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'}
 Destinatario: {pago.destinatario}
-Tipo: {pago.get_tipo_pago_display()}
-
-Estado anterior: {estado_anterior or 'N/A'}
-Estado actual: {pago.get_estado_display()}
+Tipo: {pago.get_tipo_pago_display()}lay()}
 
 {mensaje_estado}
 
