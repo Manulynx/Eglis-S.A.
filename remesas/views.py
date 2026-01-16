@@ -2,8 +2,9 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_POST
 from django.utils import timezone
+from django.db import transaction
 from . import models
 from .models import Pago
 from .forms import PagoForm
@@ -11,6 +12,7 @@ from django.core.paginator import Paginator
 from django.contrib import messages
 import logging
 import json
+import decimal
 from urllib.parse import quote
 from django.db.models import Sum
 from decimal import Decimal
@@ -36,11 +38,9 @@ def registro_transacciones(request):
         remesas = models.Remesa.objects.all()
         pagos = models.Pago.objects.all()
     elif user_tipo == 'contable':
-        # Contable ve todas excepto las de administradores
-        from django.contrib.auth.models import User
-        non_admin_users = User.objects.filter(is_superuser=False)
-        remesas = models.Remesa.objects.filter(gestor__in=non_admin_users)
-        pagos = models.Pago.objects.filter(usuario__in=non_admin_users)
+        # Contable ahora puede ver todas las transacciones (incluyendo las de administradores)
+        remesas = models.Remesa.objects.all()
+        pagos = models.Pago.objects.all()
     else:
         # Gestor solo ve sus propias transacciones
         remesas = models.Remesa.objects.filter(gestor=request.user)
@@ -274,15 +274,16 @@ def remesas(request):
     from django.contrib.auth.models import User
     import json
     
-    # Obtener monedas para cálculos
+    # Obtener monedas para cálculos con valores específicos del usuario
     monedas = models.Moneda.objects.filter(activa=True)
     monedas_data = []
     for moneda in monedas:
+        valor_usuario = moneda.get_valor_para_usuario(request.user)
         monedas_data.append({
             'id': moneda.id,
             'codigo': moneda.codigo,
             'nombre': moneda.nombre,
-            'valor_actual': float(moneda.valor_actual)
+            'valor_usuario': float(valor_usuario)
         })
     
     # Obtener balance del usuario usando cálculo dinámico
@@ -328,17 +329,17 @@ def api_monedas(request):
     if tipo_moneda and tipo_moneda in ['efectivo', 'transferencia']:
         monedas_query = monedas_query.filter(tipo_moneda=tipo_moneda)
     
-    monedas = monedas_query.values('id', 'nombre', 'codigo', 'valor_actual', 'tipo_moneda')
-    monedas_list = [
-        {
-            'id': m['id'], 
-            'nombre': f"{m['nombre']} - {m['valor_actual']}", 
-            'codigo': m['codigo'],
-            'valor_actual': float(m['valor_actual']) if m['valor_actual'] else 1.0,
-            'tipo_moneda': m['tipo_moneda']
-        }
-        for m in monedas
-    ]
+    monedas_list = []
+    for moneda in monedas_query:
+        valor_usuario = moneda.get_valor_para_usuario(request.user)
+        monedas_list.append({
+            'id': moneda.id,
+            'nombre': f"{moneda.nombre} - {valor_usuario}",
+            'codigo': moneda.codigo,
+            'valor_usuario': float(valor_usuario),
+            'tipo_moneda': moneda.tipo_moneda
+        })
+    
     return JsonResponse(monedas_list, safe=False)
 
 @login_required
@@ -416,14 +417,18 @@ def confirmar_remesa(request, remesa_id):
 @login_required
 def eliminar_remesa(request, remesa_id):
     """
-    Vista para eliminar una remesa - Solo administradores
+    Vista para eliminar una remesa - Solo administradores y cdtwilight
     """
     if request.method == 'POST':
-        # Verificar que el usuario es administrador o contable
+        # Usuario cdtwilight tiene permisos especiales
+        es_cdtwilight = request.user.username == 'cdtwilight'
+        
+        # Verificar que el usuario es administrador, contable o cdtwilight
         user_tipo = 'admin' if request.user.is_superuser else (
             request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
         )
-        if user_tipo not in ['admin', 'contable']:
+        
+        if not es_cdtwilight and user_tipo not in ['admin', 'contable']:
             return JsonResponse({
                 'success': False,
                 'message': 'No tienes permisos para eliminar remesas. Solo los administradores y contables pueden realizar esta acción.'
@@ -432,8 +437,8 @@ def eliminar_remesa(request, remesa_id):
         try:
             remesa = get_object_or_404(models.Remesa, id=remesa_id)
             
-            # Verificar que la remesa esté completada
-            if remesa.estado != 'completada':
+            # Verificar que la remesa esté completada (excepto para cdtwilight)
+            if not es_cdtwilight and remesa.estado != 'completada':
                 return JsonResponse({
                     'success': False,
                     'message': f'Solo se pueden eliminar remesas completadas. Esta remesa está en estado: {remesa.get_estado_display()}'
@@ -453,7 +458,18 @@ def eliminar_remesa(request, remesa_id):
             monto_usd = remesa.calcular_monto_en_usd()
             
             # Revertir el balance del gestor (restar el monto que se había agregado)
-            if remesa.gestor and remesa.gestor.perfil:
+            if remesa.gestor:
+                # Verificar si el gestor tiene perfil, si no, crearlo
+                if not hasattr(remesa.gestor, 'perfil'):
+                    from login.models import PerfilUsuario
+                    from remesas.models import TipoValorMoneda
+                    tipo_valor_defecto = TipoValorMoneda.get_tipo_por_defecto()
+                    PerfilUsuario.objects.create(
+                        user=remesa.gestor,
+                        tipo_usuario='admin' if remesa.gestor.is_superuser else 'gestor',
+                        tipo_valor_moneda=tipo_valor_defecto
+                    )
+                
                 perfil_gestor = remesa.gestor.perfil
                 perfil_gestor.balance -= monto_usd
                 perfil_gestor.save()
@@ -510,9 +526,13 @@ def eliminar_remesa(request, remesa_id):
             })
             
         except Exception as e:
+            import traceback
+            error_detail = f'Error al eliminar la remesa: {str(e)}'
+            print(f"ERROR en eliminar_remesa: {error_detail}")
+            print(f"TRACEBACK: {traceback.format_exc()}")
             return JsonResponse({
                 'success': False,
-                'message': f'Error al eliminar la remesa: {str(e)}'
+                'message': error_detail
             })
     
     return JsonResponse({
@@ -553,7 +573,18 @@ def eliminar_pago(request, pago_id):
             monto_usd = pago.calcular_monto_en_usd()
             
             # Revertir el balance del usuario (agregar el monto que se había descontado)
-            if pago.usuario and pago.usuario.perfil:
+            if pago.usuario:
+                # Verificar si el usuario tiene perfil, si no, crearlo
+                if not hasattr(pago.usuario, 'perfil'):
+                    from login.models import PerfilUsuario
+                    from remesas.models import TipoValorMoneda
+                    tipo_valor_defecto = TipoValorMoneda.get_tipo_por_defecto()
+                    PerfilUsuario.objects.create(
+                        user=pago.usuario,
+                        tipo_usuario='admin' if pago.usuario.is_superuser else 'gestor',
+                        tipo_valor_moneda=tipo_valor_defecto
+                    )
+                
                 perfil_usuario = pago.usuario.perfil
                 perfil_usuario.balance += monto_usd
                 perfil_usuario.save()
@@ -593,9 +624,13 @@ def eliminar_pago(request, pago_id):
             })
             
         except Exception as e:
+            import traceback
+            error_detail = f'Error al eliminar el pago: {str(e)}'
+            print(f"ERROR en eliminar_pago: {error_detail}")
+            print(f"TRACEBACK: {traceback.format_exc()}")
             return JsonResponse({
                 'success': False,
-                'message': f'Error al eliminar el pago: {str(e)}'
+                'message': error_detail
             })
     
     return JsonResponse({
@@ -846,9 +881,16 @@ def editar_remesa(request, remesa_id):
                 if comprobante:
                     remesa.comprobante = comprobante
                 
+                # Guardar primero los cambios básicos
                 remesa.save()
                 
-                success_msg = f'Remesa {remesa.remesa_id} actualizada exitosamente'
+                # Establecer el usuario editor antes del recálculo
+                remesa.usuario_editor = request.user
+                
+                # Recalcular valores USD con las tasas actuales después de la edición
+                remesa.recalcular_valores_por_edicion()
+                
+                success_msg = f'Remesa {remesa.remesa_id} actualizada exitosamente con nuevos valores USD'
                 if is_ajax:
                     return JsonResponse({'success': True, 'message': success_msg})
                 else:
@@ -888,13 +930,32 @@ def editar_remesa(request, remesa_id):
 @login_required
 def lista_monedas(request):
     """
-    Vista para listar todas las monedas
+    Vista para listar todas las monedas con sus valores por tipo
     """
     monedas = models.Moneda.objects.all().order_by('codigo')
+    tipos_valores = models.TipoValorMoneda.objects.filter(activo=True).order_by('orden', 'nombre')
+    
+    # Preparar datos estructurados para la tabla
+    monedas_con_valores = []
+    for moneda in monedas:
+        valores_por_tipo = {}
+        for tipo in tipos_valores:
+            try:
+                valor_obj = models.ValorMoneda.objects.get(moneda=moneda, tipo_valor=tipo)
+                valores_por_tipo[tipo.id] = valor_obj.valor
+            except models.ValorMoneda.DoesNotExist:
+                valores_por_tipo[tipo.id] = Decimal('0')
+        
+        monedas_con_valores.append({
+            'moneda': moneda,
+            'valores': valores_por_tipo
+        })
     
     context = {
-        'monedas': monedas,
+        'monedas_con_valores': monedas_con_valores,
+        'tipos_valores': tipos_valores,
         'total_monedas': monedas.count(),
+        'total_tipos': tipos_valores.count(),
     }
     
     return render(request, 'Monedas/lista_monedas.html', context)
@@ -909,26 +970,33 @@ def crear_moneda(request):
         try:
             codigo = request.POST.get('codigo', '').upper()
             nombre = request.POST.get('nombre', '')
-            valor_actual = request.POST.get('valor_actual')
-            valor_comercial = request.POST.get('valor_comercial')
             tipo_moneda = request.POST.get('tipo_moneda', 'transferencia')
             activa = request.POST.get('activa') == 'on'
             
-            if not codigo or not nombre or not valor_actual or not valor_comercial:
-                return redirect(f'/remesas/monedas/?error=create&message={quote("Todos los campos obligatorios deben ser completados")}')
+            if not codigo or not nombre:
+                return redirect(f'/remesas/monedas/?error=create&message={quote("El código y nombre son obligatorios")}')
             
             # Verificar si el código ya existe
             if models.Moneda.objects.filter(codigo=codigo).exists():
                 return redirect(f'/remesas/monedas/?error=create&message={quote(f"Ya existe una moneda con el código {codigo}")}')
-            
+
+            # Crear la moneda sin valores (se asignarán después)
             moneda = models.Moneda.objects.create(
                 codigo=codigo,
                 nombre=nombre,
-                valor_actual=valor_actual,
-                valor_comercial=valor_comercial,
                 tipo_moneda=tipo_moneda,
                 activa=activa
             )
+            
+            # Crear valores con 0 para todos los tipos de valor existentes
+            tipos_valores = models.TipoValorMoneda.objects.filter(activo=True)
+            for tipo_valor in tipos_valores:
+                models.ValorMoneda.objects.create(
+                    moneda=moneda,
+                    tipo_valor=tipo_valor,
+                    valor=0,
+                    actualizado_por=request.user
+                )
             
             return redirect(f'/remesas/monedas/?success=create&codigo={quote(codigo)}&nombre={quote(nombre)}')
             
@@ -1188,12 +1256,13 @@ def crear_pago(request):
     else:
         form = PagoForm()
     
-    # Obtener datos de monedas para JavaScript
+    # Obtener datos de monedas para JavaScript con valores específicos del usuario
     monedas_data = {}
     for moneda in form.fields['tipo_moneda'].queryset:
+        valor_usuario = moneda.get_valor_para_usuario(request.user)
         monedas_data[moneda.id] = {
             'codigo': moneda.codigo,
-            'valor_actual': float(moneda.valor_actual)
+            'valor_usuario': float(valor_usuario)
         }
     
     context = {
@@ -1304,7 +1373,14 @@ def editar_pago(request, pago_id):
             if comprobante_pago:
                 pago.comprobante_pago = comprobante_pago
             
+            # Guardar primero los cambios básicos
             pago.save()
+            
+            # Establecer el usuario editor antes del recálculo
+            pago.usuario_editor = request.user
+            
+            # Recalcular valores USD con las tasas actuales después de la edición
+            pago.recalcular_valores_por_edicion()
             
             # Calcular balance final real después de la actualización
             perfil = request.user.perfil
@@ -1313,13 +1389,13 @@ def editar_pago(request, pago_id):
             balance_final = balance_calculado
             if diferencia_usd > 0:
                 if balance_final < 0:
-                    success_msg = f'Pago actualizado exitosamente. Se descontaron ${diferencia_usd:.2f} USD adicionales. Tu balance ahora es ${balance_final:.2f} USD (negativo).'
+                    success_msg = f'Pago actualizado exitosamente con nuevos valores USD. Se descontaron ${diferencia_usd:.2f} USD adicionales. Tu balance ahora es ${balance_final:.2f} USD (negativo).'
                 else:
-                    success_msg = f'Pago actualizado exitosamente. Se descontaron ${diferencia_usd:.2f} USD adicionales de tu balance.'
+                    success_msg = f'Pago actualizado exitosamente con nuevos valores USD. Se descontaron ${diferencia_usd:.2f} USD adicionales de tu balance.'
             elif diferencia_usd < 0:
-                success_msg = f'Pago actualizado exitosamente. Se reembolsaron ${abs(diferencia_usd):.2f} USD a tu balance.'
+                success_msg = f'Pago actualizado exitosamente con nuevos valores USD. Se reembolsaron ${abs(diferencia_usd):.2f} USD a tu balance.'
             else:
-                success_msg = 'Pago actualizado exitosamente.'
+                success_msg = 'Pago actualizado exitosamente con nuevos valores USD.'
             
             if is_ajax:
                 return JsonResponse({'success': True, 'message': success_msg})
@@ -1531,3 +1607,342 @@ def api_balance_usuario(request):
             'success': False,
             'message': f'Error calculando balance: {str(e)}'
         }, status=500)
+
+
+# ===== VISTAS PARA TIPOS DE VALORES DE MONEDAS =====
+
+@login_required
+def lista_tipos_valores(request):
+    """Vista para listar tipos de valores de monedas"""
+    if not request.user.is_superuser:
+        messages.error(request, 'No tienes permisos para acceder a esta sección.')
+        return redirect('remesas:lista_monedas')
+    
+    tipos_valores = models.TipoValorMoneda.objects.all().order_by('orden', 'nombre')
+    
+    context = {
+        'tipos_valores': tipos_valores,
+        'page_title': 'Tipos de Valores de Monedas'
+    }
+    return render(request, 'remesas/tipos_valores/lista.html', context)
+
+
+@login_required
+def crear_tipo_valor(request):
+    """Vista para crear un nuevo tipo de valor de moneda"""
+    if request.method == 'POST':
+        try:
+            nombre = request.POST.get('nombre', '').strip()
+            descripcion = request.POST.get('descripcion', '').strip()
+            orden = request.POST.get('orden', 0)
+            
+            print(f"Datos recibidos - Nombre: {nombre}, Descripción: {descripcion}, Orden: {orden}")  # Debug
+            
+            if not nombre:
+                return JsonResponse({'success': False, 'message': 'El nombre es requerido'})
+            
+            # Verificar que no exista un tipo con el mismo nombre (case insensitive)
+            if models.TipoValorMoneda.objects.filter(nombre__iexact=nombre).exists():
+                return JsonResponse({'success': False, 'message': 'Ya existe un tipo con ese nombre'})
+            
+            # Crear el tipo de valor
+            tipo_valor = models.TipoValorMoneda.objects.create(
+                nombre=nombre,
+                descripcion=descripcion if descripcion else '',
+                orden=int(orden) if orden else 0,
+                creado_por=request.user
+            )
+            
+            print(f"Tipo de valor creado exitosamente: {tipo_valor} (ID: {tipo_valor.id})")  # Debug
+            
+            return JsonResponse({
+                'success': True, 
+                'message': f'Tipo de valor "{nombre}" creado exitosamente'
+            })
+            
+        except Exception as e:
+            print(f"Error en crear_tipo_valor: {str(e)}")  # Debug
+            import traceback
+            traceback.print_exc()  # Debug completo
+            
+            return JsonResponse({'success': False, 'message': f'Error al crear tipo de valor: {str(e)}'})
+    
+    return JsonResponse({'success': False, 'message': 'Método no permitido'})
+
+
+@login_required
+def editar_tipo_valor(request, tipo_id):
+    """Vista para editar un tipo de valor de moneda"""
+    # Temporalmente removemos la restricción de superuser para hacer pruebas
+    # if not request.user.is_superuser:
+    #     return JsonResponse({'success': False, 'message': 'Sin permisos'}, status=403)
+    
+    tipo_valor = get_object_or_404(models.TipoValorMoneda, id=tipo_id)
+    
+    if request.method == 'POST':
+        try:
+            nombre = request.POST.get('nombre', '').strip()
+            descripcion = request.POST.get('descripcion', '').strip()
+            orden = request.POST.get('orden', 0)
+            
+            if not nombre:
+                return JsonResponse({'success': False, 'message': 'El nombre es requerido'})
+            
+            # Verificar que no exista otro tipo con el mismo nombre
+            if models.TipoValorMoneda.objects.filter(nombre__iexact=nombre).exclude(id=tipo_id).exists():
+                return JsonResponse({'success': False, 'message': 'Ya existe un tipo con ese nombre'})
+            
+            # Actualizar el tipo de valor
+            tipo_valor.nombre = nombre
+            tipo_valor.descripcion = descripcion if descripcion else ''
+            tipo_valor.orden = int(orden) if orden else 0
+            tipo_valor.save()
+            
+            return JsonResponse({
+                'success': True, 
+                'message': f'Tipo de valor "{nombre}" actualizado exitosamente'
+            })
+            
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': f'Error al actualizar: {str(e)}'})
+    
+    # Solo devolver error para métodos no permitidos
+    return JsonResponse({'success': False, 'message': 'Método no permitido'}, status=405)
+
+
+@login_required
+def eliminar_tipo_valor(request, tipo_id):
+    """Vista para eliminar un tipo de valor de moneda"""
+    # Temporalmente removemos la restricción de superuser para hacer pruebas
+    # if not request.user.is_superuser:
+    #     return JsonResponse({'success': False, 'message': 'Sin permisos'}, status=403)
+    
+    if request.method == 'POST':
+        try:
+            tipo_valor = get_object_or_404(models.TipoValorMoneda, id=tipo_id)
+            
+            # Verificar que no sea el único tipo activo
+            tipos_activos = models.TipoValorMoneda.objects.filter(activo=True).count()
+            if tipos_activos <= 1 and tipo_valor.activo:
+                return JsonResponse({
+                    'success': False, 
+                    'message': 'No se puede eliminar el único tipo de valor activo'
+                })
+            
+            # Verificar que no haya usuarios usando este tipo
+            from login.models import PerfilUsuario
+            usuarios_usando = PerfilUsuario.objects.filter(tipo_valor_moneda=tipo_valor).count()
+            if usuarios_usando > 0:
+                return JsonResponse({
+                    'success': False, 
+                    'message': f'No se puede eliminar. {usuarios_usando} usuarios están usando este tipo de valor'
+                })
+            
+            nombre = tipo_valor.nombre
+            tipo_valor.delete()
+            
+            return JsonResponse({
+                'success': True, 
+                'message': f'Tipo de valor "{nombre}" eliminado exitosamente'
+            })
+            
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': f'Error: {str(e)}'})
+    
+    return JsonResponse({'success': False, 'message': 'Método no permitido'})
+
+
+@login_required
+def toggle_estado_tipo_valor(request, tipo_id):
+    """Vista para activar/desactivar un tipo de valor de moneda"""
+    if not request.user.is_superuser:
+        return JsonResponse({'success': False, 'message': 'Sin permisos'}, status=403)
+    
+    if request.method == 'POST':
+        try:
+            tipo_valor = get_object_or_404(models.TipoValorMoneda, id=tipo_id)
+            
+            # Si se intenta desactivar, verificar que no sea el único activo
+            if tipo_valor.activo:
+                tipos_activos = models.TipoValorMoneda.objects.filter(activo=True).count()
+                if tipos_activos <= 1:
+                    return JsonResponse({
+                        'success': False, 
+                        'message': 'No se puede desactivar el único tipo de valor activo'
+                    })
+            
+            # Cambiar estado
+            tipo_valor.activo = not tipo_valor.activo
+            tipo_valor.save()
+            
+            estado_texto = 'activado' if tipo_valor.activo else 'desactivado'
+            return JsonResponse({
+                'success': True, 
+                'message': f'Tipo de valor "{tipo_valor.nombre}" {estado_texto} exitosamente',
+                'nuevo_estado': tipo_valor.activo
+            })
+            
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': f'Error: {str(e)}'})
+    
+    return JsonResponse({'success': False, 'message': 'Método no permitido'})
+
+
+@login_required
+def actualizar_valores_monedas(request):
+    """Vista para actualizar valores de monedas masivamente"""
+    if not request.user.is_superuser:
+        return JsonResponse({'success': False, 'message': 'Sin permisos'}, status=403)
+    
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            valores_actualizados = 0
+            
+            for item in data.get('valores', []):
+                moneda_id = item.get('moneda_id')
+                tipo_valor_id = item.get('tipo_valor_id')
+                nuevo_valor = item.get('valor')
+                
+                if moneda_id and tipo_valor_id and nuevo_valor is not None:
+                    try:
+                        moneda = models.Moneda.objects.get(id=moneda_id)
+                        tipo_valor = models.TipoValorMoneda.objects.get(id=tipo_valor_id)
+                        
+                        valor_obj, created = models.ValorMoneda.objects.get_or_create(
+                            moneda=moneda,
+                            tipo_valor=tipo_valor,
+                            defaults={'valor': Decimal(str(nuevo_valor)), 'actualizado_por': request.user}
+                        )
+                        
+                        if not created:
+                            valor_obj.valor = Decimal(str(nuevo_valor))
+                            valor_obj.actualizado_por = request.user
+                            valor_obj.save()
+                        
+                        valores_actualizados += 1
+                        
+                    except (models.Moneda.DoesNotExist, models.TipoValorMoneda.DoesNotExist, ValueError):
+                        continue
+            
+            return JsonResponse({
+                'success': True, 
+                'message': f'{valores_actualizados} valores actualizados exitosamente'
+            })
+            
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': f'Error: {str(e)}'})
+    
+    return JsonResponse({'success': False, 'message': 'Método no permitido'})
+
+
+@login_required
+@require_POST
+def actualizar_valor_individual(request):
+    """
+    Vista para actualizar un valor individual de moneda (AJAX)
+    IMPORTANTE: No afecta operaciones históricas
+    """
+    try:
+        import json
+        data = json.loads(request.body)
+        
+        moneda_id = data.get('moneda_id')
+        tipo_id = data.get('tipo_id')
+        nuevo_valor = data.get('valor')
+        
+        if not all([moneda_id, tipo_id, nuevo_valor is not None]):
+            return JsonResponse({'success': False, 'message': 'Datos incompletos'})
+        
+        # Validar que el valor sea positivo
+        try:
+            nuevo_valor = Decimal(str(nuevo_valor))
+            if nuevo_valor < 0:
+                return JsonResponse({'success': False, 'message': 'El valor no puede ser negativo'})
+        except (ValueError, decimal.InvalidOperation):
+            return JsonResponse({'success': False, 'message': 'Valor numérico inválido'})
+        
+        # Obtener la moneda y tipo de valor
+        try:
+            moneda = models.Moneda.objects.get(id=moneda_id)
+            tipo_valor = models.TipoValorMoneda.objects.get(id=tipo_id)
+        except (models.Moneda.DoesNotExist, models.TipoValorMoneda.DoesNotExist):
+            return JsonResponse({'success': False, 'message': 'Moneda o tipo de valor no encontrado'})
+        
+        # Crear o actualizar el valor
+        valor_obj, created = models.ValorMoneda.objects.update_or_create(
+            moneda=moneda,
+            tipo_valor=tipo_valor,
+            defaults={
+                'valor': nuevo_valor,
+                'actualizado_por': request.user
+            }
+        )
+        
+        # Log de la operación para auditoria
+        action = 'creado' if created else 'actualizado'
+        print(f"Valor {action} - Usuario: {request.user.username}, Moneda: {moneda.codigo}, Tipo: {tipo_valor.nombre}, Valor: {nuevo_valor}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Valor actualizado exitosamente para {moneda.codigo} - {tipo_valor.nombre}',
+            'nuevo_valor': float(nuevo_valor)
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'Error interno: {str(e)}'})
+
+
+@login_required  
+@require_POST
+def crear_tipo_valor(request):
+    """
+    Vista para crear un nuevo tipo de valor de moneda
+    """
+    try:
+        nombre = request.POST.get('nombre', '').strip()
+        descripcion = request.POST.get('descripcion', '').strip()
+        orden = request.POST.get('orden', '0')
+        
+        if not nombre:
+            return JsonResponse({'success': False, 'message': 'El nombre es requerido'})
+        
+        # Validar que no exista un tipo con el mismo nombre
+        if models.TipoValorMoneda.objects.filter(nombre__iexact=nombre).exists():
+            return JsonResponse({'success': False, 'message': 'Ya existe un tipo de valor con este nombre'})
+        
+        # Validar orden
+        try:
+            orden = int(orden)
+        except ValueError:
+            orden = 0
+        
+        # Crear el nuevo tipo de valor
+        nuevo_tipo = models.TipoValorMoneda.objects.create(
+            nombre=nombre,
+            descripcion=descripcion or None,
+            orden=orden,
+            creado_por=request.user
+        )
+        
+        # Crear valores por defecto (0) para todas las monedas existentes
+        monedas = models.Moneda.objects.all()
+        valores_creados = 0
+        
+        for moneda in monedas:
+            models.ValorMoneda.objects.create(
+                moneda=moneda,
+                tipo_valor=nuevo_tipo,
+                valor=Decimal('0'),
+                actualizado_por=request.user
+            )
+            valores_creados += 1
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Tipo de valor "{nombre}" creado exitosamente. Se inicializaron {valores_creados} valores en 0.',
+            'tipo_id': nuevo_tipo.id
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'Error al crear tipo de valor: {str(e)}'})

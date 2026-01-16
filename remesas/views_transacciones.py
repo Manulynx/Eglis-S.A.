@@ -1,8 +1,11 @@
 from django.shortcuts import render
-# from django.core.paginator import Paginator  # COMENTADO TEMPORALMENTE
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
-from datetime import datetime
+from datetime import datetime, timedelta
+from django.utils import timezone
+from django.conf import settings
+from zoneinfo import ZoneInfo
 from .models import Remesa, Pago, Moneda
 from django.http import HttpResponse, JsonResponse
 import csv
@@ -24,16 +27,40 @@ def registro_transacciones(request):
         remesas = Remesa.objects.select_related('moneda', 'gestor').all()
         pagos = Pago.objects.select_related('tipo_moneda').all()
     elif user_tipo == 'contable':
-        # Si es contable, mostrar todos los registros excepto los de administradores
-        from django.contrib.auth.models import User
-        non_admin_users = User.objects.filter(is_superuser=False)
-        remesas = Remesa.objects.select_related('moneda', 'gestor').filter(gestor__in=non_admin_users)
-        pagos = Pago.objects.select_related('tipo_moneda').filter(usuario__in=non_admin_users)
+        # Si es contable, mostrar todos los registros (incluyendo los de administradores)
+        remesas = Remesa.objects.select_related('moneda', 'gestor').all()
+        pagos = Pago.objects.select_related('tipo_moneda').all()
     else:
         # Si es gestor u otro tipo, mostrar solo los registros del usuario actual
         remesas = Remesa.objects.select_related('moneda', 'gestor').filter(gestor=request.user)
         pagos = Pago.objects.select_related('tipo_moneda').filter(usuario=request.user)
     
+    # Filtro de fecha rápido (Default: hoy)
+    filtro_fecha = request.GET.get('filtro_fecha', 'hoy')
+    
+    if filtro_fecha != 'todas':
+        # Obtener la fecha actual en la zona horaria de Cuba
+        tz_cuba = ZoneInfo(settings.TIME_ZONE)
+        ahora_utc = timezone.now()
+        ahora_local = ahora_utc.astimezone(tz_cuba)
+        today = ahora_local.date()
+        
+        if filtro_fecha == 'hoy':
+            remesas = remesas.filter(fecha__date=today)
+            pagos = pagos.filter(fecha_creacion__date=today)
+        elif filtro_fecha == 'ayer':
+            yesterday = today - timedelta(days=1)
+            remesas = remesas.filter(fecha__date=yesterday)
+            pagos = pagos.filter(fecha_creacion__date=yesterday)
+        elif filtro_fecha == 'semana':
+            week_ago = today - timedelta(weeks=1)
+            remesas = remesas.filter(fecha__date__gte=week_ago, fecha__date__lte=today)
+            pagos = pagos.filter(fecha_creacion__date__gte=week_ago, fecha_creacion__date__lte=today)
+        elif filtro_fecha == 'mes':
+            month_ago = today - timedelta(days=30)
+            remesas = remesas.filter(fecha__date__gte=month_ago, fecha__date__lte=today)
+            pagos = pagos.filter(fecha_creacion__date__gte=month_ago, fecha_creacion__date__lte=today)
+
     # Aplicar filtros específicos para REMESAS
     search_remesas = request.GET.get('search_remesas')
     estado_remesas = request.GET.get('estado_remesas')
@@ -67,14 +94,14 @@ def registro_transacciones(request):
     if fecha_desde_remesas:
         try:
             fecha_desde = datetime.strptime(fecha_desde_remesas, '%Y-%m-%d').date()
-            remesas = remesas.filter(fecha__gte=fecha_desde)
+            remesas = remesas.filter(fecha__date__gte=fecha_desde)
         except ValueError:
             pass
     
     if fecha_hasta_remesas:
         try:
             fecha_hasta = datetime.strptime(fecha_hasta_remesas, '%Y-%m-%d').date()
-            remesas = remesas.filter(fecha__lte=fecha_hasta)
+            remesas = remesas.filter(fecha__date__lte=fecha_hasta)
         except ValueError:
             pass
     
@@ -94,6 +121,7 @@ def registro_transacciones(request):
     
     # Aplicar filtros específicos para PAGOS
     search_pagos = request.GET.get('search_pagos')
+    estado_pagos = request.GET.get('estado_pagos')  # NUEVO: Filtro de estado
     tipo_pago_pagos = request.GET.get('tipo_pago_pagos')
     moneda_pagos = request.GET.get('moneda_pagos')
     usuario_pagos = request.GET.get('usuario_pagos')
@@ -109,6 +137,10 @@ def registro_transacciones(request):
             Q(destinatario__icontains=search_pagos) |
             Q(pago_id__icontains=search_pagos)
         )
+    
+    # NUEVO: Filtro por estado
+    if estado_pagos:
+        pagos = pagos.filter(estado=estado_pagos)
     
     if tipo_pago_pagos:
         pagos = pagos.filter(tipo_pago=tipo_pago_pagos)
@@ -150,136 +182,120 @@ def registro_transacciones(request):
         except ValueError:
             pass
     
-    # Crear lista combinada para pestaña "Total"
-    total_operaciones_list = []
+    # --- OPTIMIZACIÓN: Paginación en base de datos ---
+    # En lugar de traer todos los objetos y filtrarlos en Python,
+    # aplicamos filtros a los QuerySets y usamos UNION para paginar IDs.
     
-    # Agregar remesas a la lista combinada
-    for remesa in remesas:
-        total_operaciones_list.append({
-            'id_operacion': remesa.remesa_id,  # ID completo de la remesa
-            'tipo': remesa.tipo_pago.capitalize() if remesa.tipo_pago else 'Transferencia',
-            'cantidad': remesa.importe,
-            'moneda': remesa.moneda.codigo if remesa.moneda else 'USD',
-            'equiv_usd': remesa.calcular_monto_en_usd(),
-            'estado': remesa.estado,
-            'fecha': remesa.fecha,  # Mantenemos fecha para filtros
-            'id_original': remesa.id,
-            'tipo_operacion': 'Remesa',
-            'remitente': remesa.receptor_nombre or '',  # Usar el campo correcto del modelo
-            'destinatario': '',  # Las remesas no tienen destinatario separado
-            'gestor': remesa.gestor,  # Usuario que creó la remesa
-            'usuario': remesa.gestor  # Alias para compatibilidad
-        })
+    # 1. Preparar QuerySets base (copias para no afectar las pestañas individuales)
+    total_remesas_qs = remesas.all()
+    total_pagos_qs = pagos.all()
     
-    # Agregar pagos a la lista combinada
-    for pago in pagos:
-        total_operaciones_list.append({
-            'id_operacion': pago.pago_id,  # ID completo del pago
-            'tipo': pago.tipo_pago.capitalize() if pago.tipo_pago else 'Efectivo',
-            'cantidad': pago.cantidad,
-            'moneda': pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD',
-            'equiv_usd': pago.calcular_monto_en_usd(),
-            'estado': pago.estado,  # Usar el estado real del pago
-            'fecha': pago.fecha_creacion,  # Mantenemos fecha para filtros
-            'id_original': pago.id,
-            'tipo_operacion': 'Pago',
-            'remitente': '',  # Agregado para búsqueda
-            'destinatario': pago.destinatario,  # Agregado para búsqueda
-            'gestor': pago.usuario,  # Usuario que creó el pago
-            'usuario': pago.usuario  # Usuario que creó el pago
-        })
-    
-    # Aplicar filtros específicos para TOTAL
+    # 2. Obtener filtros de la pestaña TOTAL
     search_total = request.GET.get('search_total')
     tipo_operacion = request.GET.get('tipo_operacion')
     moneda_total = request.GET.get('moneda_total')
+    usuario_total = request.GET.get('usuario_total')
     rango_usd = request.GET.get('rango_usd')
     fecha_desde_total = request.GET.get('fecha_desde_total')
     fecha_hasta_total = request.GET.get('fecha_hasta_total')
     cantidad_min_total = request.GET.get('cantidad_min_total')
     cantidad_max_total = request.GET.get('cantidad_max_total')
     
-    # Aplicar filtros a la lista combinada
+    # 3. Aplicar filtros a los QuerySets
     if search_total:
-        search_lower = search_total.lower()
-        total_operaciones_list = [op for op in total_operaciones_list 
-                                 if (search_lower in (op.get('id_operacion', '') or '').lower() or
-                                     search_lower in (op.get('remitente', '') or '').lower() or
-                                     search_lower in (op.get('destinatario', '') or '').lower())]
+        total_remesas_qs = total_remesas_qs.filter(
+            Q(remesa_id__icontains=search_total) | 
+            Q(receptor_nombre__icontains=search_total)
+        )
+        total_pagos_qs = total_pagos_qs.filter(
+            Q(pago_id__icontains=search_total) | 
+            Q(destinatario__icontains=search_total)
+        )
     
     if tipo_operacion:
         if tipo_operacion == 'remesa':
-            total_operaciones_list = [op for op in total_operaciones_list if op['tipo_operacion'] == 'Remesa']
+            total_pagos_qs = total_pagos_qs.none()
         elif tipo_operacion == 'pago':
-            total_operaciones_list = [op for op in total_operaciones_list if op['tipo_operacion'] == 'Pago']
-    
+            total_remesas_qs = total_remesas_qs.none()
+            
     if moneda_total:
         try:
             moneda_obj = Moneda.objects.get(id=moneda_total)
-            total_operaciones_list = [op for op in total_operaciones_list 
-                                     if op['moneda'] == moneda_obj.codigo]
+            total_remesas_qs = total_remesas_qs.filter(moneda__codigo=moneda_obj.codigo)
+            total_pagos_qs = total_pagos_qs.filter(tipo_moneda__codigo=moneda_obj.codigo)
         except Moneda.DoesNotExist:
             pass
-    
-    if rango_usd:
-        if rango_usd == '0-100':
-            total_operaciones_list = [op for op in total_operaciones_list 
-                                     if op['equiv_usd'] is not None and 0 <= op['equiv_usd'] <= 100]
-        elif rango_usd == '100-500':
-            total_operaciones_list = [op for op in total_operaciones_list 
-                                     if op['equiv_usd'] is not None and 100 < op['equiv_usd'] <= 500]
-        elif rango_usd == '500-1000':
-            total_operaciones_list = [op for op in total_operaciones_list 
-                                     if op['equiv_usd'] is not None and 500 < op['equiv_usd'] <= 1000]
-        elif rango_usd == '1000-5000':
-            total_operaciones_list = [op for op in total_operaciones_list 
-                                     if op['equiv_usd'] is not None and 1000 < op['equiv_usd'] <= 5000]
-        elif rango_usd == '5000+':
-            total_operaciones_list = [op for op in total_operaciones_list 
-                                     if op['equiv_usd'] is not None and op['equiv_usd'] > 5000]
-    
+            
+    if usuario_total:
+        total_remesas_qs = total_remesas_qs.filter(gestor_id=usuario_total)
+        total_pagos_qs = total_pagos_qs.filter(usuario_id=usuario_total)
+        
     if fecha_desde_total:
         try:
-            fecha_desde = datetime.strptime(fecha_desde_total, '%Y-%m-%d').date()
-            total_operaciones_list = [op for op in total_operaciones_list 
-                                     if (op['fecha'].date() >= fecha_desde 
-                                         if hasattr(op['fecha'], 'date') else op['fecha'] >= fecha_desde)]
-        except ValueError:
-            pass
-    
+            fd = datetime.strptime(fecha_desde_total, '%Y-%m-%d').date()
+            total_remesas_qs = total_remesas_qs.filter(fecha__date__gte=fd)
+            total_pagos_qs = total_pagos_qs.filter(fecha_creacion__date__gte=fd)
+        except ValueError: pass
+
     if fecha_hasta_total:
         try:
-            fecha_hasta = datetime.strptime(fecha_hasta_total, '%Y-%m-%d').date()
-            total_operaciones_list = [op for op in total_operaciones_list 
-                                     if (op['fecha'].date() <= fecha_hasta 
-                                         if hasattr(op['fecha'], 'date') else op['fecha'] <= fecha_hasta)]
-        except ValueError:
-            pass
-    
+            fh = datetime.strptime(fecha_hasta_total, '%Y-%m-%d').date()
+            total_remesas_qs = total_remesas_qs.filter(fecha__date__lte=fh)
+            total_pagos_qs = total_pagos_qs.filter(fecha_creacion__date__lte=fh)
+        except ValueError: pass
+
     if cantidad_min_total:
         try:
-            cantidad_min = float(cantidad_min_total)
-            total_operaciones_list = [op for op in total_operaciones_list 
-                                     if op['cantidad'] is not None and op['cantidad'] >= cantidad_min]
-        except ValueError:
-            pass
-    
+            cmin = float(cantidad_min_total)
+            total_remesas_qs = total_remesas_qs.filter(importe__gte=cmin)
+            total_pagos_qs = total_pagos_qs.filter(cantidad__gte=cmin)
+        except ValueError: pass
+
     if cantidad_max_total:
         try:
-            cantidad_max = float(cantidad_max_total)
-            total_operaciones_list = [op for op in total_operaciones_list 
-                                     if op['cantidad'] is not None and op['cantidad'] <= cantidad_max]
-        except ValueError:
-            pass
+            cmax = float(cantidad_max_total)
+            total_remesas_qs = total_remesas_qs.filter(importe__lte=cmax)
+            total_pagos_qs = total_pagos_qs.filter(cantidad__lte=cmax)
+        except ValueError: pass
+        
+    if rango_usd:
+        # Usamos valores históricos para filtrar en DB
+        if rango_usd == '0-100':
+            total_remesas_qs = total_remesas_qs.filter(monto_usd_historico__gte=0, monto_usd_historico__lte=100)
+            total_pagos_qs = total_pagos_qs.filter(monto_usd_historico__gte=0, monto_usd_historico__lte=100)
+        elif rango_usd == '100-500':
+            total_remesas_qs = total_remesas_qs.filter(monto_usd_historico__gt=100, monto_usd_historico__lte=500)
+            total_pagos_qs = total_pagos_qs.filter(monto_usd_historico__gt=100, monto_usd_historico__lte=500)
+        elif rango_usd == '500-1000':
+            total_remesas_qs = total_remesas_qs.filter(monto_usd_historico__gt=500, monto_usd_historico__lte=1000)
+            total_pagos_qs = total_pagos_qs.filter(monto_usd_historico__gt=500, monto_usd_historico__lte=1000)
+        elif rango_usd == '1000-5000':
+            total_remesas_qs = total_remesas_qs.filter(monto_usd_historico__gt=1000, monto_usd_historico__lte=5000)
+            total_pagos_qs = total_pagos_qs.filter(monto_usd_historico__gt=1000, monto_usd_historico__lte=5000)
+        elif rango_usd == '5000+':
+            total_remesas_qs = total_remesas_qs.filter(monto_usd_historico__gt=5000)
+            total_pagos_qs = total_pagos_qs.filter(monto_usd_historico__gt=5000)
+
+    # 4. Crear UNION de valores ligeros
+    from django.db.models import Value, CharField, F
     
-    # Ordenar por fecha (más recientes primero) - manejo seguro de fechas
-    try:
-        total_operaciones_list.sort(key=lambda x: x['fecha'], reverse=True)
-    except (TypeError, KeyError):
-        # Si hay problemas con las fechas, usar orden por id como fallback
-        total_operaciones_list.sort(key=lambda x: x.get('id_original', 0), reverse=True)
+    # IMPORTANTE: Limpiar ordenamiento previo para evitar errores en UNION
+    # "ORDER BY not allowed in subqueries of compound statements"
     
-    # Ordenar resultados
+    remesas_values = total_remesas_qs.order_by().annotate(
+        fecha_sort=F('fecha'), 
+        type_op=Value('remesa', output_field=CharField())
+    ).values('id', 'fecha_sort', 'type_op')
+    
+    pagos_values = total_pagos_qs.order_by().annotate(
+        fecha_sort=F('fecha_creacion'), 
+        type_op=Value('pago', output_field=CharField())
+    ).values('id', 'fecha_sort', 'type_op')
+    
+    # Esta es la lista que se paginará (QuerySet)
+    total_operaciones_list = remesas_values.union(pagos_values).order_by('-fecha_sort')
+    
+    # Ordenar resultados individuales
     remesas = remesas.order_by('-fecha')
     pagos = pagos.order_by('-fecha_creacion')
     
@@ -292,7 +308,8 @@ def registro_transacciones(request):
     # Calcular totales en USD
     remesas_count = remesas.count()
     pagos_count = pagos.count()
-    total_operaciones_count = len(total_operaciones_list)
+    # total_operaciones_list es ahora un QuerySet, usar count()
+    total_operaciones_count = total_operaciones_list.count()
     
     # Detectar si hay filtros aplicados para REMESAS
     filtros_remesas_aplicados = bool(
@@ -306,50 +323,163 @@ def registro_transacciones(request):
         fecha_desde_pagos or fecha_hasta_pagos or cantidad_min_pagos or cantidad_max_pagos
     )
     
-    # Detectar si hay filtros aplicados para TOTAL (cualquier filtro de remesas o pagos)
-    filtros_total_aplicados = filtros_remesas_aplicados or filtros_pagos_aplicados
+    # Detectar si hay filtros aplicados para TOTAL
+    filtros_total_aplicados = bool(
+        search_total or tipo_operacion or moneda_total or usuario_total or rango_usd or
+        fecha_desde_total or fecha_hasta_total or cantidad_min_total or cantidad_max_total
+    )
     
     # Calcular totales filtrados (mismo que el count ya que sin paginación)
-    remesas_filtradas_count = remesas_count
-    pagos_filtrados_count = pagos_count
+    remesas_filtradas_count = remesas.count()
+    pagos_filtrados_count = pagos.count()
     total_filtradas_count = total_operaciones_count
     
-    # TOTAL REMESAS: Solo sumar remesas completadas (el estado "confirmada" fue eliminado como intermedio)
-    remesas_confirmadas_completadas = remesas.filter(estado='completada')
-    total_remesas = sum(remesa.calcular_monto_en_usd() for remesa in remesas_confirmadas_completadas)
+    # TOTAL REMESAS: Sumar remesas filtradas (excluyendo canceladas a menos que se filtre explícitamente por ellas)
+    # Optimización: Usar agregación de base de datos en lugar de iterar en Python
+    from django.db.models import Sum, F, Case, When, DecimalField
     
-    # TOTAL PAGOS: Solo sumar pagos confirmados
-    pagos_confirmados = pagos.filter(estado='confirmado')
-    total_pagos = sum(pago.calcular_monto_en_usd() for pago in pagos_confirmados)
+    # Para calcular el total en USD, necesitamos considerar la conversión
+    # Esto es complejo de hacer puramente en DB si la lógica de conversión es dinámica
+    # Pero si usamos los campos históricos (monto_usd_historico), podemos optimizarlo
+    
+    # Intentar usar agregación si es posible, sino fallback a iteración pero solo sobre los IDs necesarios
+    # Para mantener la consistencia con la lógica actual que usa calcular_monto_en_usd(),
+    # seguiremos iterando pero solo si el dataset es pequeño, o aceptamos el costo para el total.
+    # Una mejora real sería guardar el monto_usd siempre en la DB.
+    
+    # Si hay muchos registros, esto puede ser lento. 
+    # Limitamos el cálculo de totales si hay demasiados registros y no es una petición de exportación
+    MAX_ITEMS_FOR_TOTAL = 1000
+    
+    if remesas_filtradas_count > MAX_ITEMS_FOR_TOTAL:
+        # Si hay muchos, usar una aproximación o solo sumar los visibles si se prefiere
+        # O mejor, usar los campos históricos que ya están en la DB
+        if estado_remesas == 'cancelada':
+            total_remesas_agg = remesas.aggregate(total=Sum('monto_usd_historico'))
+        else:
+            total_remesas_agg = remesas.exclude(estado='cancelada').aggregate(total=Sum('monto_usd_historico'))
+        total_remesas = total_remesas_agg['total'] or 0
+    else:
+        # Comportamiento original para pocos registros
+        if estado_remesas == 'cancelada':
+            total_remesas = sum(remesa.calcular_monto_en_usd() for remesa in remesas)
+        else:
+            total_remesas = sum(remesa.calcular_monto_en_usd() for remesa in remesas if remesa.estado != 'cancelada')
+    
+    # TOTAL PAGOS: Sumar pagos filtrados
+    if pagos_filtrados_count > MAX_ITEMS_FOR_TOTAL:
+        if estado_pagos == 'cancelado':
+            total_pagos_agg = pagos.aggregate(total=Sum('monto_usd_historico'))
+        else:
+            total_pagos_agg = pagos.exclude(estado='cancelado').aggregate(total=Sum('monto_usd_historico'))
+        total_pagos = total_pagos_agg['total'] or 0
+    else:
+        if estado_pagos == 'cancelado':
+            total_pagos = sum(pago.calcular_monto_en_usd() for pago in pagos)
+        else:
+            total_pagos = sum(pago.calcular_monto_en_usd() for pago in pagos if pago.estado != 'cancelado')
     
     # Obtener monedas para filtros
     monedas = Moneda.objects.filter(activa=True)
     
-    # Obtener usuarios para filtros (admin ve todos, contable ve no-admin, gestor no ve filtros de usuario)
+    # Obtener usuarios para filtros (admin y contable ven todos, gestor no ve filtros de usuario)
     usuarios = []
     if request.user.is_authenticated:
         user_tipo_actual = 'admin' if request.user.is_superuser else (
             request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
         )
-        if user_tipo_actual == 'admin':
+        if user_tipo_actual == 'admin' or user_tipo_actual == 'contable':
             from django.contrib.auth.models import User
             usuarios = User.objects.all().select_related('perfil').order_by('first_name', 'username')
-        elif user_tipo_actual == 'contable':
-            from django.contrib.auth.models import User
-            usuarios = User.objects.filter(is_superuser=False).select_related('perfil').order_by('first_name', 'username')
     
-    # PAGINACIÓN COMENTADA TEMPORALMENTE - Mostrando todos los resultados
-    # remesas_paginator = Paginator(remesas, 10)
-    # pagos_paginator = Paginator(pagos, 10)
-    # total_paginator = Paginator(total_operaciones_list, 10)
+    # Paginación
+    items_per_page = 10
+    remesas_paginator = Paginator(remesas, items_per_page)
+    pagos_paginator = Paginator(pagos, items_per_page)
+    total_paginator = Paginator(total_operaciones_list, items_per_page)
     
-    # remesas_page_num = request.GET.get('remesas_page', 1)
-    # pagos_page_num = request.GET.get('pagos_page', 1)
-    # total_page_num = request.GET.get('total_page', 1)
+    remesas_page_num = request.GET.get('remesas_page', 1)
+    pagos_page_num = request.GET.get('pagos_page', 1)
+    total_page_num = request.GET.get('total_page', 1)
     
-    # remesas_page = remesas_paginator.get_page(remesas_page_num)
-    # pagos_page = pagos_paginator.get_page(pagos_page_num)
-    # total_page = total_paginator.get_page(total_page_num)
+    try:
+        remesas_page = remesas_paginator.page(remesas_page_num)
+    except PageNotAnInteger:
+        remesas_page = remesas_paginator.page(1)
+    except EmptyPage:
+        remesas_page = remesas_paginator.page(remesas_paginator.num_pages)
+
+    try:
+        pagos_page = pagos_paginator.page(pagos_page_num)
+    except PageNotAnInteger:
+        pagos_page = pagos_paginator.page(1)
+    except EmptyPage:
+        pagos_page = pagos_paginator.page(pagos_paginator.num_pages)
+
+    try:
+        total_page = total_paginator.page(total_page_num)
+    except PageNotAnInteger:
+        total_page = total_paginator.page(1)
+    except EmptyPage:
+        total_page = total_paginator.page(total_paginator.num_pages)
+    
+    # --- OPTIMIZACIÓN: Transformar resultados paginados ---
+    # total_page contiene dicts con IDs. Necesitamos los objetos completos.
+    
+    # 1. Obtener IDs de la página actual
+    page_items = list(total_page.object_list)
+    remesa_ids = [item['id'] for item in page_items if item['type_op'] == 'remesa']
+    pago_ids = [item['id'] for item in page_items if item['type_op'] == 'pago']
+    
+    # 2. Fetch eficiente de objetos
+    remesas_dict = {r.id: r for r in Remesa.objects.filter(id__in=remesa_ids).select_related('moneda', 'gestor')}
+    pagos_dict = {p.id: p for p in Pago.objects.filter(id__in=pago_ids).select_related('tipo_moneda', 'usuario')}
+    
+    # 3. Reconstruir lista de diccionarios para el template
+    transformed_list = []
+    for item in page_items:
+        if item['type_op'] == 'remesa':
+            remesa = remesas_dict.get(item['id'])
+            if remesa:
+                transformed_list.append({
+                    'id_operacion': remesa.remesa_id,
+                    'tipo': remesa.tipo_pago.capitalize() if remesa.tipo_pago else 'Transferencia',
+                    'cantidad': remesa.importe,
+                    'moneda': remesa.moneda.codigo if remesa.moneda else 'USD',
+                    'equiv_usd': remesa.calcular_monto_en_usd(),
+                    'estado': remesa.estado,
+                    'fecha': remesa.fecha,
+                    'id_original': remesa.id,
+                    'tipo_operacion': 'Remesa',
+                    'remitente': remesa.receptor_nombre or '',
+                    'destinatario': '',
+                    'gestor': remesa.gestor,
+                    'usuario': remesa.gestor
+                })
+        else:
+            pago = pagos_dict.get(item['id'])
+            if pago:
+                transformed_list.append({
+                    'id_operacion': pago.pago_id,
+                    'tipo': pago.tipo_pago.capitalize() if pago.tipo_pago else 'Efectivo',
+                    'cantidad': pago.cantidad,
+                    'moneda': pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD',
+                    'equiv_usd': pago.calcular_monto_en_usd(),
+                    'estado': pago.estado,
+                    'fecha': pago.fecha_creacion,
+                    'id_original': pago.id,
+                    'tipo_operacion': 'Pago',
+                    'remitente': '',
+                    'destinatario': pago.destinatario,
+                    'gestor': pago.usuario,
+                    'usuario': pago.usuario,
+                    'tarjeta': pago.tarjeta if pago.tarjeta else None,
+                    'telefono': pago.telefono if pago.telefono else None,
+                    'carnet_identidad': pago.carnet_identidad if pago.carnet_identidad else None
+                })
+    
+    # 4. Reemplazar la lista de objetos en la página
+    total_page.object_list = transformed_list
     
     # Obtener el tipo de usuario si está autenticado
     user_tipo = None
@@ -362,9 +492,10 @@ def registro_transacciones(request):
             user_tipo = 'gestor'  # Default
 
     context = {
-        'remesas': remesas,  # Mostrando todos los resultados sin paginación
-        'pagos': pagos,  # Mostrando todos los resultados sin paginación
-        'total_operaciones': total_operaciones_list,  # Mostrando todos los resultados sin paginación
+        'remesas': remesas_page,
+        'pagos': pagos_page,
+        'total_operaciones': total_page,
+        'filtro_fecha': filtro_fecha,
         'total_pendientes': total_pendientes,
         'total_confirmadas': total_confirmadas,
         'total_completadas': total_completadas,
@@ -385,6 +516,8 @@ def registro_transacciones(request):
         'filtros_pagos_aplicados': filtros_pagos_aplicados,
         'filtros_total_aplicados': filtros_total_aplicados,
         'user_tipo': user_tipo,
+        # NUEVO: Agregar opciones de estado para pagos
+        'estados_pagos': Pago.ESTADO_CHOICES,
     }
     
     return render(request, 'remesas/registro_transacciones.html', context)
@@ -403,10 +536,9 @@ def exportar_excel(request, tipo):
             remesas = Remesa.objects.select_related('moneda', 'gestor').all()
             pagos = Pago.objects.select_related('tipo_moneda').all()
         elif user_tipo == 'contable':
-            from django.contrib.auth.models import User
-            non_admin_users = User.objects.filter(is_superuser=False)
-            remesas = Remesa.objects.select_related('moneda', 'gestor').filter(gestor__in=non_admin_users)
-            pagos = Pago.objects.select_related('tipo_moneda').filter(usuario__in=non_admin_users)
+            # Los contables ahora pueden ver todas las operaciones (incluyendo las de administradores)
+            remesas = Remesa.objects.select_related('moneda', 'gestor').all()
+            pagos = Pago.objects.select_related('tipo_moneda').all()
         else:
             remesas = Remesa.objects.select_related('moneda', 'gestor').filter(gestor=request.user)
             pagos = Pago.objects.select_related('tipo_moneda').filter(usuario=request.user)
@@ -438,13 +570,13 @@ def exportar_excel(request, tipo):
             if fecha_desde_remesas:
                 try:
                     fecha_desde = datetime.strptime(fecha_desde_remesas, '%Y-%m-%d').date()
-                    remesas = remesas.filter(fecha__gte=fecha_desde)
+                    remesas = remesas.filter(fecha__date__gte=fecha_desde)
                 except ValueError:
                     pass
             if fecha_hasta_remesas:
                 try:
                     fecha_hasta = datetime.strptime(fecha_hasta_remesas, '%Y-%m-%d').date()
-                    remesas = remesas.filter(fecha__lte=fecha_hasta)
+                    remesas = remesas.filter(fecha__date__lte=fecha_hasta)
                 except ValueError:
                     pass
             if importe_min_remesas:
@@ -462,7 +594,7 @@ def exportar_excel(request, tipo):
 
             # Crear respuesta CSV para remesas
             response = HttpResponse(content_type='text/csv; charset=utf-8')
-            response['Content-Disposition'] = f'attachment; filename="Remesas_{datetime.now().strftime("%Y-%m-%d")}.csv"'
+            response['Content-Disposition'] = f'attachment; filename="Remesas_{timezone.now().strftime("%Y-%m-%d")}.csv"'
             
             writer = csv.writer(response)
             writer.writerow(['ID Remesa', 'Receptor', 'Estado', 'Importe', 'Moneda', 'Equiv. USD', 'Fecha', 'Tipo Pago', 'Observaciones'])
@@ -483,6 +615,7 @@ def exportar_excel(request, tipo):
         elif tipo == 'pagos':
             # Aplicar filtros específicos para PAGOS
             search_pagos = request.GET.get('search_pagos')
+            estado_pagos = request.GET.get('estado_pagos')  # NUEVO: Filtro de estado
             tipo_pago_pagos = request.GET.get('tipo_pago_pagos')
             moneda_pagos = request.GET.get('moneda_pagos')
             destinatario_pagos = request.GET.get('destinatario_pagos')
@@ -497,6 +630,11 @@ def exportar_excel(request, tipo):
                     Q(destinatario__icontains=search_pagos) |
                     Q(pago_id__icontains=search_pagos)
                 )
+            
+            # NUEVO: Filtro por estado
+            if estado_pagos:
+                pagos = pagos.filter(estado=estado_pagos)
+                
             if tipo_pago_pagos:
                 pagos = pagos.filter(tipo_pago=tipo_pago_pagos)
             if moneda_pagos:
@@ -530,7 +668,7 @@ def exportar_excel(request, tipo):
 
             # Crear respuesta CSV para pagos
             response = HttpResponse(content_type='text/csv; charset=utf-8')
-            response['Content-Disposition'] = f'attachment; filename="Pagos_{datetime.now().strftime("%Y-%m-%d")}.csv"'
+            response['Content-Disposition'] = f'attachment; filename="Pagos_{timezone.now().strftime("%Y-%m-%d")}.csv"'
             
             writer = csv.writer(response)
             writer.writerow(['ID Pago', 'Destinatario', 'Tipo Pago', 'Cantidad', 'Moneda', 'Equiv. USD', 'Fecha', 'Teléfono', 'Dirección'])
@@ -607,7 +745,7 @@ def exportar_excel(request, tipo):
 
             # Crear respuesta CSV para total
             response = HttpResponse(content_type='text/csv; charset=utf-8')
-            response['Content-Disposition'] = f'attachment; filename="Operaciones_Total_{datetime.now().strftime("%Y-%m-%d")}.csv"'
+            response['Content-Disposition'] = f'attachment; filename="Operaciones_Total_{timezone.now().strftime("%Y-%m-%d")}.csv"'
             
             writer = csv.writer(response)
             writer.writerow(['ID Operación', 'Tipo', 'Usuario', 'Cantidad', 'Moneda', 'Equiv. USD', 'Estado', 'Fecha', 'Detalle'])

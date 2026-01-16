@@ -6,9 +6,65 @@ from datetime import date, datetime
 from django.db.models import Sum
 import random
 
-def generar_id_remesa(metodo_pago='transferencia', cantidad=0):
-    """Genera un ID único para la remesa en formato REM-MM/DD-T###-HHMMSS o REM-MM/DD-E###-HHMMSS"""
-    ahora = datetime.now()
+class TipoValorMoneda(models.Model):
+    """
+    Modelo para definir diferentes tipos de valores para las monedas
+    """
+    nombre = models.CharField(max_length=50, unique=True, verbose_name='Nombre del Tipo de Valor')
+    descripcion = models.TextField(blank=True, null=True, verbose_name='Descripción')
+    activo = models.BooleanField(default=True, verbose_name='Activo')
+    orden = models.PositiveIntegerField(default=0, verbose_name='Orden de Visualización')
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    creado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='tipos_valor_creados')
+    
+    class Meta:
+        verbose_name = "Tipo de Valor de Moneda"
+        verbose_name_plural = "Tipos de Valores de Monedas"
+        ordering = ['orden', 'nombre']
+    
+    def __str__(self):
+        return self.nombre
+    
+    @classmethod
+    def get_tipo_por_defecto(cls):
+        """Retorna el primer tipo de valor creado (por defecto)"""
+        return cls.objects.filter(activo=True).first()
+
+
+class ValorMoneda(models.Model):
+    """
+    Modelo para almacenar los diferentes valores de cada moneda según el tipo
+    """
+    moneda = models.ForeignKey('Moneda', on_delete=models.CASCADE, related_name='valores')
+    tipo_valor = models.ForeignKey(TipoValorMoneda, on_delete=models.CASCADE, related_name='valores_moneda')
+    valor = models.DecimalField(
+        max_digits=15, 
+        decimal_places=6,
+        default=0,
+        verbose_name='Valor',
+        help_text='Valor de la moneda respecto al USD para este tipo'
+    )
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+    actualizado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='valores_actualizados')
+    
+    class Meta:
+        verbose_name = "Valor de Moneda"
+        verbose_name_plural = "Valores de Monedas"
+        unique_together = ['moneda', 'tipo_valor']
+        ordering = ['moneda__codigo', 'tipo_valor__orden']
+    
+    def __str__(self):
+        return f"{self.moneda.codigo} - {self.tipo_valor.nombre}: {self.valor}"
+
+def generar_id_remesa(metodo_pago='transferencia', cantidad=0, fecha=None):
+    """Genera un ID único para la remesa en formato REM-MM/DD-T###-HHMMSS o REM-MM/DD-E###-HHMMSS
+    
+    Args:
+        metodo_pago: 'transferencia' o 'efectivo'
+        cantidad: cantidad de la transacción para incluir en el ID
+        fecha: datetime con zona horaria. Si no se proporciona, usa timezone.now()
+    """
+    ahora = fecha if fecha else timezone.now()  # Usar la fecha proporcionada o timezone.now() con zona horaria de Cuba
     mes = f"{ahora.month:02d}"
     dia = f"{ahora.day:02d}"
     # Usar la cantidad en lugar de número aleatorio
@@ -18,9 +74,15 @@ def generar_id_remesa(metodo_pago='transferencia', cantidad=0):
     tipo_letra = 'T' if metodo_pago == 'transferencia' else 'E'
     return f"REM-{mes}/{dia}-{tipo_letra}{cantidad_str}-{hora}"
 
-def generar_id_pago(tipo_pago='transferencia', cantidad=0):
-    """Genera un ID único para el pago en formato PAGO-MM/DD-T###-HHMMSS o PAGO-MM/DD-E###-HHMMSS"""
-    ahora = datetime.now()
+def generar_id_pago(tipo_pago='transferencia', cantidad=0, fecha=None):
+    """Genera un ID único para el pago en formato PAGO-MM/DD-T###-HHMMSS o PAGO-MM/DD-E###-HHMMSS
+    
+    Args:
+        tipo_pago: 'transferencia' o 'efectivo'
+        cantidad: cantidad de la transacción para incluir en el ID
+        fecha: datetime con zona horaria. Si no se proporciona, usa timezone.now()
+    """
+    ahora = fecha if fecha else timezone.now()  # Usar la fecha proporcionada o timezone.now() con zona horaria de Cuba
     mes = f"{ahora.month:02d}"
     dia = f"{ahora.day:02d}"
     # Usar la cantidad en lugar de número aleatorio
@@ -66,17 +128,20 @@ class Moneda(models.Model):
     
     codigo = models.CharField(max_length=10, unique=True, verbose_name='Código')
     nombre = models.CharField(max_length=50, verbose_name='Nombre')
+    # Campos deprecados - mantener por compatibilidad temporal
     valor_actual = models.DecimalField(
         max_digits=15, 
         decimal_places=6,
-        verbose_name='Valor Actual',
-        help_text='Valor actual de la moneda respecto al USD'
+        default=0,
+        verbose_name='Valor Actual (Deprecado)',
+        help_text='Campo deprecado - usar ValorMoneda'
     )
     valor_comercial = models.DecimalField(
         max_digits=15, 
         decimal_places=6,
-        verbose_name='Valor Comercial',
-        help_text='Valor comercial de la moneda para transacciones'
+        default=0,
+        verbose_name='Valor Comercial (Deprecado)',
+        help_text='Campo deprecado - usar ValorMoneda'
     )
     tipo_moneda = models.CharField(
         max_length=20,
@@ -88,6 +153,72 @@ class Moneda(models.Model):
     activa = models.BooleanField(default=True, verbose_name='Activa')
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Moneda"
+        verbose_name_plural = "Monedas"
+        ordering = ['codigo']
+
+    def __str__(self):
+        return f"{self.codigo} - {self.nombre}"
+    
+    def get_valor_para_usuario(self, usuario):
+        """
+        Obtiene el valor de esta moneda para un usuario específico
+        """
+        if not usuario or not hasattr(usuario, 'perfil') or not usuario.perfil.tipo_valor_moneda:
+            # Usar tipo por defecto si no tiene asignado
+            tipo_defecto = TipoValorMoneda.get_tipo_por_defecto()
+            if not tipo_defecto:
+                # Fallback al valor_actual si no hay tipos configurados
+                return self.valor_actual
+            tipo_valor = tipo_defecto
+        else:
+            tipo_valor = usuario.perfil.tipo_valor_moneda
+        
+        try:
+            valor_moneda = self.valores.get(tipo_valor=tipo_valor)
+            return valor_moneda.valor
+        except ValorMoneda.DoesNotExist:
+            # Fallback al valor_actual si no existe el valor para este tipo
+            return self.valor_actual
+    
+    def get_valor_para_tipo(self, tipo_valor):
+        """
+        Obtiene el valor de esta moneda para un tipo de valor específico
+        """
+        try:
+            valor_moneda = self.valores.get(tipo_valor=tipo_valor)
+            return valor_moneda.valor
+        except ValorMoneda.DoesNotExist:
+            return self.valor_actual
+    
+    def set_valor_para_tipo(self, tipo_valor, valor, usuario=None):
+        """
+        Establece el valor de esta moneda para un tipo específico
+        """
+        valor_moneda, created = ValorMoneda.objects.get_or_create(
+            moneda=self,
+            tipo_valor=tipo_valor,
+            defaults={'valor': valor, 'actualizado_por': usuario}
+        )
+        if not created:
+            valor_moneda.valor = valor
+            valor_moneda.actualizado_por = usuario
+            valor_moneda.save()
+        return valor_moneda
+    
+    def crear_valores_para_todos_los_tipos(self):
+        """
+        Crea entradas de ValorMoneda con valor 0 para todos los tipos existentes
+        """
+        tipos_existentes = TipoValorMoneda.objects.filter(activo=True)
+        for tipo in tipos_existentes:
+            ValorMoneda.objects.get_or_create(
+                moneda=self,
+                tipo_valor=tipo,
+                defaults={'valor': 0}
+            )
 
     class Meta:
         verbose_name = 'Moneda'
@@ -169,11 +300,47 @@ class Pago(models.Model):
     tipo_pago = models.CharField(max_length=20, choices=TIPO_PAGO_CHOICES, help_text="Tipo de pago")
     tipo_moneda = models.ForeignKey(Moneda, on_delete=models.SET_NULL, blank=True, null=True, help_text="Tipo de moneda")
     cantidad = models.DecimalField(max_digits=15, decimal_places=2, help_text="Cantidad a pagar")
+    
+    # Campos para valores históricos (inmutables una vez guardados)
+    valor_moneda_historico = models.DecimalField(
+        max_digits=15, 
+        decimal_places=6, 
+        null=True, 
+        blank=True,
+        help_text="Valor de la moneda al momento de crear el pago (inmutable)"
+    )
+    monto_usd_historico = models.DecimalField(
+        max_digits=15, 
+        decimal_places=2, 
+        null=True, 
+        blank=True,
+        help_text="Monto en USD calculado al momento de crear el pago (inmutable)"
+    )
+    
+    # Campos para controlar ediciones
+    editado = models.BooleanField(
+        default=False,
+        help_text="Indica si el pago ha sido editado después de su creación"
+    )
+    fecha_edicion = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Fecha y hora de la última edición"
+    )
+    usuario_editor = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pagos_editados',
+        help_text="Usuario que realizó la última edición"
+    )
+    
     destinatario = models.CharField(max_length=255, help_text="Nombre del destinatario")
     telefono = models.CharField(max_length=20, blank=True, null=True, help_text="Teléfono del destinatario")
     direccion = models.TextField(blank=True, null=True, help_text="Dirección del destinatario")
     carnet_identidad = models.CharField(max_length=50, blank=True, null=True, help_text="Carnet de identidad del destinatario")
-    fecha_creacion = models.DateTimeField(auto_now_add=True, help_text="Fecha de creación del pago")
+    fecha_creacion = models.DateTimeField(default=timezone.now, help_text="Fecha de creación del pago con zona horaria de Cuba")
     usuario = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, help_text="Usuario que realizó el pago")
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='pendiente', help_text="Estado del pago")
     
@@ -190,10 +357,40 @@ class Pago(models.Model):
         ordering = ['-fecha_creacion']
     
     def save(self, *args, **kwargs):
+        from decimal import Decimal
+        
         # Generar ID automáticamente si no existe
         if not self.pago_id:
+            # Obtener la fecha actual con zona horaria de Cuba (configurada en settings.py)
+            fecha_actual = timezone.now()
+            
             cantidad = float(self.cantidad) if self.cantidad else 0
-            self.pago_id = generar_id_pago(self.tipo_pago, cantidad)
+            
+            # Generar el ID usando la misma fecha que se usará para el campo 'fecha_creacion'
+            self.pago_id = generar_id_pago(self.tipo_pago, cantidad, fecha_actual)
+            
+            # Si es un nuevo pago, establecer la fecha_creacion manualmente para que coincida con el ID
+            # Nota: fecha_creacion tiene auto_now_add=True, así que se establecerá automáticamente,
+            # pero al establecerla aquí nos aseguramos de usar exactamente la misma fecha
+            if not self.pk and not self.fecha_creacion:
+                self.fecha_creacion = fecha_actual
+        
+        # Calcular y guardar valores históricos solo al crear (no al editar)
+        if not self.pk and self.tipo_moneda and self.cantidad and self.usuario:
+            # Obtener el valor de la moneda para el usuario al momento de crear
+            valor_para_usuario = self.tipo_moneda.get_valor_para_usuario(self.usuario)
+            self.valor_moneda_historico = Decimal(str(valor_para_usuario))
+            
+            # Calcular el monto en USD al momento de crear
+            if self.tipo_moneda.codigo == 'USD':
+                self.monto_usd_historico = Decimal(str(self.cantidad))
+            else:
+                cantidad_decimal = Decimal(str(self.cantidad))
+                if self.valor_moneda_historico > 0:
+                    self.monto_usd_historico = cantidad_decimal / self.valor_moneda_historico
+                else:
+                    self.monto_usd_historico = Decimal('0')
+        
         super().save(*args, **kwargs)
     
     def __str__(self):
@@ -246,22 +443,41 @@ class Pago(models.Model):
             return True
         return False
     
-    def calcular_monto_en_usd(self):
-        """Calcula el monto del pago convertido a USD"""
+    def calcular_monto_en_usd(self, usuario=None):
+        """
+        Retorna el monto del pago convertido a USD
+        Usa valores históricos si están disponibles (inmutables),
+        sino calcula dinámicamente para compatibilidad con registros antiguos
+        """
         from decimal import Decimal
         
-        if not self.cantidad or not self.tipo_moneda:
+        if not self.cantidad:
+            return Decimal('0')
+        
+        # Si tenemos el valor histórico guardado, usarlo (inmutable)
+        if self.monto_usd_historico is not None:
+            return self.monto_usd_historico
+        
+        # Fallback para registros antiguos sin valores históricos
+        if not self.tipo_moneda:
             return Decimal('0')
         
         try:
             if self.tipo_moneda.codigo == 'USD':
-                # Si ya está en USD, no necesita conversión
                 return self.cantidad
             else:
-                # Convertir dividiendo por el valor actual de la moneda
-                # Ejemplo: 100,000 COP ÷ 4,250 (COP por USD) = 23.53 USD
-                monto_usd = self.cantidad / self.tipo_moneda.valor_actual
-                return monto_usd
+                # Solo calcular dinámicamente si no hay valor histórico
+                usuario_calculo = usuario or self.usuario
+                valor_para_usuario = self.tipo_moneda.get_valor_para_usuario(usuario_calculo)
+                
+                if valor_para_usuario and valor_para_usuario > 0:
+                    monto_usd = self.cantidad / valor_para_usuario
+                    return monto_usd
+                else:
+                    # Fallback al valor_actual si no hay valor específico
+                    if self.tipo_moneda.valor_actual and self.tipo_moneda.valor_actual > 0:
+                        return self.cantidad / self.tipo_moneda.valor_actual
+                    return Decimal('0')
         except Exception:
             return Decimal('0')
     
@@ -277,6 +493,39 @@ class Pago(models.Model):
         # se calcula dinámicamente en base a las transacciones
         return True
 
+    def recalcular_valores_por_edicion(self):
+        """
+        Recalcula y actualiza los valores históricos cuando se edita el pago
+        Usa las tasas actuales al momento de la edición
+        """
+        from decimal import Decimal
+        from django.utils import timezone
+        
+        if self.tipo_moneda and self.cantidad and self.usuario:
+            # Obtener el valor actual de la moneda para el usuario
+            valor_actual = self.tipo_moneda.get_valor_para_usuario(self.usuario)
+            self.valor_moneda_historico = Decimal(str(valor_actual))
+            
+            # Calcular nuevo monto en USD con la tasa actual
+            if self.tipo_moneda.codigo == 'USD':
+                self.monto_usd_historico = Decimal(str(self.cantidad))
+            else:
+                cantidad_decimal = Decimal(str(self.cantidad))
+                if valor_actual > 0:
+                    self.monto_usd_historico = cantidad_decimal / Decimal(str(valor_actual))
+                else:
+                    self.monto_usd_historico = Decimal('0')
+            
+            # Marcar como editado
+            self.editado = True
+            self.fecha_edicion = timezone.now()
+            # El usuario_editor se debe establecer desde la vista
+            
+            # Guardar sin llamar save() completo para evitar recursión
+            super(Pago, self).save(update_fields=['valor_moneda_historico', 'monto_usd_historico', 'editado', 'fecha_edicion', 'usuario_editor'])
+            return True
+        return False
+
 
 class Remesa(models.Model):
     TIPO_PAGO_CHOICES = [
@@ -285,10 +534,46 @@ class Remesa(models.Model):
     ]
     
     remesa_id = models.CharField(max_length=50, unique=True, blank=True, help_text="ID único de la remesa")
-    fecha = models.DateTimeField(auto_now_add=True, help_text="Fecha de la remesa")
+    fecha = models.DateTimeField(default=timezone.now, help_text="Fecha de la remesa con zona horaria de Cuba")
     tipo_pago = models.CharField(max_length=20, choices=TIPO_PAGO_CHOICES, blank=True, null=True, help_text="Tipo de pago")
     moneda = models.ForeignKey(Moneda, on_delete=models.SET_NULL, blank=True, null=True, help_text="Moneda usada en la remesa")
     importe = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, help_text="Importe")
+    
+    # Campos para valores históricos (inmutables una vez guardados)
+    valor_moneda_historico = models.DecimalField(
+        max_digits=15, 
+        decimal_places=6, 
+        null=True, 
+        blank=True,
+        help_text="Valor de la moneda al momento de crear la remesa (inmutable)"
+    )
+    monto_usd_historico = models.DecimalField(
+        max_digits=15, 
+        decimal_places=2, 
+        null=True, 
+        blank=True,
+        help_text="Monto en USD calculado al momento de crear la remesa (inmutable)"
+    )
+    
+    # Campos para controlar ediciones
+    editada = models.BooleanField(
+        default=False,
+        help_text="Indica si la remesa ha sido editada después de su creación"
+    )
+    fecha_edicion = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Fecha y hora de la última edición"
+    )
+    usuario_editor = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='remesas_editadas',
+        help_text="Usuario que realizó la última edición"
+    )
+    
     receptor_nombre = models.CharField(max_length=255, blank=True, null=True, help_text="Nombre del remitente")
     observaciones = models.TextField(blank=True, null=True, help_text="Observaciones")
     comprobante = models.ImageField(upload_to='comprobantes/', blank=True, null=True, help_text="Foto del comprobante")
@@ -302,14 +587,42 @@ class Remesa(models.Model):
     ], default='pendiente')
 
     def save(self, *args, **kwargs):
+        from decimal import Decimal
+        
         # Generar ID automáticamente si no existe
         if not self.remesa_id:
+            # Obtener la fecha actual con zona horaria de Cuba (configurada en settings.py)
+            fecha_actual = timezone.now()
+            
             # Usar el tipo_pago directamente
             metodo_pago_tipo = self.tipo_pago if self.tipo_pago else 'transferencia'
             
             # Usar el importe como cantidad
             cantidad = float(self.importe) if self.importe else 0
-            self.remesa_id = generar_id_remesa(metodo_pago_tipo, cantidad)
+            
+            # Generar el ID usando la misma fecha que se usará para el campo 'fecha'
+            self.remesa_id = generar_id_remesa(metodo_pago_tipo, cantidad, fecha_actual)
+            
+            # Si es una nueva remesa, establecer la fecha manualmente para que coincida con el ID
+            if not self.pk and not self.fecha:
+                self.fecha = fecha_actual
+        
+        # Calcular y guardar valores históricos solo al crear (no al editar)
+        if not self.pk and self.moneda and self.importe and self.gestor:
+            # Obtener el valor de la moneda para el usuario al momento de crear
+            valor_para_usuario = self.moneda.get_valor_para_usuario(self.gestor)
+            self.valor_moneda_historico = Decimal(str(valor_para_usuario))
+            
+            # Calcular el monto en USD al momento de crear
+            if self.moneda.codigo == 'USD':
+                self.monto_usd_historico = Decimal(str(self.importe))
+            else:
+                importe_decimal = Decimal(str(self.importe))
+                if self.valor_moneda_historico > 0:
+                    self.monto_usd_historico = importe_decimal / self.valor_moneda_historico
+                else:
+                    self.monto_usd_historico = Decimal('0')
+        
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -373,22 +686,41 @@ class Remesa(models.Model):
             return True
         return False
 
-    def calcular_monto_en_usd(self):
-        """Calcula el monto de la remesa convertido a USD"""
+    def calcular_monto_en_usd(self, usuario=None):
+        """
+        Retorna el monto de la remesa convertido a USD
+        Usa valores históricos si están disponibles (inmutables),
+        sino calcula dinámicamente para compatibilidad con registros antiguos
+        """
         from decimal import Decimal
         
-        if not self.importe or not self.moneda:
+        if not self.importe:
+            return Decimal('0')
+        
+        # Si tenemos el valor histórico guardado, usarlo (inmutable)
+        if self.monto_usd_historico is not None:
+            return self.monto_usd_historico
+        
+        # Fallback para registros antiguos sin valores históricos
+        if not self.moneda:
             return Decimal('0')
         
         try:
             if self.moneda.codigo == 'USD':
-                # Si ya está en USD, no necesita conversión
                 return self.importe
             else:
-                # Convertir dividiendo por el valor actual de la moneda
-                # Ejemplo: 100,000 COP ÷ 4,250 (COP por USD) = 23.53 USD
-                monto_usd = self.importe / self.moneda.valor_actual
-                return monto_usd
+                # Solo calcular dinámicamente si no hay valor histórico
+                usuario_calculo = usuario or self.gestor
+                valor_para_usuario = self.moneda.get_valor_para_usuario(usuario_calculo)
+                
+                if valor_para_usuario and valor_para_usuario > 0:
+                    monto_usd = self.importe / valor_para_usuario
+                    return monto_usd
+                else:
+                    # Fallback al valor_actual si no hay valor específico
+                    if self.moneda.valor_actual and self.moneda.valor_actual > 0:
+                        return self.importe / self.moneda.valor_actual
+                    return Decimal('0')
         except Exception:
             return Decimal('0')
 
@@ -397,6 +729,73 @@ class Remesa(models.Model):
         # Esta funcionalidad está deshabilitada porque el balance
         # se calcula dinámicamente en base a las transacciones
         return True
+
+    def recalcular_valores_por_edicion(self):
+        """
+        Recalcula y actualiza los valores históricos cuando se edita la remesa
+        Usa las tasas actuales al momento de la edición
+        """
+        from decimal import Decimal
+        from django.utils import timezone
+        
+        if self.moneda and self.importe and self.gestor:
+            # Obtener el valor actual de la moneda para el gestor
+            valor_actual = self.moneda.get_valor_para_usuario(self.gestor)
+            self.valor_moneda_historico = Decimal(str(valor_actual))
+            
+            # Calcular nuevo monto en USD con la tasa actual
+            if self.moneda.codigo == 'USD':
+                self.monto_usd_historico = Decimal(str(self.importe))
+            else:
+                importe_decimal = Decimal(str(self.importe))
+                if valor_actual > 0:
+                    self.monto_usd_historico = importe_decimal / Decimal(str(valor_actual))
+                else:
+                    self.monto_usd_historico = Decimal('0')
+            
+            # Marcar como editada
+            self.editada = True
+            self.fecha_edicion = timezone.now()
+            # El usuario_editor se debe establecer desde la vista
+            
+            # Guardar sin llamar save() completo para evitar recursión
+            super(Remesa, self).save(update_fields=['valor_moneda_historico', 'monto_usd_historico', 'editada', 'fecha_edicion', 'usuario_editor'])
+            return True
+        return False
+
+# Signals para manejar la creación automática de valores
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
+
+# Signal deshabilitado temporalmente para evitar errores de UNIQUE constraint
+# @receiver(post_save, sender=TipoValorMoneda)
+# def crear_valores_para_monedas_existentes(sender, instance, created, **kwargs):
+#     """
+#     Cuando se crea un nuevo tipo de valor, crear entradas con valor 0 
+#     para todas las monedas existentes
+#     """
+#     if created:
+#         from django.db import IntegrityError
+#         monedas_existentes = Moneda.objects.filter(activa=True)
+#         for moneda in monedas_existentes:
+#             try:
+#                 ValorMoneda.objects.get_or_create(
+#                     moneda=moneda,
+#                     tipo_valor=instance,
+#                     defaults={'valor': 0}
+#                 )
+#             except IntegrityError:
+#                 # Si ya existe, simplemente continuar con la siguiente moneda
+#                 pass
+
+@receiver(post_save, sender=Moneda)
+def crear_valores_para_tipos_existentes(sender, instance, created, **kwargs):
+    """
+    Cuando se crea una nueva moneda, crear entradas con valor 0 
+    para todos los tipos de valores existentes
+    """
+    if created:
+        instance.crear_valores_para_todos_los_tipos()
 
 
 class RegistroRemesas(models.Model):

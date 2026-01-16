@@ -16,6 +16,15 @@ class PerfilUsuario(models.Model):
     tipo_usuario = models.CharField(max_length=20, choices=TIPO_USUARIO_CHOICES, default='gestor', verbose_name="Tipo de Usuario")
     balance = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, verbose_name="Balance")
     telefono = models.CharField(max_length=20, blank=True, null=True, verbose_name="Teléfono")
+    # Nuevo campo para tipo de valor de moneda
+    tipo_valor_moneda = models.ForeignKey(
+        'remesas.TipoValorMoneda', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        verbose_name="Tipo de Valor de Moneda",
+        help_text="Tipo de valor de moneda que utiliza este usuario para los cálculos"
+    )
     direccion = models.TextField(blank=True, null=True, verbose_name="Dirección")
     fecha_nacimiento = models.DateField(blank=True, null=True, verbose_name="Fecha de Nacimiento")
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True, verbose_name="Avatar")
@@ -44,6 +53,7 @@ class PerfilUsuario(models.Model):
     def calcular_balance_real(self):
         """
         Calcula el balance real del usuario basándose en remesas y pagos confirmados
+        usando valores históricos guardados para mantener consistencia
         """
         from remesas.models import Remesa, Pago
         from decimal import Decimal
@@ -52,30 +62,24 @@ class PerfilUsuario(models.Model):
         logger = logging.getLogger(__name__)
         balance_calculado = Decimal('0.00')
         
-        # Sumar remesas completadas (dinero que entra)
-        remesas_completadas = Remesa.objects.filter(
+        # Sumar remesas confirmadas y completadas (dinero que entra)
+        # Usar los mismos estados que en historial_usuario para consistencia
+        remesas_validas = Remesa.objects.filter(
             gestor=self.user, 
-            estado='completada',
+            estado__in=['confirmada', 'completada'],
             importe__isnull=False
         ).select_related('moneda')
         
         total_remesas = Decimal('0.00')
-        for remesa in remesas_completadas:
-            if remesa.importe and remesa.importe > 0:
-                # Convertir a USD si es necesario
-                if remesa.moneda and remesa.moneda.codigo != 'USD':
-                    try:
-                        # Verificar que el valor_actual no sea 0
-                        if remesa.moneda.valor_actual and remesa.moneda.valor_actual > 0:
-                            importe_usd = remesa.importe / remesa.moneda.valor_actual
-                            total_remesas += importe_usd
-                        else:
-                            logger.warning(f"Moneda {remesa.moneda.codigo} tiene valor_actual inválido: {remesa.moneda.valor_actual}")
-                    except (ZeroDivisionError, AttributeError) as e:
-                        logger.error(f"Error convirtiendo remesa {remesa.remesa_id}: {e}")
-                else:
-                    # Remesa en USD o sin moneda específica
-                    total_remesas += remesa.importe
+        for remesa in remesas_validas:
+            try:
+                # Usar el método que prioriza valores históricos guardados
+                monto_usd = remesa.calcular_monto_en_usd()
+                if monto_usd is not None:
+                    total_remesas += Decimal(str(monto_usd))
+            except Exception as e:
+                logger.error(f"Error calculando monto USD para remesa {remesa.remesa_id}: {e}")
+                continue
         
         balance_calculado += total_remesas
         
@@ -88,21 +92,14 @@ class PerfilUsuario(models.Model):
         
         total_pagos = Decimal('0.00')
         for pago in pagos_confirmados:
-            if pago.cantidad and pago.cantidad > 0:
-                # Convertir a USD si es necesario
-                if pago.tipo_moneda and pago.tipo_moneda.codigo != 'USD':
-                    try:
-                        # Verificar que el valor_actual no sea 0
-                        if pago.tipo_moneda.valor_actual and pago.tipo_moneda.valor_actual > 0:
-                            cantidad_usd = pago.cantidad / pago.tipo_moneda.valor_actual
-                            total_pagos += cantidad_usd
-                        else:
-                            logger.warning(f"Moneda {pago.tipo_moneda.codigo} tiene valor_actual inválido: {pago.tipo_moneda.valor_actual}")
-                    except (ZeroDivisionError, AttributeError) as e:
-                        logger.error(f"Error convirtiendo pago {pago.pago_id}: {e}")
-                else:
-                    # Pago en USD o sin moneda específica
-                    total_pagos += pago.cantidad
+            try:
+                # Usar el método que prioriza valores históricos guardados
+                monto_usd = pago.calcular_monto_en_usd()
+                if monto_usd is not None:
+                    total_pagos += Decimal(str(monto_usd))
+            except Exception as e:
+                logger.error(f"Error calculando monto USD para pago {pago.pago_id}: {e}")
+                continue
         
         balance_calculado -= total_pagos
         
@@ -206,7 +203,16 @@ def crear_perfil_usuario(sender, instance, created, **kwargs):
     if created:
         # Crear perfil con tipo correcto según si es superuser
         tipo_usuario = 'admin' if instance.is_superuser else 'gestor'
-        PerfilUsuario.objects.create(user=instance, tipo_usuario=tipo_usuario)
+        
+        # Obtener tipo de valor por defecto
+        from remesas.models import TipoValorMoneda
+        tipo_valor_defecto = TipoValorMoneda.get_tipo_por_defecto()
+        
+        PerfilUsuario.objects.create(
+            user=instance, 
+            tipo_usuario=tipo_usuario,
+            tipo_valor_moneda=tipo_valor_defecto
+        )
     else:
         # Usuario existente - sincronizar tipo de usuario si tiene perfil
         if hasattr(instance, 'perfil'):
@@ -216,3 +222,11 @@ def crear_perfil_usuario(sender, instance, created, **kwargs):
             if instance.is_superuser and instance.perfil.tipo_usuario != 'admin':
                 instance.perfil.tipo_usuario = 'admin'
                 instance.perfil.save()
+            
+            # Asignar tipo de valor por defecto si no tiene uno
+            if not instance.perfil.tipo_valor_moneda:
+                from remesas.models import TipoValorMoneda
+                tipo_valor_defecto = TipoValorMoneda.get_tipo_por_defecto()
+                if tipo_valor_defecto:
+                    instance.perfil.tipo_valor_moneda = tipo_valor_defecto
+                    instance.perfil.save()

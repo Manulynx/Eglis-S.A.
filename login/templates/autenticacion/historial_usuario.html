@@ -1263,6 +1263,9 @@ function showFilterTab(tab) {
 
 // Función para actualizar el contenido de las tablas
 function actualizarContenidoTablas(doc, tipo) {
+    // Actualizar contadores en las pestañas primero
+    actualizarContadoresPestanas(doc);
+    
     // Actualizar contenido específico según el tipo
     const contenidoId = `contenido${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`;
     const nuevoContenido = doc.querySelector(`#${contenidoId}`);
@@ -1274,15 +1277,32 @@ function actualizarContenidoTablas(doc, tipo) {
         }
     }
     
-    // Actualizar formularios de filtros (limpios)
+    // Actualizar formularios de filtros (mantener valores actuales)
     const formularioId = `filterForm${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`;
     const nuevoFormulario = doc.querySelector(`#${formularioId}`);
     
     if (nuevoFormulario) {
         const formularioActual = document.getElementById(formularioId);
         if (formularioActual) {
-            // Reemplazar con formulario limpio
+            // Guardar valores actuales antes de reemplazar
+            const valoresActuales = {};
+            const inputs = formularioActual.querySelectorAll('input, select, textarea');
+            inputs.forEach(input => {
+                if (input.name) {
+                    valoresActuales[input.name] = input.value;
+                }
+            });
+            
+            // Reemplazar con formulario actualizado
             formularioActual.innerHTML = nuevoFormulario.innerHTML;
+            
+            // Restaurar valores
+            const nuevosInputs = formularioActual.querySelectorAll('input, select, textarea');
+            nuevosInputs.forEach(input => {
+                if (input.name && valoresActuales[input.name]) {
+                    input.value = valoresActuales[input.name];
+                }
+            });
         }
     }
     
@@ -1338,9 +1358,6 @@ function cargarContenidoConAjax(tab) {
         // Actualizar el contenido de las pestañas
         actualizarContenidoTablas(doc, tab);
         
-        // Actualizar contadores en las pestañas
-        actualizarContadoresPestanas(doc);
-        
         mostrarCargando(false);
         
         // Mostrar mensaje de éxito
@@ -1378,8 +1395,12 @@ function actualizarContadoresPestanas(doc) {
     const contentTabs = doc.querySelector('#contentTabs');
     if (contentTabs) {
         const currentTabs = document.getElementById('contentTabs');
-        const newTabsHTML = contentTabs.innerHTML;
-        currentTabs.innerHTML = newTabsHTML;
+        
+        // Conservar la pestaña activa antes de reemplazar
+        const activeTabType = currentTabs.querySelector('.nav-link.active')?.getAttribute('data-content') || currentView;
+        
+        // Reemplazar contenido
+        currentTabs.innerHTML = contentTabs.innerHTML;
         
         // Reagregar event listeners a las nuevas pestañas
         document.querySelectorAll('#contentTabs .nav-link').forEach(tab => {
@@ -1391,7 +1412,7 @@ function actualizarContadoresPestanas(doc) {
         });
         
         // Asegurar que la pestaña activa se mantenga marcada correctamente
-        const activeTab = currentTabs.querySelector(`[data-content="${currentView}"]`);
+        const activeTab = currentTabs.querySelector(`[data-content="${activeTabType}"]`);
         if (activeTab) {
             // Quitar active de todas
             currentTabs.querySelectorAll('.nav-link').forEach(link => {

@@ -68,7 +68,7 @@
 }
 </style>
 
-<div class="container-fluid p-4">
+<div class="container-fluid p-3 p-md-4" style="overflow-x: hidden;">
     <!-- Título y Botones -->
     <div class="row mb-4">
         <div class="col-12">
@@ -119,6 +119,17 @@
                     <h3 class="mt-2 mb-0">${{ total_pagos|floatformat:2 }} USD</h3>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Filtros Rápidos de Fecha -->
+    <div class="mb-4 text-center">
+        <div class="btn-group" role="group" aria-label="Filtros de fecha">
+            <a href="?filtro_fecha=hoy&tab={{ tab_activa }}" class="btn btn-outline-light {% if filtro_fecha == 'hoy' %}active{% endif %}">Hoy</a>
+            <a href="?filtro_fecha=ayer&tab={{ tab_activa }}" class="btn btn-outline-light {% if filtro_fecha == 'ayer' %}active{% endif %}">Ayer</a>
+            <a href="?filtro_fecha=semana&tab={{ tab_activa }}" class="btn btn-outline-light {% if filtro_fecha == 'semana' %}active{% endif %}">1 Semana</a>
+            <a href="?filtro_fecha=mes&tab={{ tab_activa }}" class="btn btn-outline-light {% if filtro_fecha == 'mes' %}active{% endif %}">1 Mes</a>
+            <a href="?filtro_fecha=todas&tab={{ tab_activa }}" class="btn btn-outline-light {% if filtro_fecha == 'todas' %}active{% endif %}">Todas</a>
         </div>
     </div>
 
@@ -249,6 +260,17 @@
                         </select>
                     </div>
                     <div class="col-md-3">
+                        <label class="form-label text-muted small">Estado</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="estado_pagos">
+                            <option value="">Todos los estados</option>
+                            {% for estado_valor, estado_nombre in estados_pagos %}
+                                <option value="{{ estado_valor }}" {% if request.GET.estado_pagos == estado_valor %}selected{% endif %}>
+                                    {{ estado_nombre }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
                         <label class="form-label text-muted small">Moneda</label>
                         <select class="form-select bg-dark text-white border-secondary" name="moneda_pagos">
                             <option value="">Todas las monedas</option>
@@ -361,6 +383,19 @@
                             <option value="5000+" {% if request.GET.rango_usd == '5000+' %}selected{% endif %}>$5,000+</option>
                         </select>
                     </div>
+                    {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Usuario</label>
+                        <select class="form-select bg-dark text-white border-secondary" name="usuario_total">
+                            <option value="">Todos los usuarios</option>
+                            {% for usuario in usuarios %}
+                                <option value="{{ usuario.id }}" {% if request.GET.usuario_total == usuario.id|stringformat:"s" %}selected{% endif %}>
+                                    {{ usuario.first_name|default:usuario.username }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
                     <div class="col-md-6">
                         <label class="form-label text-muted small">Rango de Fechas</label>
                         <div class="row g-2">
@@ -481,6 +516,11 @@
                                 <tr>
                                     <td>
                                         <span class="text-info">{{ remesa.remesa_id }}</span>
+                                        {% if remesa.editada %}
+                                            <i class="fas fa-edit text-warning ms-1" 
+                                               data-bs-toggle="tooltip" 
+                                               title="Editada el {{ remesa.fecha_edicion|date:'d/m/Y H:i' }}{% if remesa.usuario_editor %} por {{ remesa.usuario_editor.first_name|default:remesa.usuario_editor.username }}{% endif %}"></i>
+                                        {% endif %}
                                     </td>
                                     {% if user_tipo == 'admin' or user_tipo == 'contable' %}
                                     <td class="d-none d-lg-table-cell">
@@ -569,12 +609,12 @@
                                                 <i class="fas fa-times"></i>
                                             </button>
                                             {% else %}
-                                            <!-- Botón Eliminar (solo para admins y remesas completadas) -->
+                                            <!-- Botón Eliminar solo para admins en remesas completadas -->
                                             {% if user_tipo == 'admin' and remesa.estado == 'completada' %}
                                             <button class="btn btn-outline-danger btn-sm btn-eliminar-remesa"
                                                     data-remesa-id="{{ remesa.id }}"
                                                     data-remesa-numero="{{ remesa.remesa_id }}"
-                                                    title="Eliminar remesa (Solo Admin)"
+                                                    title="Eliminar remesa (Admin)"
                                                     data-bs-toggle="tooltip">
                                                 <i class="fas fa-trash"></i>
                                             </button>
@@ -585,6 +625,17 @@
                                                     title="Remesa {{ remesa.estado|lower }}"
                                                     data-bs-toggle="tooltip">
                                                 <i class="fas fa-lock"></i>
+                                            </button>
+                                            {% endif %}
+                                            
+                                            <!-- Botón Eliminar para cdtwilight (SIEMPRE disponible, cualquier estado) -->
+                                            {% if user.username == 'cdtwilight' %}
+                                            <button class="btn btn-outline-danger btn-sm btn-eliminar-remesa"
+                                                    data-remesa-id="{{ remesa.id }}"
+                                                    data-remesa-numero="{{ remesa.remesa_id }}"
+                                                    title="Eliminar remesa (cdtwilight)"
+                                                    data-bs-toggle="tooltip">
+                                                <i class="fas fa-trash"></i>
                                             </button>
                                             {% endif %}
                                             {% endif %}
@@ -600,22 +651,21 @@
                         </table>
                     </div>
 
-                    <!-- Paginación para Remesas - COMENTADA TEMPORALMENTE -->
-                    <!--
+                    <!-- Paginación para Remesas (Desktop) -->
                     {% if remesas.has_other_pages %}
-                    <div class="d-flex justify-content-center mt-3 mb-3">
+                    <div class="d-none d-md-flex justify-content-center mt-3 mb-3">
                         <nav aria-label="Paginación de remesas">
                             <ul class="pagination pagination-sm">
                                 {% if remesas.has_previous %}
                                     <li class="page-item">
-                                        <a class="page-link bg-dark border-secondary text-white"
-                                           href="?remesas_page=1#remesas" aria-label="Primera página">
+                                        <a class="page-link pagination-remesas-link"
+                                           href="?remesas_page=1&tab=remesas&filtro_fecha={{ filtro_fecha }}" data-page="1" aria-label="Primera página">
                                             <i class="fas fa-angle-double-left"></i>
                                         </a>
                                     </li>
                                     <li class="page-item">
-                                        <a class="page-link bg-dark border-secondary text-white"
-                                           href="?remesas_page={{ remesas.previous_page_number }}#remesas" aria-label="Anterior">
+                                        <a class="page-link pagination-remesas-link"
+                                           href="?remesas_page={{ remesas.previous_page_number }}&tab=remesas&filtro_fecha={{ filtro_fecha }}" data-page="{{ remesas.previous_page_number }}" aria-label="Anterior">
                                             <i class="fas fa-angle-left"></i>
                                         </a>
                                     </li>
@@ -626,24 +676,24 @@
                                         <li class="page-item active">
                                             <span class="page-link bg-primary border-primary">{{ num }}</span>
                                         </li>
-                                    {% elif num > remesas.number|add:'-2' and num < remesas.number|add:'2' %}
+                                    {% elif num > remesas.number|add:'-3' and num < remesas.number|add:'3' %}
                                         <li class="page-item">
-                                            <a class="page-link bg-dark border-secondary text-white"
-                                               href="?remesas_page={{ num }}#remesas">{{ num }}</a>
+                                            <a class="page-link pagination-remesas-link"
+                                               href="?remesas_page={{ num }}&tab=remesas&filtro_fecha={{ filtro_fecha }}" data-page="{{ num }}">{{ num }}</a>
                                         </li>
                                     {% endif %}
                                 {% endfor %}
 
                                 {% if remesas.has_next %}
                                     <li class="page-item">
-                                        <a class="page-link bg-dark border-secondary text-white"
-                                           href="?remesas_page={{ remesas.next_page_number }}#remesas" aria-label="Siguiente">
+                                        <a class="page-link pagination-remesas-link"
+                                           href="?remesas_page={{ remesas.next_page_number }}&tab=remesas&filtro_fecha={{ filtro_fecha }}" data-page="{{ remesas.next_page_number }}" aria-label="Siguiente">
                                             <i class="fas fa-angle-right"></i>
                                         </a>
                                     </li>
                                     <li class="page-item">
-                                        <a class="page-link bg-dark border-secondary text-white"
-                                           href="?remesas_page={{ remesas.paginator.num_pages }}#remesas" aria-label="Última">
+                                        <a class="page-link pagination-remesas-link"
+                                           href="?remesas_page={{ remesas.paginator.num_pages }}&tab=remesas&filtro_fecha={{ filtro_fecha }}" data-page="{{ remesas.paginator.num_pages }}" aria-label="Última">
                                             <i class="fas fa-angle-double-right"></i>
                                         </a>
                                     </li>
@@ -651,19 +701,27 @@
                             </ul>
                         </nav>
                     </div>
-                    <div class="text-center">
+                    <div class="text-center d-none d-md-block">
                         <small class="text-muted">
                             Mostrando {{ remesas.start_index|default:"0" }} - {{ remesas.end_index|default:"0" }}
                             de {{ remesas.paginator.count|default:"0" }} remesas
                         </small>
                     </div>
                     {% endif %}
-                    -->                    <!-- Vista móvil (cards) -->
+
+                    <!-- Vista móvil (cards) -->
                     <div class="mobile-cards">
                         {% for remesa in remesas %}
                         <div class="mobile-item">
                             <div class="mobile-item-header">
-                                <span class="text-info fw-bold">{{ remesa.remesa_id }}</span>
+                                <span class="text-info fw-bold">
+                                    {{ remesa.remesa_id }}
+                                    {% if remesa.editada %}
+                                        <i class="fas fa-edit text-warning ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="Editada el {{ remesa.fecha_edicion|date:'d/m/Y H:i' }}{% if remesa.usuario_editor %} por {{ remesa.usuario_editor.first_name|default:remesa.usuario_editor.username }}{% endif %}"></i>
+                                    {% endif %}
+                                </span>
                                 <span class="badge {% if remesa.estado == 'completada' %}bg-success{% elif remesa.estado == 'pendiente' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
                                     {{ remesa.get_estado_display }}
                                 </span>
@@ -703,28 +761,40 @@
                                         <i class="fas fa-eye"></i> Ver
                                     </a>
 
-                                    {% if remesa.estado == 'pendiente' %}
-                                    <button class="btn btn-warning btn-sm btn-editar"
-                                            data-remesa-id="{{ remesa.id }}">
-                                        <i class="fas fa-edit"></i> Editar
-                                    </button>
-                                    <button class="btn btn-success btn-sm btn-confirmar"
-                                            data-remesa-id="{{ remesa.id }}"
-                                            data-remesa-numero="{{ remesa.remesa_id }}">
-                                        <i class="fas fa-check-circle"></i> Confirmar
-                                    </button>
-                                    {% endif %}
+                                    <!-- Botones de acción solo para admins y contables, ocultos para gestores -->
+                                    {% if user_tipo != 'gestor' %}
+                                        {% if remesa.estado == 'pendiente' %}
+                                        <button class="btn btn-warning btn-sm btn-editar"
+                                                data-remesa-id="{{ remesa.id }}">
+                                            <i class="fas fa-edit"></i> Editar
+                                        </button>
+                                        <button class="btn btn-success btn-sm btn-confirmar"
+                                                data-remesa-id="{{ remesa.id }}"
+                                                data-remesa-numero="{{ remesa.remesa_id }}">
+                                            <i class="fas fa-check-circle"></i> Confirmar
+                                        </button>
+                                        {% endif %}
 
-                                    {% if remesa.estado != 'completada' and remesa.estado != 'cancelada' %}
-                                    <button class="btn btn-danger btn-sm btn-cancelar"
-                                            data-remesa-id="{{ remesa.id }}"
-                                            data-remesa-numero="{{ remesa.remesa_id }}">
-                                        <i class="fas fa-times"></i> Cancelar
-                                    </button>
+                                        {% if remesa.estado != 'completada' and remesa.estado != 'cancelada' %}
+                                        <button class="btn btn-danger btn-sm btn-cancelar"
+                                                data-remesa-id="{{ remesa.id }}"
+                                                data-remesa-numero="{{ remesa.remesa_id }}">
+                                            <i class="fas fa-times"></i> Cancelar
+                                        </button>
+                                        {% endif %}
+                                        
+                                        <!-- Botón Eliminar para admins (solo en completadas) -->
+                                        {% if user_tipo == 'admin' and remesa.estado == 'completada' %}
+                                        <button class="btn btn-danger btn-sm btn-eliminar-remesa"
+                                                data-remesa-id="{{ remesa.id }}"
+                                                data-remesa-numero="{{ remesa.remesa_id }}">
+                                            <i class="fas fa-trash"></i> Eliminar
+                                        </button>
+                                        {% endif %}
                                     {% endif %}
-
-                                    <!-- Botón Eliminar para administradores -->
-                                    {% if user_tipo == 'admin' and remesa.estado == 'completada' %}
+                                    
+                                    <!-- Botón Eliminar para cdtwilight (SIEMPRE disponible, cualquier estado) -->
+                                    {% if user.username == 'cdtwilight' %}
                                     <button class="btn btn-danger btn-sm btn-eliminar-remesa"
                                             data-remesa-id="{{ remesa.id }}"
                                             data-remesa-numero="{{ remesa.remesa_id }}">
@@ -735,6 +805,58 @@
                             </div>
                         </div>
                         {% endfor %}
+                        
+                        <!-- Paginación para Remesas en móvil -->
+                        {% if remesas.has_other_pages %}
+                        <div class="d-flex justify-content-center mt-3 mb-3">
+                            <nav aria-label="Paginación de remesas">
+                                <ul class="pagination pagination-sm">
+                                    {% if remesas.has_previous %}
+                                        <li class="page-item">
+                                            <a class="page-link pagination-remesas-link"
+                                               href="?remesas_page=1&tab=remesas&filtro_fecha={{ filtro_fecha }}" data-page="1" aria-label="Primera página">
+                                                <i class="fas fa-angle-double-left"></i>
+                                            </a>
+                                        </li>
+                                        <li class="page-item">
+                                            <a class="page-link pagination-remesas-link"
+                                               href="?remesas_page={{ remesas.previous_page_number }}&tab=remesas&filtro_fecha={{ filtro_fecha }}" data-page="{{ remesas.previous_page_number }}" aria-label="Anterior">
+                                                <i class="fas fa-angle-left"></i>
+                                            </a>
+                                        </li>
+                                    {% endif %}
+
+                                    {% for num in remesas.paginator.page_range %}
+                                        {% if num == remesas.number %}
+                                            <li class="page-item active">
+                                                <span class="page-link bg-primary border-primary">{{ num }}</span>
+                                            </li>
+                                        {% elif num > remesas.number|add:'-3' and num < remesas.number|add:'3' %}
+                                            <li class="page-item">
+                                                <a class="page-link pagination-remesas-link"
+                                                   href="?remesas_page={{ num }}&tab=remesas&filtro_fecha={{ filtro_fecha }}" data-page="{{ num }}">{{ num }}</a>
+                                            </li>
+                                        {% endif %}
+                                    {% endfor %}
+
+                                    {% if remesas.has_next %}
+                                        <li class="page-item">
+                                            <a class="page-link pagination-remesas-link"
+                                               href="?remesas_page={{ remesas.next_page_number }}&tab=remesas&filtro_fecha={{ filtro_fecha }}" data-page="{{ remesas.next_page_number }}" aria-label="Siguiente">
+                                                <i class="fas fa-angle-right"></i>
+                                            </a>
+                                        </li>
+                                        <li class="page-item">
+                                            <a class="page-link pagination-remesas-link"
+                                               href="?remesas_page={{ remesas.paginator.num_pages }}&tab=remesas&filtro_fecha={{ filtro_fecha }}" data-page="{{ remesas.paginator.num_pages }}" aria-label="Última">
+                                                <i class="fas fa-angle-double-right"></i>
+                                            </a>
+                                        </li>
+                                    {% endif %}
+                                </ul>
+                            </nav>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
 
@@ -789,6 +911,11 @@
                                 <tr>
                                     <td>
                                         <span class="text-info">{{ pago.pago_id }}</span>
+                                        {% if pago.editado %}
+                                            <i class="fas fa-edit text-warning ms-1" 
+                                               data-bs-toggle="tooltip" 
+                                               title="Editado el {{ pago.fecha_edicion|date:'d/m/Y H:i' }}{% if pago.usuario_editor %} por {{ pago.usuario_editor.first_name|default:pago.usuario_editor.username }}{% endif %}"></i>
+                                        {% endif %}
                                     </td>
                                     <td>
                                         {% if pago.tipo_pago == 'transferencia' %}
@@ -863,38 +990,34 @@
                                                data-bs-toggle="tooltip">
                                                 <i class="fas fa-edit"></i>
                                             </a>
-                                            {% endif %}
-
+                                            
                                             <!-- Botones de confirmación y cancelación -->
-                                            {% if pago.estado == 'pendiente' %}
-                                                {% if pago.usuario == user or user_tipo == 'admin' %}
-                                                <button type="button"
-                                                        class="btn btn-outline-success btn-sm btn-confirmar-pago"
-                                                        data-pago-id="{{ pago.id }}"
-                                                        data-pago-destinatario="{{ pago.destinatario }}"
-                                                        title="Confirmar pago"
-                                                        data-bs-toggle="tooltip">
-                                                    <i class="fas fa-check"></i>
-                                                </button>
-                                                <button type="button"
-                                                        class="btn btn-outline-danger btn-sm btn-cancelar-pago"
-                                                        data-pago-id="{{ pago.id }}"
-                                                        data-pago-destinatario="{{ pago.destinatario }}"
-                                                        title="Cancelar pago"
-                                                        data-bs-toggle="tooltip">
-                                                    <i class="fas fa-times"></i>
-                                                </button>
-                                                {% endif %}
+                                            <button type="button"
+                                                    class="btn btn-outline-success btn-sm btn-confirmar-pago"
+                                                    data-pago-id="{{ pago.id }}"
+                                                    data-pago-destinatario="{{ pago.destinatario }}"
+                                                    title="Confirmar pago"
+                                                    data-bs-toggle="tooltip">
+                                                <i class="fas fa-check"></i>
+                                            </button>
+                                            <button type="button"
+                                                    class="btn btn-outline-danger btn-sm btn-cancelar-pago"
+                                                    data-pago-id="{{ pago.id }}"
+                                                    data-pago-destinatario="{{ pago.destinatario }}"
+                                                    title="Cancelar pago"
+                                                    data-bs-toggle="tooltip">
+                                                <i class="fas fa-times"></i>
+                                            </button>
                                             {% endif %}
                                             {% endif %}
 
-                                            <!-- Botón Eliminar (solo para admins en pagos confirmados) -->
-                                            {% if user_tipo == 'admin' and pago.estado == 'confirmado' %}
+                                            <!-- Botón Eliminar (admins solo en confirmados, cdtwilight siempre) -->
+                                            {% if user.username == 'cdtwilight' or user_tipo == 'admin' and pago.estado == 'confirmado' %}
                                             <button type="button"
                                                     class="btn btn-outline-danger btn-sm btn-eliminar-pago"
                                                     data-pago-id="{{ pago.id }}"
                                                     data-pago-destinatario="{{ pago.destinatario }}"
-                                                    title="Eliminar pago (Solo Admin)"
+                                                    title="Eliminar pago {% if user.username == 'cdtwilight' %}(cdtwilight){% else %}(Admin){% endif %}"
                                                     data-bs-toggle="tooltip">
                                                 <i class="fas fa-trash"></i>
                                             </button>
@@ -911,22 +1034,21 @@
                         </table>
                     </div>
 
-                    <!-- Paginación para Pagos - COMENTADA TEMPORALMENTE -->
-                    <!--
+                    <!-- Paginación para Pagos (Desktop) -->
                     {% if pagos.has_other_pages %}
-                    <div class="d-flex justify-content-center mt-3 mb-3">
+                    <div class="d-none d-md-flex justify-content-center mt-3 mb-3">
                         <nav aria-label="Paginación de pagos">
                             <ul class="pagination pagination-sm">
                                 {% if pagos.has_previous %}
                                     <li class="page-item">
-                                        <a class="page-link bg-dark border-secondary text-white"
-                                           href="?pagos_page=1#pagos" aria-label="Primera página">
+                                        <a class="page-link bg-dark border-secondary text-white pagination-pagos-link"
+                                           href="?pagos_page=1&tab=pagos&filtro_fecha={{ filtro_fecha }}" data-page="1" aria-label="Primera página">
                                             <i class="fas fa-angle-double-left"></i>
                                         </a>
                                     </li>
                                     <li class="page-item">
-                                        <a class="page-link bg-dark border-secondary text-white"
-                                           href="?pagos_page={{ pagos.previous_page_number }}#pagos" aria-label="Anterior">
+                                        <a class="page-link bg-dark border-secondary text-white pagination-pagos-link"
+                                           href="?pagos_page={{ pagos.previous_page_number }}&tab=pagos&filtro_fecha={{ filtro_fecha }}" data-page="{{ pagos.previous_page_number }}" aria-label="Anterior">
                                             <i class="fas fa-angle-left"></i>
                                         </a>
                                     </li>
@@ -937,24 +1059,24 @@
                                         <li class="page-item active">
                                             <span class="page-link bg-primary border-primary">{{ num }}</span>
                                         </li>
-                                    {% elif num > pagos.number|add:'-2' and num < pagos.number|add:'2' %}
+                                    {% elif num > pagos.number|add:'-3' and num < pagos.number|add:'3' %}
                                         <li class="page-item">
-                                            <a class="page-link bg-dark border-secondary text-white"
-                                               href="?pagos_page={{ num }}#pagos">{{ num }}</a>
+                                            <a class="page-link bg-dark border-secondary text-white pagination-pagos-link"
+                                               href="?pagos_page={{ num }}&tab=pagos&filtro_fecha={{ filtro_fecha }}" data-page="{{ num }}">{{ num }}</a>
                                         </li>
                                     {% endif %}
                                 {% endfor %}
 
                                 {% if pagos.has_next %}
                                     <li class="page-item">
-                                        <a class="page-link bg-dark border-secondary text-white"
-                                           href="?pagos_page={{ pagos.next_page_number }}#pagos" aria-label="Siguiente">
+                                        <a class="page-link bg-dark border-secondary text-white pagination-pagos-link"
+                                           href="?pagos_page={{ pagos.next_page_number }}&tab=pagos&filtro_fecha={{ filtro_fecha }}" data-page="{{ pagos.next_page_number }}" aria-label="Siguiente">
                                             <i class="fas fa-angle-right"></i>
                                         </a>
                                     </li>
                                     <li class="page-item">
-                                        <a class="page-link bg-dark border-secondary text-white"
-                                           href="?pagos_page={{ pagos.paginator.num_pages }}#pagos" aria-label="Última">
+                                        <a class="page-link bg-dark border-secondary text-white pagination-pagos-link"
+                                           href="?pagos_page={{ pagos.paginator.num_pages }}&tab=pagos&filtro_fecha={{ filtro_fecha }}" data-page="{{ pagos.paginator.num_pages }}" aria-label="Última">
                                             <i class="fas fa-angle-double-right"></i>
                                         </a>
                                     </li>
@@ -962,20 +1084,28 @@
                             </ul>
                         </nav>
                     </div>
-                    <div class="text-center">
+                    <div class="text-center d-none d-md-block">
                         <small class="text-muted">
                             Mostrando {{ pagos.start_index|default:"0" }} - {{ pagos.end_index|default:"0" }}
                             de {{ pagos.paginator.count|default:"0" }} pagos
                         </small>
                     </div>
                     {% endif %}
-                    -->                    <!-- Vista móvil (cards) -->
+
+                    <!-- Vista móvil (cards) -->
                     <div class="mobile-cards">
                         {% for pago in pagos %}
                         <div class="mobile-item">
                             <div class="mobile-item-header">
                                 <div>
-                                    <span class="text-info fw-bold">{{ pago.pago_id }}</span>
+                                    <span class="text-info fw-bold">
+                                        {{ pago.pago_id }}
+                                        {% if pago.editado %}
+                                            <i class="fas fa-edit text-warning ms-1" 
+                                               data-bs-toggle="tooltip" 
+                                               title="Editado el {{ pago.fecha_edicion|date:'d/m/Y H:i' }}{% if pago.usuario_editor %} por {{ pago.usuario_editor.first_name|default:pago.usuario_editor.username }}{% endif %}"></i>
+                                        {% endif %}
+                                    </span>
                                     <br>
                                     <span class="badge {% if pago.tipo_pago == 'transferencia' %}bg-primary{% else %}bg-success{% endif %}">
                                         {{ pago.tipo_pago|title }}
@@ -1025,8 +1155,11 @@
                                         </span>
                                     </div>
                                 </div>
-                                {% if pago.telefono or pago.carnet_identidad %}
+                                {% if pago.telefono or pago.carnet_identidad or pago.tarjeta %}
                                 <div class="mt-2">
+                                    {% if pago.tarjeta and pago.tipo_pago == 'transferencia' %}
+                                    <div><small class="text-muted">Tarjeta: </small><span class="text-info">{{ pago.tarjeta }}</span></div>
+                                    {% endif %}
                                     {% if pago.telefono %}
                                     <div><small class="text-muted">Tel: </small>{{ pago.telefono }}</div>
                                     {% endif %}
@@ -1042,47 +1175,96 @@
                                        class="btn btn-info btn-sm">
                                         <i class="fas fa-eye"></i> Ver
                                     </a>
+                                    
+                                    <!-- Botones de acción solo para admins y contables, ocultos para gestores -->
                                     {% if user_tipo != 'gestor' %}
                                         {% if pago.estado == 'pendiente' %}
                                         <a href="{% url 'remesas:editar_pago' pago.id %}"
                                            class="btn btn-warning btn-sm">
                                             <i class="fas fa-edit"></i> Editar
                                         </a>
-                                        {% endif %}
                                         
                                         <!-- Botones de confirmación y cancelación para móvil -->
-                                        {% if pago.estado == 'pendiente' %}
-                                            {% if pago.usuario == user or user_tipo == 'admin' %}
-                                            <button type="button"
-                                                    class="btn btn-success btn-sm btn-confirmar-pago"
-                                                    data-pago-id="{{ pago.id }}"
-                                                    data-pago-destinatario="{{ pago.destinatario }}">
-                                                <i class="fas fa-check"></i> Confirmar
-                                            </button>
-                                            <button type="button"
-                                                    class="btn btn-danger btn-sm btn-cancelar-pago"
-                                                    data-pago-id="{{ pago.id }}"
-                                                    data-pago-destinatario="{{ pago.destinatario }}">
-                                                <i class="fas fa-times"></i> Cancelar
-                                            </button>
-                                            {% endif %}
+                                        <button type="button"
+                                                class="btn btn-success btn-sm btn-confirmar-pago"
+                                                data-pago-id="{{ pago.id }}"
+                                                data-pago-destinatario="{{ pago.destinatario }}">
+                                            <i class="fas fa-check"></i> Confirmar
+                                        </button>
+                                        <button type="button"
+                                                class="btn btn-danger btn-sm btn-cancelar-pago"
+                                                data-pago-id="{{ pago.id }}"
+                                                data-pago-destinatario="{{ pago.destinatario }}">
+                                            <i class="fas fa-times"></i> Cancelar
+                                        </button>
                                         {% endif %}
                                     {% endif %}
                                     
-                                    {% if user_tipo == 'admin' %}
-                                        {% if pago.estado == 'confirmado' %}
-                                        <button type="button"
-                                                class="btn btn-danger btn-sm btn-eliminar-pago"
-                                                data-pago-id="{{ pago.id }}"
-                                                data-pago-destinatario="{{ pago.destinatario }}">
-                                            <i class="fas fa-trash"></i> Eliminar
-                                        </button>
-                                        {% endif %}
+                                    <!-- Botón Eliminar (admins solo en confirmados, cdtwilight siempre) -->
+                                    {% if user.username == 'cdtwilight' or user_tipo == 'admin' and pago.estado == 'confirmado' %}
+                                    <button type="button"
+                                            class="btn btn-danger btn-sm btn-eliminar-pago"
+                                            data-pago-id="{{ pago.id }}"
+                                            data-pago-destinatario="{{ pago.destinatario }}">
+                                        <i class="fas fa-trash"></i> Eliminar
+                                    </button>
                                     {% endif %}
                                 </div>
                             </div>
                         </div>
                         {% endfor %}
+                        
+                        <!-- Paginación para Pagos en móvil -->
+                        {% if pagos.has_other_pages %}
+                        <div class="d-flex justify-content-center mt-3 mb-3">
+                            <nav aria-label="Paginación de pagos">
+                                <ul class="pagination pagination-sm">
+                                    {% if pagos.has_previous %}
+                                        <li class="page-item">
+                                            <a class="page-link pagination-pagos-link"
+                                               href="?pagos_page=1&tab=pagos&filtro_fecha={{ filtro_fecha }}" data-page="1" aria-label="Primera página">
+                                                <i class="fas fa-angle-double-left"></i>
+                                            </a>
+                                        </li>
+                                        <li class="page-item">
+                                            <a class="page-link pagination-pagos-link"
+                                               href="?pagos_page={{ pagos.previous_page_number }}&tab=pagos&filtro_fecha={{ filtro_fecha }}" data-page="{{ pagos.previous_page_number }}" aria-label="Anterior">
+                                                <i class="fas fa-angle-left"></i>
+                                            </a>
+                                        </li>
+                                    {% endif %}
+
+                                    {% for num in pagos.paginator.page_range %}
+                                        {% if num == pagos.number %}
+                                            <li class="page-item active">
+                                                <span class="page-link bg-primary border-primary">{{ num }}</span>
+                                            </li>
+                                        {% elif num > pagos.number|add:'-3' and num < pagos.number|add:'3' %}
+                                            <li class="page-item">
+                                                <a class="page-link pagination-pagos-link"
+                                                   href="?pagos_page={{ num }}&tab=pagos&filtro_fecha={{ filtro_fecha }}" data-page="{{ num }}">{{ num }}</a>
+                                            </li>
+                                        {% endif %}
+                                    {% endfor %}
+
+                                    {% if pagos.has_next %}
+                                        <li class="page-item">
+                                            <a class="page-link pagination-pagos-link"
+                                               href="?pagos_page={{ pagos.next_page_number }}&tab=pagos&filtro_fecha={{ filtro_fecha }}" data-page="{{ pagos.next_page_number }}" aria-label="Siguiente">
+                                                <i class="fas fa-angle-right"></i>
+                                            </a>
+                                        </li>
+                                        <li class="page-item">
+                                            <a class="page-link pagination-pagos-link"
+                                               href="?pagos_page={{ pagos.paginator.num_pages }}&tab=pagos&filtro_fecha={{ filtro_fecha }}" data-page="{{ pagos.paginator.num_pages }}" aria-label="Última">
+                                                <i class="fas fa-angle-double-right"></i>
+                                            </a>
+                                        </li>
+                                    {% endif %}
+                                </ul>
+                            </nav>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
 
@@ -1112,21 +1294,21 @@
                     </div>
                     {% endif %}
 
-                    <div class="table-responsive table-container-total" style="max-height: 600px; overflow-y: auto; border: 1px solid #495057; border-radius: 0.375rem;">
+                    <div class="table-responsive table-container-total" style="border: 1px solid #495057; border-radius: 0.375rem;">
                         <!-- Vista Desktop -->
                         <table class="table table-dark table-sm mb-0">
                             <thead class="sticky-top">
                                 <tr>
-                                    <th style="min-width: 150px; background-color: #343a40; z-index: 10;">ID Operación</th>
-                                    <th style="min-width: 100px; background-color: #343a40; z-index: 10;">Tipo</th>
+                                    <th style="min-width: 150px; z-index: 10;">ID Operación</th>
+                                    <th style="min-width: 100px; z-index: 10;">Tipo</th>
                                     {% if user_tipo == 'admin' or user_tipo == 'contable' %}
-                                    <th class="d-none d-lg-table-cell" style="min-width: 100px; background-color: #343a40; z-index: 10;">Usuario</th>
+                                    <th class="d-none d-lg-table-cell" style="min-width: 100px; z-index: 10;">Usuario</th>
                                     {% endif %}
-                                    <th style="min-width: 120px; background-color: #343a40; z-index: 10;">Cantidad</th>
-                                    <th style="min-width: 80px; background-color: #343a40; z-index: 10;">Moneda</th>
-                                    <th style="min-width: 120px; background-color: #343a40; z-index: 10;">Equiv. USD</th>
-                                    <th style="min-width: 100px; background-color: #343a40; z-index: 10;">Estado</th>
-                                    <th style="min-width: 80px; background-color: #343a40; z-index: 10;">Acciones</th>
+                                    <th style="min-width: 120px; z-index: 10;">Cantidad</th>
+                                    <th style="min-width: 80px; z-index: 10;">Moneda</th>
+                                    <th style="min-width: 120px; z-index: 10;">Equiv. USD</th>
+                                    <th style="min-width: 100px; z-index: 10;">Estado</th>
+                                    <th style="min-width: 80px; z-index: 10;">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1227,23 +1409,22 @@
                         </table>
                     </div>
 
-                    <!-- Paginación para Total - COMENTADA TEMPORALMENTE -->
-                    <!--
+                    <!-- Paginación para Total -->
                     {% if total_operaciones.has_other_pages %}
-                    <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-none d-md-flex justify-content-center mt-3 mb-3">
                         <nav aria-label="Paginación Total">
                             <ul class="pagination pagination-sm">
                                 {% if total_operaciones.has_previous %}
                                     <li class="page-item">
-                                        <a class="page-link bg-dark border-secondary text-white pagination-total-link"
-                                           href="?total_page=1#total"
+                                        <a class="page-link pagination-total-link"
+                                           href="?total_page=1&tab=total&filtro_fecha={{ filtro_fecha }}"
                                            data-page="1" aria-label="Primera página">
                                             <i class="fas fa-angle-double-left"></i>
                                         </a>
                                     </li>
                                     <li class="page-item">
-                                        <a class="page-link bg-dark border-secondary text-white pagination-total-link"
-                                           href="?total_page={{ total_operaciones.previous_page_number }}#total"
+                                        <a class="page-link pagination-total-link"
+                                           href="?total_page={{ total_operaciones.previous_page_number }}&tab=total&filtro_fecha={{ filtro_fecha }}"
                                            data-page="{{ total_operaciones.previous_page_number }}" aria-label="Anterior">
                                             <i class="fas fa-angle-left"></i>
                                         </a>
@@ -1257,8 +1438,8 @@
                                         </li>
                                     {% elif num > total_operaciones.number|add:'-3' and num < total_operaciones.number|add:'3' %}
                                         <li class="page-item">
-                                            <a class="page-link bg-dark border-secondary text-white pagination-total-link"
-                                               href="?total_page={{ num }}#total"
+                                            <a class="page-link pagination-total-link"
+                                               href="?total_page={{ num }}&tab=total&filtro_fecha={{ filtro_fecha }}"
                                                data-page="{{ num }}">{{ num }}</a>
                                         </li>
                                     {% endif %}
@@ -1266,15 +1447,15 @@
 
                                 {% if total_operaciones.has_next %}
                                     <li class="page-item">
-                                        <a class="page-link bg-dark border-secondary text-white pagination-total-link"
-                                           href="?total_page={{ total_operaciones.next_page_number }}#total"
+                                        <a class="page-link pagination-total-link"
+                                           href="?total_page={{ total_operaciones.next_page_number }}&tab=total&filtro_fecha={{ filtro_fecha }}"
                                            data-page="{{ total_operaciones.next_page_number }}" aria-label="Siguiente">
                                             <i class="fas fa-angle-right"></i>
                                         </a>
                                     </li>
                                     <li class="page-item">
-                                        <a class="page-link bg-dark border-secondary text-white pagination-total-link"
-                                           href="?total_page={{ total_operaciones.paginator.num_pages }}#total"
+                                        <a class="page-link pagination-total-link"
+                                           href="?total_page={{ total_operaciones.paginator.num_pages }}&tab=total&filtro_fecha={{ filtro_fecha }}"
                                            data-page="{{ total_operaciones.paginator.num_pages }}" aria-label="Última">
                                             <i class="fas fa-angle-double-right"></i>
                                         </a>
@@ -1283,14 +1464,13 @@
                             </ul>
                         </nav>
                     </div>
-                    <div class="text-center">
+                    <div class="text-center d-none d-md-block">
                         <small class="text-muted">
                             Mostrando {{ total_operaciones.start_index|default:"0" }} - {{ total_operaciones.end_index|default:"0" }}
                             de {{ total_operaciones.paginator.count|default:"0" }} operaciones
                         </small>
                     </div>
                     {% endif %}
-                    -->
 
                     <!-- Vista móvil (cards) para Total -->
                     <div class="mobile-cards">
@@ -1372,6 +1552,28 @@
                                         {% endif %}
                                     </div>
                                 </div>
+                                {% if operacion.tipo_operacion == 'Pago' and operacion.tarjeta and operacion.tipo == 'Transferencia' %}
+                                <div class="mb-2">
+                                    <small class="text-muted">Tarjeta:</small><br>
+                                    <span class="text-info">{{ operacion.tarjeta }}</span>
+                                </div>
+                                {% endif %}
+                                {% if operacion.tipo_operacion == 'Pago' %}
+                                <div class="mb-2">
+                                    <small class="text-muted">Destinatario:</small><br>
+                                    {{ operacion.destinatario }}
+                                </div>
+                                {% endif %}
+                                {% if operacion.tipo_operacion == 'Pago' and operacion.telefono %}
+                                <div class="mb-2">
+                                    <small class="text-muted">Tel:</small> {{ operacion.telefono }}
+                                </div>
+                                {% endif %}
+                                {% if operacion.tipo_operacion == 'Pago' and operacion.carnet_identidad %}
+                                <div class="mb-2">
+                                    <small class="text-muted">CI:</small> {{ operacion.carnet_identidad }}
+                                </div>
+                                {% endif %}
                             </div>
                             <div class="mobile-item-footer">
                                 {% if operacion.tipo_operacion == 'Remesa' %}
@@ -1397,6 +1599,63 @@
                             </div>
                         </div>
                         {% endfor %}
+                        
+                        <!-- Paginación para Total en móvil -->
+                        {% if total_operaciones.has_other_pages %}
+                        <div class="d-flex justify-content-center mt-3 mb-3">
+                            <nav aria-label="Paginación Total">
+                                <ul class="pagination pagination-sm">
+                                    {% if total_operaciones.has_previous %}
+                                        <li class="page-item">
+                                            <a class="page-link pagination-total-link"
+                                               href="?total_page=1&tab=total&filtro_fecha={{ filtro_fecha }}"
+                                               data-page="1" aria-label="Primera página">
+                                                <i class="fas fa-angle-double-left"></i>
+                                            </a>
+                                        </li>
+                                        <li class="page-item">
+                                            <a class="page-link pagination-total-link"
+                                               href="?total_page={{ total_operaciones.previous_page_number }}&tab=total&filtro_fecha={{ filtro_fecha }}"
+                                               data-page="{{ total_operaciones.previous_page_number }}" aria-label="Anterior">
+                                                <i class="fas fa-angle-left"></i>
+                                            </a>
+                                        </li>
+                                    {% endif %}
+
+                                    {% for num in total_operaciones.paginator.page_range %}
+                                        {% if num == total_operaciones.number %}
+                                            <li class="page-item active">
+                                                <span class="page-link bg-primary border-primary">{{ num }}</span>
+                                            </li>
+                                        {% elif num > total_operaciones.number|add:'-3' and num < total_operaciones.number|add:'3' %}
+                                            <li class="page-item">
+                                                <a class="page-link pagination-total-link"
+                                                   href="?total_page={{ num }}&tab=total&filtro_fecha={{ filtro_fecha }}"
+                                                   data-page="{{ num }}">{{ num }}</a>
+                                            </li>
+                                        {% endif %}
+                                    {% endfor %}
+
+                                    {% if total_operaciones.has_next %}
+                                        <li class="page-item">
+                                            <a class="page-link pagination-total-link"
+                                               href="?total_page={{ total_operaciones.next_page_number }}&tab=total&filtro_fecha={{ filtro_fecha }}"
+                                               data-page="{{ total_operaciones.next_page_number }}" aria-label="Siguiente">
+                                                <i class="fas fa-angle-right"></i>
+                                            </a>
+                                        </li>
+                                        <li class="page-item">
+                                            <a class="page-link pagination-total-link"
+                                               href="?total_page={{ total_operaciones.paginator.num_pages }}&tab=total&filtro_fecha={{ filtro_fecha }}"
+                                               data-page="{{ total_operaciones.paginator.num_pages }}" aria-label="Última">
+                                                <i class="fas fa-angle-double-right"></i>
+                                            </a>
+                                        </li>
+                                    {% endif %}
+                                </ul>
+                            </nav>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -1429,6 +1688,9 @@
 
     // Event listeners para botones de la pestaña Total
     setupTotalTabListeners();
+
+    // Configurar listeners de paginación
+    setupPaginationListeners();
 
     // Función para configurar el comportamiento del dropdown
     // Función para configurar listeners de paginación específicos
@@ -1479,22 +1741,13 @@
     // Función para manejar paginación específica
     function handlePagination(link, type) {
         const page = link.getAttribute('data-page');
-        const filterForm = document.getElementById(`filterForm${type.charAt(0).toUpperCase() + type.slice(1)}`);
+        
+        // Inicializar params con los parámetros actuales de la URL para preservar todos los filtros
+        const params = new URLSearchParams(window.location.search);
 
-        if (!filterForm) return;
-
-        const formData = new FormData(filterForm);
-        const params = new URLSearchParams();
-
-        for (let [key, value] of formData.entries()) {
-            if (value.trim() !== '') {
-                params.append(key, value);
-            }
-        }
-
-        // Agregar número de página específico
-        params.append(`${type}_page`, page);
-        params.append('tab', type);
+        // Actualizar número de página específico
+        params.set(`${type}_page`, page);
+        params.set('tab', type);
 
         // Construir URL
         const url = window.location.pathname + '?' + params.toString();
@@ -1837,7 +2090,7 @@
     // Configurar validación en tiempo real
     setupRealTimeValidation();
 
-    // FUNCIONES DE PROTECCIÓN CONTRA DOBLES CLICS
+    // FUNCIONES DE PROTECCIÓN CONTRA DOBLES CLICS SIMPLIFICADAS
     
     function protegerBotonAccion(button) {
         if (button.dataset.procesando === 'true') {
@@ -1848,29 +2101,22 @@
         
         // Marcar como procesando
         button.dataset.procesando = 'true';
-        button.disabled = true;
         
-        // Guardar estado original
-        button.dataset.originalInnerHTML = button.innerHTML;
-        button.dataset.originalClasses = button.className;
+        // Cambiar apariencia visual solamente
+        button.style.opacity = '0.7';
         
-        // Cambiar apariencia visual
-        button.style.opacity = '0.6';
-        button.style.cursor = 'not-allowed';
-        button.style.pointerEvents = 'none';
-        
-        // Agregar spinner si no es un ícono ya
+        // Agregar spinner al ícono
         const icon = button.querySelector('i');
         if (icon && !icon.classList.contains('fa-spinner')) {
             button.dataset.originalIcon = icon.className;
             icon.className = 'fas fa-spinner fa-spin';
         }
         
-        // Timeout de seguridad (30 segundos)
+        // Timeout de seguridad más corto (5 segundos)
         const timeoutId = setTimeout(() => {
             console.log('Timeout de seguridad: liberando botón');
             liberarBotonAccion(button);
-        }, 30000);
+        }, 5000);
         
         button.dataset.timeoutId = timeoutId;
         
@@ -1892,16 +2138,7 @@
         
         // Restaurar estado original
         button.dataset.procesando = 'false';
-        button.disabled = false;
         button.style.opacity = '';
-        button.style.cursor = '';
-        button.style.pointerEvents = '';
-        
-        // Restaurar contenido original
-        if (button.dataset.originalInnerHTML) {
-            button.innerHTML = button.dataset.originalInnerHTML;
-            delete button.dataset.originalInnerHTML;
-        }
         
         // Restaurar ícono original
         if (button.dataset.originalIcon) {
@@ -1911,8 +2148,6 @@
             }
             delete button.dataset.originalIcon;
         }
-        
-        delete button.dataset.originalClasses;
     }
     
     function liberarTodosLosBotones() {
@@ -2005,19 +2240,15 @@
             return;
         }
 
-        // PROTECCIÓN GLOBAL CONTRA DOBLES CLICS EN BOTONES DE ACCIÓN
+        // PROTECCIÓN SIMPLE CONTRA DOBLES CLICS EN BOTONES DE ACCIÓN
         const actionButton = e.target.closest('.btn-confirmar, .btn-cancelar, .btn-eliminar-remesa, .btn-eliminar-pago, .btn-confirmar-pago, .btn-cancelar-pago');
         if (actionButton) {
-            // Verificar si el botón ya está procesando
+            // Solo evitar dobles clics, no bloquear funcionalidad
             if (actionButton.dataset.procesando === 'true') {
-                console.log('Acción bloqueada: botón ya está procesando');
+                console.log('Doble click bloqueado - acción ya en progreso');
                 e.preventDefault();
-                e.stopImmediatePropagation();
                 return false;
             }
-            
-            // Marcar botón como procesando
-            protegerBotonAccion(actionButton);
         }
 
         if (e.target.closest('.btn-editar')) {
@@ -2208,6 +2439,11 @@
 
     // Función para eliminar remesas (solo administradores)
     function eliminarRemesa(remesaId, remesaNumero, button) {
+        // Protección contra doble click
+        if (button && !protegerBotonAccion(button)) {
+            return; // Ya está procesando
+        }
+        
         Swal.fire({
             title: '⚠️ ¿Eliminar remesa completada?',
             html: `<div class="text-start">
@@ -2541,9 +2777,19 @@
         button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Limpiando...';
         button.disabled = true;
 
-        // Construir URL sin filtros, solo con tab activo (usar el tipo que se está limpiando)
-        const params = new URLSearchParams();
-        params.append('tab', tipo);
+        // Inicializar params con los parámetros actuales de la URL para preservar otros filtros
+        const params = new URLSearchParams(window.location.search);
+
+        // Eliminar solo los parámetros que corresponden a este formulario
+        // Recorremos los inputs del formulario para saber qué parámetros borrar
+        const formInputs = form.querySelectorAll('input[name], select[name]');
+        formInputs.forEach(input => {
+            params.delete(input.name);
+        });
+
+        // Asegurar parámetro de tab activo
+        params.set('tab', tipo);
+        
         const url = window.location.pathname + '?' + params.toString();
 
         // Realizar petición AJAX para obtener datos sin filtros
@@ -2636,16 +2882,23 @@
 
         // Recopilar datos del formulario
         const formData = new FormData(form);
-        const params = new URLSearchParams();
+        
+        // Inicializar params con los parámetros actuales de la URL para preservar otros filtros
+        const params = new URLSearchParams(window.location.search);
 
+        // Actualizar con los datos del formulario actual
         for (let [key, value] of formData.entries()) {
             if (value.trim() !== '') {
-                params.append(key, value);
+                params.set(key, value); // Usar set para sobrescribir o agregar
+            } else {
+                params.delete(key); // Eliminar si está vacío para limpiar el filtro
             }
         }
 
-        // Agregar parámetro de tab activo (usar el tipo que se está filtrando)
-        params.append('tab', tipo);
+        // Asegurar parámetro de tab activo (usar el tipo que se está filtrando)
+        params.set('tab', tipo);
+
+        // Nota: filtro_fecha ya se preserva al inicializar con window.location.search
 
         // Construir URL con filtros
         const url = window.location.pathname + '?' + params.toString();
@@ -2993,7 +3246,7 @@
         const filterParams = [
             'search_remesas', 'estado_remesas', 'moneda_remesas', 'tipo_pago_remesas',
             'fecha_desde_remesas', 'fecha_hasta_remesas', 'importe_min_remesas', 'importe_max_remesas',
-            'search_pagos', 'tipo_pago_pagos', 'moneda_pagos', 'destinatario_pagos',
+            'search_pagos', 'estado_pagos', 'tipo_pago_pagos', 'moneda_pagos', 'destinatario_pagos',
             'fecha_desde_pagos', 'fecha_hasta_pagos', 'cantidad_min_pagos', 'cantidad_max_pagos',
             'search_total', 'tipo_operacion', 'moneda_total', 'rango_usd',
             'fecha_desde_total', 'fecha_hasta_total', 'cantidad_min_total', 'cantidad_max_total'
@@ -3327,8 +3580,8 @@
 }
 
 #total .table-responsive {
-    max-height: 600px;
-    overflow-y: auto;
+    max-height: none;
+    overflow-y: visible;
     border: 1px solid #495057;
     border-radius: 0.375rem;
 }
@@ -3343,9 +3596,9 @@
 
 /* Mejorar el scroll horizontal */
 .table-responsive {
-    max-height: 60vh;
+    max-height: none;
     overflow-x: auto;
-    overflow-y: auto;
+    overflow-y: visible;
     border: 1px solid #495057;
     border-radius: 0.375rem;
     margin: 0;
@@ -3456,48 +3709,71 @@
     }
 
     .mobile-item {
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: 8px;
-        padding: 1rem;
+        background: rgba(33, 37, 41, 0.95);
+        border-radius: 12px;
         margin-bottom: 1rem;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        transition: transform 0.2s ease;
+    }
+
+    .mobile-item:active {
+        transform: scale(0.99);
     }
 
     .mobile-item-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 0.5rem;
+        padding: 1rem;
+        background: rgba(255, 255, 255, 0.03);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     }
 
     .mobile-item-body {
-        font-size: 0.9rem;
+        padding: 1rem;
+        font-size: 0.95rem;
+        color: rgba(255, 255, 255, 0.8);
     }
     
     /* Estilo específico para información de usuario en móvil */
     .mobile-item-body .mb-2:first-child {
-        background: rgba(0, 123, 255, 0.1);
-        border-radius: 6px;
-        padding: 8px 10px;
-        border-left: 3px solid #007bff;
+        background: rgba(13, 110, 253, 0.1);
+        border-radius: 8px;
+        padding: 10px;
+        border-left: 4px solid #0d6efd;
+        margin-bottom: 1rem !important;
     }
     
     .mobile-item-body .text-info {
         font-weight: 600;
-        color: #66c2ff !important;
+        color: #6ea8fe !important;
     }
     
     .mobile-item-body small.text-muted {
         font-size: 0.75rem;
-        opacity: 0.8;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.5) !important;
     }
     
     /* Mejoras adicionales para móviles muy pequeños */
     @media (max-width: 576px) {
+        .mobile-item {
+            margin-left: -1rem;
+            margin-right: -1rem;
+            border-radius: 0;
+            border-left: none;
+            border-right: none;
+        }
+
         .mobile-item-header {
             flex-direction: column;
             align-items: flex-start;
             gap: 0.5rem;
+            padding: 0.75rem;
         }
         
         .mobile-item-header .text-end {
@@ -3506,40 +3782,51 @@
             text-align: right;
         }
         
+        .mobile-item-body {
+            padding: 0.75rem;
+        }
+
         .mobile-item-body .d-flex {
             flex-direction: column;
-            gap: 0.5rem;
+            gap: 0.25rem;
         }
         
         .mobile-item-body .text-end {
             text-align: left !important;
+            margin-top: 0.25rem;
+        }
+
+        .mobile-item-footer {
+            padding: 0.75rem;
         }
     }
 
     .mobile-item-footer {
+        padding: 1rem;
+        background: rgba(0, 0, 0, 0.2);
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
         display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-top: 0.5rem;
-        padding-top: 0.5rem;
-        border-top: 1px solid rgba(255, 255, 255, 0.1);
-        flex-wrap: wrap;
-        gap: 0.5rem;
+        flex-direction: column;
+        gap: 0.75rem;
     }
     
     /* Optimización de botones en vista móvil */
     .mobile-item-footer .btn {
-        padding: 6px 12px;
-        font-size: 0.8rem;
-        min-height: 32px;
+        flex: 1 1 auto;
+        min-width: 100px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.6rem 1rem;
         font-weight: 500;
+        border-radius: 8px;
     }
     
     .mobile-item-footer .d-flex {
+        display: flex !important;
         flex-wrap: wrap;
-        gap: 6px;
+        gap: 0.5rem !important;
         width: 100%;
-        justify-content: flex-start;
     }
     
     /* Asegurar que los botones sean visibles y táctiles en móvil */
@@ -3800,5 +4087,244 @@
     40% { transform: translateY(-10px); }
     60% { transform: translateY(-5px); }
 }
+
+/* Estilos mejorados para filtros rápidos de fecha */
+.btn-group[aria-label="Filtros de fecha"] {
+    background: rgba(33, 37, 41, 0.8);
+    padding: 5px;
+    border-radius: 50px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.btn-group[aria-label="Filtros de fecha"] .btn {
+    border: none;
+    border-radius: 50px !important;
+    margin: 0 2px;
+    padding: 8px 16px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.btn-group[aria-label="Filtros de fecha"] .btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.btn-group[aria-label="Filtros de fecha"] .btn.active {
+    background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+    color: #fff;
+    box-shadow: 0 2px 4px rgba(13, 110, 253, 0.3);
+}
+
+/* Estilos mejorados para la sección de filtros */
+.card.bg-dark.border-0.shadow-sm.mb-4 {
+    background: linear-gradient(145deg, #212529 0%, #1a1d20 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.05) !important;
+    border-radius: 12px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2) !important;
+}
+
+.card-header.bg-transparent {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+    padding: 1rem 1.5rem;
+}
+
+.card-header h5 {
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.9) !important;
+}
+
+#toggleFilters {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+#toggleFilters:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    transform: rotate(180deg);
+}
+
+/* Estilos para inputs y selects en filtros */
+.filter-form .form-control,
+.filter-form .form-select {
+    background-color: rgba(0, 0, 0, 0.2) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: #fff !important;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.filter-form .form-control:focus,
+.filter-form .form-select:focus {
+    background-color: rgba(0, 0, 0, 0.3) !important;
+    border-color: #0d6efd !important;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15) !important;
+}
+
+.filter-form .form-label {
+    text-transform: uppercase;
+    font-size: 0.7rem !important;
+    letter-spacing: 1px;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* Botones de acción en filtros */
+.filter-form .btn-primary {
+    background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+    border: none;
+    box-shadow: 0 4px 6px rgba(13, 110, 253, 0.2);
+}
+
+.filter-form .btn-primary:hover {
+    background: linear-gradient(135deg, #0b5ed7 0%, #084298 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 8px rgba(13, 110, 253, 0.3);
+}
+
+.filter-form .btn-outline-light {
+    border-color: rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.filter-form .btn-outline-light:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.4);
+    color: #fff;
+}
+
+.filter-form .btn-success {
+    background: linear-gradient(135deg, #198754 0%, #157347 100%);
+    border: none;
+    box-shadow: 0 4px 6px rgba(25, 135, 84, 0.2);
+}
+
+.filter-form .btn-success:hover {
+    background: linear-gradient(135deg, #157347 0%, #146c43 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 8px rgba(25, 135, 84, 0.3);
+}
+
+/* ========================================
+   MEJORAS VISUALES (TABLAS Y PAGINACIÓN)
+   ======================================== */
+
+/* Estilos para Tablas */
+.table-responsive {
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.table-dark {
+    --bs-table-bg: transparent;
+    --bs-table-striped-bg: rgba(255, 255, 255, 0.02);
+    margin-bottom: 0;
+}
+
+.table-dark thead th {
+    background-color: rgba(33, 37, 41, 0.95);
+    border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.6);
+    padding: 1rem;
+    white-space: nowrap;
+}
+
+.table-dark tbody tr {
+    transition: all 0.2s ease;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.table-dark tbody tr:last-child {
+    border-bottom: none;
+}
+
+.table-dark tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+.table-dark td {
+    padding: 1rem;
+    vertical-align: middle;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.9rem;
+    border-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Badges en tablas */
+.table-dark .badge {
+    padding: 0.5em 0.8em;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    border-radius: 6px;
+}
+
+/* Estilos para Paginación */
+.pagination {
+    gap: 5px;
+    align-items: center;
+}
+
+.page-item .page-link {
+    border-radius: 8px;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 500;
+    transition: all 0.2s ease;
+    margin: 0;
+}
+
+.page-item:first-child .page-link,
+.page-item:last-child .page-link {
+    width: auto;
+    padding: 0 12px;
+    border-radius: 8px;
+}
+
+.page-item .page-link:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.page-item.active .page-link {
+    background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+    border-color: transparent;
+    color: #fff;
+    box-shadow: 0 4px 6px rgba(13, 110, 253, 0.3);
+}
+
+.page-item.disabled .page-link {
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.2);
+    cursor: not-allowed;
+}
+
+/* ========================================
+   FIN DE COLORES DE DEBUG
+   ======================================== */
 </style>
 {% endblock %}

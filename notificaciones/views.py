@@ -195,36 +195,46 @@ def enviar_test_destinatario(request, destinatario_id):
                     'message': f'El destinatario {destinatario.nombre} está inactivo'
                 })
             
-            # Obtener configuración
+            # Verificar que hay alguna configuración disponible
             config = ConfiguracionNotificacion.get_config()
-            if not config.activo:
+            has_global_config = (
+                config.callmebot_api_key or 
+                (config.twilio_account_sid and config.twilio_auth_token) or 
+                config.whatsapp_business_token
+            )
+            
+            if not destinatario.callmebot_api_key and not has_global_config:
                 return JsonResponse({
                     'success': False,
-                    'message': 'Las notificaciones están desactivadas en la configuración'
+                    'message': 'No hay configuración de API disponible. Configure CallMeBot API Key individual o global.'
                 })
             
             # Crear servicio de WhatsApp
             whatsapp_service = WhatsAppService()
             
             # Mensaje de prueba
-            mensaje = f"🔔 *Mensaje de Prueba - Eglis*\n\n" \
-                     f"Hola {destinatario.nombre},\n\n" \
-                     f"Este es un mensaje de prueba del sistema de notificaciones.\n\n" \
-                     f"📅 Fecha: {timezone.now().strftime('%d/%m/%Y %H:%M')}\n" \
-                     f"✅ Tu número está configurado correctamente.\n\n" \
-                     f"_Sistema de gestión de remesas Eglis_"
+            mensaje = f"""🔔 *Mensaje de Prueba - Eglis*
+
+Hola {destinatario.nombre},
+
+Este es un mensaje de prueba del sistema de notificaciones.
+
+📅 Fecha: {timezone.now().strftime('%d/%m/%Y %H:%M')}
+✅ Tu número está configurado correctamente.
+
+_Sistema de gestión de remesas Eglis_"""
             
-            # Enviar mensaje
-            exito = whatsapp_service.enviar_mensaje(destinatario.telefono, mensaje)
+            # Enviar mensaje usando el método público
+            exito, respuesta = whatsapp_service.enviar_mensaje(destinatario.telefono, mensaje)
             
             if exito:
                 # Registrar en log
                 LogNotificacion.objects.create(
-                    tipo_evento='TEST',
-                    destinatario=destinatario.nombre,
-                    telefono=destinatario.telefono,
+                    tipo='TEST',
+                    destinatario=destinatario,
                     mensaje=mensaje,
-                    exito=True
+                    estado='enviado',
+                    respuesta_api=respuesta
                 )
                 
                 return JsonResponse({
@@ -234,17 +244,17 @@ def enviar_test_destinatario(request, destinatario_id):
             else:
                 # Registrar error en log
                 LogNotificacion.objects.create(
-                    tipo_evento='TEST',
-                    destinatario=destinatario.nombre,
-                    telefono=destinatario.telefono,
+                    tipo='TEST',
+                    destinatario=destinatario,
                     mensaje=mensaje,
-                    exito=False,
-                    error='Error al enviar mensaje'
+                    estado='fallido',
+                    respuesta_api=respuesta,
+                    error_mensaje=respuesta
                 )
                 
                 return JsonResponse({
                     'success': False,
-                    'message': f'Error al enviar mensaje de prueba a {destinatario.nombre}'
+                    'message': f'Error al enviar mensaje: {respuesta}'
                 })
             
         except Exception as e:

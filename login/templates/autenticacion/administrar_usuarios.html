@@ -370,6 +370,18 @@
                             <option value="contable">Contable</option>
                         </select>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de Valor de Moneda</label>
+                        <select name="tipo_valor_moneda" class="form-select">
+                            <option value="">Seleccionar tipo de valor...</option>
+                            {% for tipo in tipos_valor_moneda %}
+                                <option value="{{ tipo.id }}" {% if forloop.first %}selected{% endif %}>
+                                    {{ tipo.nombre }}{% if tipo.descripcion %} - {{ tipo.descripcion }}{% endif %}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">Define qué tipo de valor de moneda usará este usuario para cálculos</small>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -439,6 +451,19 @@
                             <option value="contable">Contable</option>
                         </select>
                         <small class="text-muted">Tipo actual: <span id="currentTipoUsuario"></span></small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de Valor de Moneda</label>
+                        <select name="tipo_valor_moneda" id="editTipoValorMoneda" class="form-select">
+                            <option value="">Mantener tipo actual</option>
+                            {% for tipo in tipos_valor_moneda %}
+                                <option value="{{ tipo.id }}">
+                                    {{ tipo.nombre }}{% if tipo.descripcion %} - {{ tipo.descripcion }}{% endif %}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">Tipo actual: <span id="currentTipoValorMoneda"></span></small>
                     </div>
                     
                     <div class="mb-3">
@@ -1183,12 +1208,21 @@ function abrirModalEditar(userId, username) {
             const tipoUsuarioSelect = document.getElementById('editTipoUsuario');
             tipoUsuarioSelect.value = usuario.tipo_usuario;
             
+            // Seleccionar el tipo de valor de moneda actual
+            const tipoValorMonedaSelect = document.getElementById('editTipoValorMoneda');
+            if (usuario.tipo_valor_moneda_id) {
+                tipoValorMonedaSelect.value = usuario.tipo_valor_moneda_id;
+            } else {
+                tipoValorMonedaSelect.value = '';
+            }
+            
             // Mostrar valores actuales en los placeholders y textos informativos
             document.getElementById('currentUsername').textContent = usuario.username;
             document.getElementById('currentFirstName').textContent = usuario.first_name || '(Sin nombre)';
             document.getElementById('currentLastName').textContent = usuario.last_name || '(Sin apellidos)';
             document.getElementById('currentTelefono').textContent = usuario.telefono || '(Sin teléfono)';
             document.getElementById('currentTipoUsuario').textContent = usuario.tipo_usuario_display;
+            document.getElementById('currentTipoValorMoneda').textContent = usuario.tipo_valor_moneda_nombre || '(Sin asignar)';
             
             // Actualizar placeholders
             document.getElementById('editUsername').placeholder = `Actual: ${usuario.username}`;
@@ -1214,6 +1248,8 @@ function abrirModalEditar(userId, username) {
             document.getElementById('currentLastName').textContent = '(Información no disponible)';
             document.getElementById('currentTelefono').textContent = '(Información no disponible)';
             document.getElementById('currentTipoUsuario').textContent = '(Información no disponible)';
+            document.getElementById('currentTipoValorMoneda').textContent = '(Información no disponible)';
+            document.getElementById('currentTipoUsuario').textContent = '(Información no disponible)';
         }
     })
     .catch(error => {
@@ -1226,12 +1262,15 @@ function abrirModalEditar(userId, username) {
         document.getElementById('editTelefono').value = '';
         document.getElementById('editPassword').value = '';
         document.getElementById('editTipoUsuario').value = '';
+        document.getElementById('editTipoValorMoneda').value = '';
         
         // Mostrar solo el username conocido
         document.getElementById('currentUsername').textContent = username;
         document.getElementById('currentFirstName').textContent = '(Error cargando datos)';
         document.getElementById('currentLastName').textContent = '(Error cargando datos)';
         document.getElementById('currentTelefono').textContent = '(Error cargando datos)';
+        document.getElementById('currentTipoUsuario').textContent = '(Error cargando datos)';
+        document.getElementById('currentTipoValorMoneda').textContent = '(Error cargando datos)';
         document.getElementById('currentTipoUsuario').textContent = '(Error cargando datos)';
     });
     
@@ -1283,65 +1322,84 @@ document.getElementById('formAgregarGestor').addEventListener('submit', function
             'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
         }
     })
-    .then(response => response.text())
-    .then(text => {
-        // Intentar parsear como JSON
-        try {
-            const data = JSON.parse(text);
-            if (data.status === 'success') {
-                // Cerrar modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('agregarUsuarioModal'));
-                modal.hide();
-                
-                // Limpiar formulario
-                form.reset();
-                
-                // Mostrar mensaje de éxito y recargar
-                Swal.fire({
-                    title: '¡Éxito!',
-                    text: 'Usuario creado exitosamente',
-                    icon: 'success',
-                    timer: 1500,
-                    showConfirmButton: false
-                }).then(() => {
-                    window.location.reload();
-                });
-            } else {
-                // Error del servidor
-                Swal.fire({
-                    title: 'Error',
-                    text: data.message || 'Error al crear el usuario',
-                    icon: 'error'
-                });
+    .then(response => {
+        // Verificar si es una redirección (éxito)
+        if (response.redirected || response.url !== form.action) {
+            console.log('Usuario creado exitosamente (redirección detectada)');
+            return { status: 'success', message: 'Usuario creado exitosamente' };
+        }
+        
+        // Si no es redirección, intentar leer como texto
+        return response.text().then(text => {
+            // Intentar parsear como JSON
+            try {
+                const data = JSON.parse(text);
+                return data;
+            } catch (e) {
+                // Si no es JSON pero el status es 200, asumir éxito
+                if (response.ok) {
+                    console.log('Respuesta 200 OK, asumiendo éxito');
+                    return { status: 'success', message: 'Usuario creado exitosamente' };
+                } else {
+                    // Si hay error y no es JSON, devolver error
+                    throw new Error('Respuesta del servidor no válida');
+                }
             }
-        } catch (e) {
-            // Si no es JSON válido, asumir que fue exitoso si no hay error HTTP
+        });
+    })
+    .then(data => {
+        if (data.status === 'success') {
+            // Cerrar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('agregarUsuarioModal'));
+            if (modal) {
+                modal.hide();
+            }
+            
+            // Limpiar formulario
+            form.reset();
+            
+            // Mostrar mensaje de éxito y recargar
             Swal.fire({
                 title: '¡Éxito!',
-                text: 'Usuario creado exitosamente',
+                text: data.message || 'Usuario creado exitosamente',
                 icon: 'success',
                 timer: 1500,
                 showConfirmButton: false
             }).then(() => {
                 window.location.reload();
             });
+        } else {
+            // Error del servidor - mostrar error y permitir reintento
+            Swal.fire({
+                title: 'Error',
+                text: data.message || 'Error al crear el usuario',
+                icon: 'error',
+                confirmButtonText: 'Reintentar'
+            }).then(() => {
+                // No cerrar modal, permitir que el usuario corrija y reintente
+                // El formulario queda disponible para nuevos intentos
+            });
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        // Asumir éxito si hay algún error de parsing pero el usuario se creó
+        
+        // En caso de error de comunicación, verificar si el usuario se creó
+        // esperando un momento y recargando para ver si aparece
         Swal.fire({
-            title: '¡Éxito!',
-            text: 'Usuario creado exitosamente',
-            icon: 'success',
-            timer: 1500,
-            showConfirmButton: false
+            title: 'Verificando creación...',
+            text: 'Verificando si el usuario se creó correctamente.',
+            icon: 'info',
+            showConfirmButton: false,
+            allowOutsideClick: false,
+            timer: 2000
         }).then(() => {
+            // Recargar la página para ver si el usuario se creó
             window.location.reload();
         });
     })
     .finally(() => {
-        // Restaurar botón
+        // SIEMPRE restaurar botón (esto previene el congelamiento)
         submitBtn.disabled = false;
         spinner.classList.add('d-none');
         btnText.textContent = 'Crear Usuario';

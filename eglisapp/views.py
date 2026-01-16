@@ -17,6 +17,20 @@ def admin_usuarios_redirect(request):
 @login_required
 def home(request):
     from remesas.models import Moneda
-    # Excluir USD y filtrar solo monedas activas
+    
+    # Obtener monedas activas
     monedas = Moneda.objects.filter(activa=True)
-    return render(request, 'eglisapp/home.html', {'monedas': monedas})
+    
+    # Preparar monedas con sus valores específicos para el usuario logueado
+    monedas_con_valores = []
+    for moneda in monedas:
+        # Obtener el valor específico para este usuario
+        valor_para_usuario = moneda.get_valor_para_usuario(request.user)
+        
+        # Agregar la moneda con su valor específico
+        monedas_con_valores.append({
+            'moneda': moneda,
+            'valor_usuario': valor_para_usuario
+        })
+    
+    return render(request, 'eglisapp/home.html', {'monedas_con_valores': monedas_con_valores})

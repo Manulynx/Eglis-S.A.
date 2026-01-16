@@ -32,6 +32,17 @@ urlpatterns = [
     path('monedas/eliminar/<int:moneda_id>/', views.eliminar_moneda, name='eliminar_moneda'),
     path('monedas/toggle-estado/<int:moneda_id>/', views.toggle_estado_moneda, name='toggle_estado_moneda'),
     
+    # URLs para Tipos de Valores de Monedas
+    path('tipos-valores/', views.lista_tipos_valores, name='lista_tipos_valores'),
+    path('tipos-valores/crear/', views.crear_tipo_valor, name='crear_tipo_valor'),
+    path('tipos-valores/editar/<int:tipo_id>/', views.editar_tipo_valor, name='editar_tipo_valor'),
+    path('tipos-valores/eliminar/<int:tipo_id>/', views.eliminar_tipo_valor, name='eliminar_tipo_valor'),
+    path('tipos-valores/toggle-estado/<int:tipo_id>/', views.toggle_estado_tipo_valor, name='toggle_estado_tipo_valor'),
+    
+    # URLs para Valores de Monedas
+    path('valores-monedas/actualizar/', views.actualizar_valores_monedas, name='actualizar_valores_monedas'),
+    path('valores-monedas/actualizar-individual/', views.actualizar_valor_individual, name='actualizar_valor_individual'),
+    
     # URLs para Pagos
     # path('pagos/', views.lista_pagos, name='lista_pagos'),  # ELIMINADO - Reemplazado por registro_transacciones
     path('pagos/crear/', views.crear_pago, name='crear_pago'),
