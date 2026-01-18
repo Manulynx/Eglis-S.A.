@@ -6,8 +6,8 @@ from django.views.decorators.http import require_http_methods, require_POST
 from django.utils import timezone
 from django.db import transaction
 from . import models
-from .models import Pago
-from .forms import PagoForm
+from .models import Pago, PagoRemesa
+from .forms import PagoForm, PagoRemesaForm
 from django.core.paginator import Paginator
 from django.contrib import messages
 import logging
@@ -37,33 +37,48 @@ def registro_transacciones(request):
         # Admin ve todas las transacciones
         remesas = models.Remesa.objects.all()
         pagos = models.Pago.objects.all()
+        pagos_remesa = models.PagoRemesa.objects.all()
     elif user_tipo == 'contable':
         # Contable ahora puede ver todas las transacciones (incluyendo las de administradores)
         remesas = models.Remesa.objects.all()
         pagos = models.Pago.objects.all()
+        pagos_remesa = models.PagoRemesa.objects.all()
     else:
         # Gestor solo ve sus propias transacciones
         remesas = models.Remesa.objects.filter(gestor=request.user)
         pagos = models.Pago.objects.filter(usuario=request.user)
+        pagos_remesa = models.PagoRemesa.objects.filter(usuario=request.user)
+    
+    # Agregar conteo de pagos enlazados a cada remesa
+    remesas_con_pagos = []
+    for remesa in remesas:
+        remesa.pagos_count = remesa.pagos_enlazados.count()
+        remesas_con_pagos.append(remesa)
     
     # Conteos
     remesas_count = remesas.count()
     pagos_count = pagos.count()
+    pagos_remesa_count = pagos_remesa.count()
+    total_pagos_count = pagos_count + pagos_remesa_count
     
     # Totales en USD - Solo sumar remesas completadas y pagos confirmados
     remesas_confirmadas_completadas = remesas.filter(estado='completada')
     pagos_confirmados = pagos.filter(estado='confirmado')
+    pagos_remesa_confirmados = pagos_remesa.filter(estado='confirmado')
+    
     total_remesas = sum(remesa.calcular_monto_en_usd() for remesa in remesas_confirmadas_completadas)
     total_pagos = sum(pago.calcular_monto_en_usd() for pago in pagos_confirmados)
+    total_pagos += sum(pago.calcular_monto_en_usd() for pago in pagos_remesa_confirmados)
     
     # Obtener monedas para filtros
     monedas = models.Moneda.objects.filter(activa=True)
 
     context = {
-        'remesas': remesas.order_by('-fecha'),
+        'remesas': remesas_con_pagos,
         'pagos': pagos.order_by('-fecha_creacion'),
+        'pagos_remesa': pagos_remesa.order_by('-fecha_creacion'),
         'remesas_count': remesas_count,
-        'pagos_count': pagos_count,
+        'pagos_count': total_pagos_count,
         'total_remesas': total_remesas,
         'total_pagos': total_pagos,
         'monedas': monedas,
@@ -792,16 +807,44 @@ def detalle_remesa(request, remesa_id):
         remesa = get_object_or_404(models.Remesa, id=remesa_id)
         registros = models.RegistroRemesas.objects.filter(remesa=remesa).order_by('-fecha_registro')
         
+        # Obtener pagos enlazados a la remesa
+        pagos_enlazados = remesa.pagos_enlazados.all().order_by('-fecha_creacion')
+        
         # Determinar el tipo de usuario
         user_tipo = 'admin' if request.user.is_superuser else (
             request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
         )
+        
+        # Crear formulario para pagos de remesa
+        form_pago_remesa = PagoRemesaForm()
+        
+        # Obtener datos de monedas para JavaScript con valores específicos del usuario
+        monedas_data = {}
+        for moneda in models.Moneda.objects.filter(activa=True):
+            valor_usuario = moneda.get_valor_para_usuario(request.user)
+            monedas_data[moneda.id] = {
+                'codigo': moneda.codigo,
+                'valor_usuario': float(valor_usuario)
+            }
+        
+        # Obtener balance del usuario
+        user_balance = 0
+        if hasattr(request.user, 'perfil'):
+            try:
+                balance_calculado = request.user.perfil.calcular_balance_real()
+                user_balance = float(balance_calculado)
+            except Exception:
+                user_balance = 0
 
         context = {
             'remesa': remesa,
             'registros': registros,
+            'pagos_enlazados': pagos_enlazados,
+            'form_pago_remesa': form_pago_remesa,
             'user_tipo': user_tipo,
-            'title': f'Detalle de la Remesa #{remesa.remesa_id}'
+            'title': f'Detalle de la Remesa #{remesa.remesa_id}',
+            'monedas_data_json': json.dumps(monedas_data),
+            'user_balance': user_balance
         }
         
         return render(request, 'remesas/detalle_remesa.html', context)
@@ -1946,3 +1989,487 @@ def crear_tipo_valor(request):
         
     except Exception as e:
         return JsonResponse({'success': False, 'message': f'Error al crear tipo de valor: {str(e)}'})
+
+
+@login_required
+@require_POST
+def crear_pago_remesa(request, remesa_id):
+    """
+    Vista para crear un pago enlazado a una remesa
+    """
+    try:
+        remesa = get_object_or_404(models.Remesa, id=remesa_id)
+        
+        # Verificar que el usuario tenga permisos (admin, contable o el gestor de la remesa)
+        user_tipo = 'admin' if request.user.is_superuser else (
+            request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
+        )
+        
+        if user_tipo not in ['admin', 'contable'] and remesa.gestor != request.user:
+            return JsonResponse({
+                'success': False, 
+                'message': 'No tiene permisos para agregar pagos a esta remesa'
+            })
+        
+        # Crear el formulario con los datos POST y FILES
+        form = PagoRemesaForm(request.POST, request.FILES)
+        
+        if form.is_valid():
+            # Crear el pago pero no guardarlo todavía
+            pago = form.save(commit=False)
+            pago.remesa = remesa
+            pago.usuario = request.user
+            pago.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Pago {pago.pago_id} creado y enlazado a la remesa exitosamente',
+                'pago_id': pago.pago_id,
+                'pago_pk': pago.pk
+            })
+        else:
+            # Devolver errores del formulario
+            errors = {}
+            for field, error_list in form.errors.items():
+                errors[field] = [str(error) for error in error_list]
+            
+            return JsonResponse({
+                'success': False,
+                'message': 'Error en los datos del formulario',
+                'errors': errors
+            })
+            
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'Error al crear el pago: {str(e)}'
+        })
+
+
+@login_required
+def editar_pago_remesa(request, pago_id):
+    """
+    Vista para editar un pago de remesa
+    """
+    pago = get_object_or_404(PagoRemesa, id=pago_id)
+    remesa = pago.remesa
+    
+    # Verificar permisos
+    user_tipo = 'admin' if request.user.is_superuser else (
+        request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
+    )
+    
+    if user_tipo not in ['admin', 'contable'] and remesa.gestor != request.user:
+        messages.error(request, 'No tiene permisos para editar este pago')
+        return redirect('remesas:detalle_remesa', remesa_id=remesa.id)
+    
+    # Solo permitir editar pagos pendientes
+    if pago.estado != 'pendiente':
+        messages.error(request, f'No se puede editar el pago porque está en estado: {pago.get_estado_display()}')
+        return redirect('remesas:detalle_remesa', remesa_id=remesa.id)
+    
+    if request.method == 'POST':
+        form = PagoRemesaForm(request.POST, request.FILES, instance=pago)
+        
+        if form.is_valid():
+            # Marcar como editado
+            pago_editado = form.save(commit=False)
+            pago_editado.editado = True
+            pago_editado.fecha_edicion = timezone.now()
+            pago_editado.usuario_editor = request.user
+            pago_editado.save()
+            
+            messages.success(request, f'Pago {pago.pago_id} editado exitosamente')
+            return redirect('remesas:detalle_remesa', remesa_id=remesa.id)
+    else:
+        form = PagoRemesaForm(instance=pago)
+    
+    context = {
+        'form': form,
+        'pago': pago,
+        'remesa': remesa,
+        'title': f'Editar Pago {pago.pago_id}',
+        'user_tipo': user_tipo
+    }
+    
+    return render(request, 'remesas/editar_pago_remesa.html', context)
+
+
+@login_required
+def listar_pagos_remesa(request, remesa_id):
+    """
+    Vista para listar los pagos enlazados a una remesa
+    """
+    try:
+        remesa = get_object_or_404(models.Remesa, id=remesa_id)
+        pagos = remesa.pagos_enlazados.all().order_by('-fecha_creacion')
+        
+        pagos_data = []
+        for pago in pagos:
+            pagos_data.append({
+                'id': pago.pk,
+                'pago_id': pago.pago_id,
+                'destinatario': pago.destinatario,
+                'cantidad': str(pago.cantidad),
+                'moneda': pago.tipo_moneda.codigo if pago.tipo_moneda else 'N/A',
+                'tipo_pago': pago.get_tipo_pago_display(),
+                'estado': pago.get_estado_display(),
+                'estado_badge': pago.get_estado_badge(),
+                'fecha_creacion': pago.fecha_creacion.strftime('%d/%m/%Y %H:%M'),
+                'comprobante_url': pago.comprobante_pago.url if pago.comprobante_pago else None
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'pagos': pagos_data,
+            'total_pagos': len(pagos_data)
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'Error al obtener los pagos: {str(e)}'
+        })
+
+
+@login_required
+@require_POST
+def eliminar_pago_remesa(request, pago_id):
+    """
+    Vista para eliminar un pago de remesa
+    """
+    try:
+        pago = get_object_or_404(PagoRemesa, id=pago_id)
+        
+        # Verificar permisos
+        user_tipo = 'admin' if request.user.is_superuser else (
+            request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
+        )
+        
+        if user_tipo not in ['admin', 'contable'] and pago.remesa.gestor != request.user:
+            return JsonResponse({
+                'success': False,
+                'message': 'No tiene permisos para eliminar este pago'
+            })
+        
+        # Solo permitir eliminar pagos pendientes
+        if pago.estado != 'pendiente':
+            return JsonResponse({
+                'success': False,
+                'message': f'No se puede eliminar el pago porque está en estado: {pago.get_estado_display()}'
+            })
+        
+        pago_id_str = pago.pago_id
+        pago.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Pago {pago_id_str} eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'Error al eliminar el pago: {str(e)}'
+        })
+
+
+@login_required
+@login_required
+def confirmar_pago_remesa(request, pago_id):
+    """
+    Vista para confirmar un pago de remesa (cuando la remesa ya está completada)
+    """
+    print(f"=== CONFIRMAR PAGO REMESA ===")
+    print(f"Método: {request.method}")
+    print(f"Usuario: {request.user.username}")
+    print(f"Pago ID: {pago_id}")
+    
+    if request.method != 'POST':
+        return JsonResponse({
+            'success': False,
+            'message': 'Método no permitido'
+        })
+    
+    try:
+        pago = get_object_or_404(PagoRemesa, id=pago_id)
+        print(f"Pago encontrado: {pago.pago_id}")
+        print(f"Estado actual: {pago.estado}")
+        print(f"Remesa estado: {pago.remesa.estado}")
+        
+        # Verificar permisos
+        user_tipo = 'admin' if request.user.is_superuser else (
+            request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
+        )
+        print(f"Tipo de usuario: {user_tipo}")
+        
+        if user_tipo not in ['admin', 'contable']:
+            print(f"Permiso denegado para usuario tipo: {user_tipo}")
+            return JsonResponse({
+                'success': False,
+                'message': 'No tiene permisos para confirmar pagos'
+            })
+        
+        # Verificar que la remesa esté completada
+        if pago.remesa.estado != 'completada':
+            print(f"Remesa no está completada: {pago.remesa.estado}")
+            return JsonResponse({
+                'success': False,
+                'message': 'La remesa debe estar completada para confirmar sus pagos manualmente'
+            })
+        
+        # Verificar que el pago esté pendiente
+        if pago.estado != 'pendiente':
+            print(f"Pago no está pendiente: {pago.estado}")
+            return JsonResponse({
+                'success': False,
+                'message': f'El pago ya está en estado: {pago.get_estado_display()}'
+            })
+        
+        # Obtener el usuario del pago (el que lo creó)
+        usuario_pago = pago.usuario
+        if not usuario_pago:
+            print("Pago sin usuario asignado")
+            return JsonResponse({
+                'success': False,
+                'message': 'El pago no tiene un usuario asignado'
+            })
+        
+        print(f"Usuario del pago: {usuario_pago.username}")
+        
+        # Calcular el monto en USD
+        if pago.monto_usd_historico:
+            monto_usd = pago.monto_usd_historico
+        else:
+            # Calcular si no está guardado
+            if pago.tipo_moneda and pago.tipo_moneda.codigo == 'USD':
+                monto_usd = pago.cantidad
+            elif pago.tipo_moneda:
+                valor_moneda = pago.tipo_moneda.get_valor_para_usuario(usuario_pago)
+                if valor_moneda > 0:
+                    monto_usd = pago.cantidad / Decimal(str(valor_moneda))
+                else:
+                    print("No se pudo calcular valor en USD")
+                    return JsonResponse({
+                        'success': False,
+                        'message': 'No se pudo calcular el valor en USD'
+                    })
+            else:
+                monto_usd = pago.cantidad
+        
+        print(f"Monto en USD: {monto_usd}")
+        
+        # Verificar que el usuario tenga perfil
+        if not hasattr(usuario_pago, 'perfil'):
+            print("Usuario sin perfil")
+            return JsonResponse({
+                'success': False,
+                'message': 'El usuario no tiene un perfil configurado'
+            })
+        
+        balance_anterior = usuario_pago.perfil.balance
+        print(f"Balance anterior: {balance_anterior}")
+        
+        # Descontar del balance (permitir balances negativos siguiendo la lógica del sistema)
+        usuario_pago.perfil.balance -= monto_usd
+        usuario_pago.perfil.save()
+        
+        # Cambiar estado del pago
+        pago.estado = 'confirmado'
+        pago.save()
+        
+        balance_final = usuario_pago.perfil.balance
+        print(f"Balance final: {balance_final}")
+        print(f"Pago confirmado exitosamente")
+        
+        mensaje = f'Pago {pago.pago_id} confirmado exitosamente. Se descontaron ${monto_usd:.2f} USD del balance. Balance actual: ${balance_final:.2f} USD'
+        
+        return JsonResponse({
+            'success': True,
+            'message': mensaje
+        })
+        
+    except Exception as e:
+        print(f"ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'message': f'Error al confirmar el pago: {str(e)}'
+        })
+
+
+@login_required
+def cancelar_pago_remesa(request, pago_id):
+    """
+    Vista para cancelar un pago de remesa
+    """
+    print(f"=== CANCELAR PAGO REMESA ===")
+    print(f"Método: {request.method}")
+    print(f"Usuario: {request.user.username}")
+    print(f"Pago ID: {pago_id}")
+    
+    if request.method != 'POST':
+        return JsonResponse({
+            'success': False,
+            'message': 'Método no permitido'
+        })
+    
+    try:
+        pago = get_object_or_404(PagoRemesa, id=pago_id)
+        print(f"Pago encontrado: {pago.pago_id}")
+        print(f"Estado actual: {pago.estado}")
+        print(f"Remesa estado: {pago.remesa.estado}")
+        
+        # Verificar permisos
+        user_tipo = 'admin' if request.user.is_superuser else (
+            request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
+        )
+        print(f"Tipo de usuario: {user_tipo}")
+        
+        if user_tipo not in ['admin', 'contable']:
+            print(f"Permiso denegado para usuario tipo: {user_tipo}")
+            return JsonResponse({
+                'success': False,
+                'message': 'No tiene permisos para cancelar pagos'
+            })
+        
+        # Verificar que la remesa esté completada
+        if pago.remesa.estado != 'completada':
+            print(f"Remesa no está completada: {pago.remesa.estado}")
+            return JsonResponse({
+                'success': False,
+                'message': 'La remesa debe estar completada para gestionar sus pagos manualmente'
+            })
+        
+        # Verificar que el pago esté pendiente
+        if pago.estado != 'pendiente':
+            print(f"Pago no está pendiente: {pago.estado}")
+            return JsonResponse({
+                'success': False,
+                'message': f'El pago ya está en estado: {pago.get_estado_display()}'
+            })
+        
+        pago_id_str = pago.pago_id
+        
+        # Cambiar estado del pago
+        pago.estado = 'cancelado'
+        pago.save()
+        
+        print(f"Pago cancelado exitosamente")
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Pago {pago_id_str} cancelado exitosamente'
+        })
+        
+    except Exception as e:
+        print(f"ERROR: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'message': f'Error al cancelar el pago: {str(e)}'
+        })
+
+
+@login_required
+@require_POST
+def actualizar_fondo_caja(request):
+    """
+    Vista para actualizar el fondo de caja de una moneda (AJAX)
+    Solo accesible para administradores
+    """
+    if not request.user.is_superuser:
+        return JsonResponse({'success': False, 'message': 'Sin permisos para realizar esta acción'}, status=403)
+    
+    try:
+        import json
+        data = json.loads(request.body)
+        
+        moneda_id = data.get('moneda_id')
+        nuevo_fondo = data.get('fondo')
+        
+        if not all([moneda_id, nuevo_fondo is not None]):
+            return JsonResponse({'success': False, 'message': 'Datos incompletos'})
+        
+        # Validar que el fondo sea un número válido
+        try:
+            nuevo_fondo = Decimal(str(nuevo_fondo))
+            if nuevo_fondo < 0:
+                return JsonResponse({'success': False, 'message': 'El fondo no puede ser negativo'})
+        except (ValueError, decimal.InvalidOperation):
+            return JsonResponse({'success': False, 'message': 'Valor numérico inválido'})
+        
+        # Obtener la moneda
+        try:
+            moneda = models.Moneda.objects.get(id=moneda_id)
+        except models.Moneda.DoesNotExist:
+            return JsonResponse({'success': False, 'message': 'Moneda no encontrada'})
+        
+        # Actualizar el fondo de caja
+        moneda.fondo_caja = nuevo_fondo
+        moneda.save()
+        
+        # Log de la operación para auditoria
+        print(f"Fondo de caja actualizado - Usuario: {request.user.username}, Moneda: {moneda.codigo}, Nuevo Fondo: {nuevo_fondo}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Fondo de caja actualizado exitosamente para {moneda.codigo}',
+            'nuevo_fondo': float(nuevo_fondo)
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'Error interno: {str(e)}'})
+
+
+@login_required
+@require_POST
+def actualizar_alerta_minima(request):
+    """
+    Vista para actualizar la alerta de fondo mínimo de una moneda (AJAX)
+    Solo accesible para administradores
+    """
+    if not request.user.is_superuser:
+        return JsonResponse({'success': False, 'message': 'Sin permisos para realizar esta acción'}, status=403)
+    
+    try:
+        import json
+        data = json.loads(request.body)
+        
+        moneda_id = data.get('moneda_id')
+        alerta_minima = data.get('alerta_minima')
+        
+        if not all([moneda_id, alerta_minima is not None]):
+            return JsonResponse({'success': False, 'message': 'Datos incompletos'})
+        
+        # Validar que la alerta sea un número válido
+        try:
+            alerta_minima = Decimal(str(alerta_minima))
+            if alerta_minima < 0:
+                return JsonResponse({'success': False, 'message': 'La alerta no puede ser negativa'})
+        except (ValueError, decimal.InvalidOperation):
+            return JsonResponse({'success': False, 'message': 'Valor numérico inválido'})
+        
+        # Obtener la moneda
+        try:
+            moneda = models.Moneda.objects.get(id=moneda_id)
+        except models.Moneda.DoesNotExist:
+            return JsonResponse({'success': False, 'message': 'Moneda no encontrada'})
+        
+        # Actualizar la alerta mínima
+        moneda.alerta_fondo_minimo = alerta_minima
+        moneda.save()
+        
+        # Log de la operación para auditoria
+        print(f"Alerta mínima actualizada - Usuario: {request.user.username}, Moneda: {moneda.codigo}, Nueva Alerta: {alerta_minima}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Alerta de fondo mínimo actualizada exitosamente para {moneda.codigo}',
+            'nueva_alerta': float(alerta_minima)
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'Error interno: {str(e)}'})

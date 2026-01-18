@@ -364,10 +364,11 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Tipo de Usuario</label>
-                        <select name="tipo_usuario" class="form-select" required>
+                        <select name="tipo_usuario" id="tipoUsuarioCreate" class="form-select" required>
                             <option value="gestor" selected>Gestor</option>
                             <option value="admin">Administrador</option>
                             <option value="contable">Contable</option>
+                            <option value="domicilio">Domicilio</option>
                         </select>
                     </div>
                     <div class="mb-3">
@@ -381,6 +382,20 @@
                             {% endfor %}
                         </select>
                         <small class="text-muted">Define qué tipo de valor de moneda usará este usuario para cálculos</small>
+                    </div>
+                    <div class="mb-3" id="monedasAsignadasCreateContainer" style="display: none;">
+                        <label class="form-label">Monedas Asignadas <span class="text-warning">(Opcional)</span></label>
+                        <button type="button" class="btn btn-outline-primary w-100" onclick="abrirModalMonedasCreate()">
+                            <i class="fas fa-coins me-2"></i>Seleccionar Monedas
+                        </button>
+                        <div id="monedasSeleccionadasCreateDisplay" class="mt-2" style="display: none;">
+                            <small class="text-muted d-block mb-2">Monedas seleccionadas:</small>
+                            <div id="monedasSeleccionadasCreateList" class="d-flex flex-wrap gap-2"></div>
+                        </div>
+                        <small class="text-muted d-block mt-2">
+                            <i class="fas fa-info-circle me-1"></i>
+                            <strong>Sin selección:</strong> Acceso a <strong>todas las monedas</strong>.
+                        </small>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -449,6 +464,7 @@
                             <option value="gestor">Gestor</option>
                             <option value="admin">Administrador</option>
                             <option value="contable">Contable</option>
+                            <option value="domicilio">Domicilio</option>
                         </select>
                         <small class="text-muted">Tipo actual: <span id="currentTipoUsuario"></span></small>
                     </div>
@@ -464,6 +480,24 @@
                             {% endfor %}
                         </select>
                         <small class="text-muted">Tipo actual: <span id="currentTipoValorMoneda"></span></small>
+                    </div>
+                    
+                    <div class="mb-3" id="monedasAsignadasEditContainer" style="display: none;">
+                        <label class="form-label">Monedas Asignadas <span class="text-warning">(Opcional)</span></label>
+                        <button type="button" class="btn btn-outline-primary w-100" onclick="abrirModalMonedasEdit()">
+                            <i class="fas fa-coins me-2"></i>Seleccionar Monedas
+                        </button>
+                        <div id="monedasSeleccionadasEditDisplay" class="mt-2" style="display: none;">
+                            <small class="text-muted d-block mb-2">Monedas seleccionadas:</small>
+                            <div id="monedasSeleccionadasEditList" class="d-flex flex-wrap gap-2"></div>
+                        </div>
+                        <div class="mt-2">
+                            <small class="text-info"><i class="fas fa-info-circle me-1"></i>Monedas actuales: <span id="currentMonedasAsignadas"></span></small>
+                        </div>
+                        <small class="text-muted d-block mt-2">
+                            <i class="fas fa-info-circle me-1"></i>
+                            <strong>Sin selección:</strong> Acceso a <strong>todas las monedas</strong>.
+                        </small>
                     </div>
                     
                     <div class="mb-3">
@@ -505,6 +539,82 @@
                     <button type="submit" class="btn btn-danger">Eliminar</button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Seleccionar Monedas - Crear Usuario -->
+<div class="modal fade" id="modalMonedasCreate" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-coins me-2 text-warning"></i>Seleccionar Monedas</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+                <div class="alert alert-info mb-3">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Sin selección:</strong> El usuario tendrá acceso a todas las monedas.
+                </div>
+                <div id="checkboxMonedasCreateContainer" class="row g-2">
+                    {% for moneda in monedas_disponibles %}
+                    <div class="col-12 col-md-6">
+                        <div class="form-check p-3 bg-secondary bg-opacity-10 rounded hover-highlight">
+                            <input class="form-check-input" type="checkbox" value="{{ moneda.id }}" id="monedaCreate{{ moneda.id }}">
+                            <label class="form-check-label w-100 cursor-pointer" for="monedaCreate{{ moneda.id }}">
+                                <strong class="text-warning">{{ moneda.codigo }}</strong> <span class="text-muted">-</span> {{ moneda.nombre }}
+                            </label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="modal-footer border-secondary d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-secondary" onclick="limpiarMonedasCreate()">
+                    <i class="fas fa-times me-1"></i>Limpiar
+                </button>
+                <button type="button" class="btn btn-primary" onclick="guardarMonedasCreate()">
+                    <i class="fas fa-check me-1"></i>Confirmar Selección
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Seleccionar Monedas - Editar Usuario -->
+<div class="modal fade" id="modalMonedasEdit" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-coins me-2 text-warning"></i>Seleccionar Monedas</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+                <div class="alert alert-info mb-3">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Sin selección:</strong> El usuario tendrá acceso a todas las monedas.
+                </div>
+                <div id="checkboxMonedasEditContainer" class="row g-2">
+                    {% for moneda in monedas_disponibles %}
+                    <div class="col-12 col-md-6">
+                        <div class="form-check p-3 bg-secondary bg-opacity-10 rounded hover-highlight">
+                            <input class="form-check-input" type="checkbox" value="{{ moneda.id }}" id="monedaEdit{{ moneda.id }}">
+                            <label class="form-check-label w-100 cursor-pointer" for="monedaEdit{{ moneda.id }}">
+                                <strong class="text-warning">{{ moneda.codigo }}</strong> <span class="text-muted">-</span> {{ moneda.nombre }}
+                            </label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="modal-footer border-secondary d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-secondary" onclick="limpiarMonedasEdit()">
+                    <i class="fas fa-times me-1"></i>Limpiar
+                </button>
+                <button type="button" class="btn btn-primary" onclick="guardarMonedasEdit()">
+                    <i class="fas fa-check me-1"></i>Confirmar Selección
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -619,6 +729,86 @@
 
 .text-dark {
     color: #212529 !important;
+}
+
+/* Estilos para monedas seleccionadas */
+.moneda-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.moneda-badge .remove-moneda {
+    cursor: pointer;
+    margin-left: 0.25rem;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+.moneda-badge .remove-moneda:hover {
+    opacity: 1;
+}
+
+.modal-dialog-scrollable .modal-body {
+    max-height: 400px;
+}
+
+/* Estilos para checkboxes de monedas */
+.form-check {
+    transition: all 0.2s ease;
+}
+
+.hover-highlight:hover {
+    background-color: rgba(108, 117, 125, 0.3) !important;
+    transform: translateX(5px);
+}
+
+.form-check-input {
+    width: 1.25em;
+    height: 1.25em;
+    margin-top: 0.15em;
+    cursor: pointer;
+}
+
+.form-check-input:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.form-check-label {
+    cursor: pointer;
+    user-select: none;
+    margin-left: 0.5rem;
+}
+
+.cursor-pointer {
+    cursor: pointer;
+}
+
+/* Mejorar el scroll del modal */
+.modal-body::-webkit-scrollbar {
+    width: 8px;
+}
+
+.modal-body::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 10px;
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5);
 }
 
 /* Estilos para balances negativos */
@@ -861,6 +1051,13 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('Formulario de editar usuario enviado');
             
             const form = this;
+            const formData = new FormData(form);
+            
+            // Agregar monedas seleccionadas al FormData
+            monedasSeleccionadasEdit.forEach(monedaId => {
+                formData.append('monedas_asignadas', monedaId);
+            });
+            
             const submitBtn = form.querySelector('button[type="submit"]');
             
             // Deshabilitar botón
@@ -872,7 +1069,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             fetch(form.action, {
                 method: 'POST',
-                body: new FormData(form),
+                body: formData,
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest',
                     'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
@@ -1216,6 +1413,21 @@ function abrirModalEditar(userId, username) {
                 tipoValorMonedaSelect.value = '';
             }
             
+            // Cargar monedas asignadas
+            monedasSeleccionadasEdit = [];
+            if (usuario.monedas_asignadas && usuario.monedas_asignadas.length > 0) {
+                monedasSeleccionadasEdit = usuario.monedas_asignadas.map(id => String(id));
+            }
+            actualizarDisplayMonedasEdit();
+            
+            // Mostrar/ocultar campo de monedas según tipo de usuario
+            const monedasContainer = document.getElementById('monedasAsignadasEditContainer');
+            if (usuario.tipo_usuario === 'gestor' || usuario.tipo_usuario === 'domicilio') {
+                monedasContainer.style.display = 'block';
+            } else {
+                monedasContainer.style.display = 'none';
+            }
+            
             // Mostrar valores actuales en los placeholders y textos informativos
             document.getElementById('currentUsername').textContent = usuario.username;
             document.getElementById('currentFirstName').textContent = usuario.first_name || '(Sin nombre)';
@@ -1223,6 +1435,10 @@ function abrirModalEditar(userId, username) {
             document.getElementById('currentTelefono').textContent = usuario.telefono || '(Sin teléfono)';
             document.getElementById('currentTipoUsuario').textContent = usuario.tipo_usuario_display;
             document.getElementById('currentTipoValorMoneda').textContent = usuario.tipo_valor_moneda_nombre || '(Sin asignar)';
+            
+            // Mostrar monedas asignadas actuales
+            const monedasActualesText = usuario.monedas_asignadas_display || 'Todas las monedas';
+            document.getElementById('currentMonedasAsignadas').textContent = monedasActualesText;
             
             // Actualizar placeholders
             document.getElementById('editUsername').placeholder = `Actual: ${usuario.username}`;
@@ -1299,12 +1515,209 @@ function abrirModalEditar(userId, username) {
     }
 }
 
+// ===== FUNCIONES DE SELECCIÓN DE MONEDAS =====
+
+// Variables globales para almacenar monedas seleccionadas
+let monedasSeleccionadasCreate = [];
+let monedasSeleccionadasEdit = [];
+
+// Abrir modal de monedas para crear
+function abrirModalMonedasCreate() {
+    // Marcar los checkboxes según selección actual
+    document.querySelectorAll('#checkboxMonedasCreateContainer input[type="checkbox"]').forEach(checkbox => {
+        checkbox.checked = monedasSeleccionadasCreate.includes(checkbox.value);
+    });
+    
+    const modal = new bootstrap.Modal(document.getElementById('modalMonedasCreate'));
+    modal.show();
+}
+
+// Guardar monedas seleccionadas para crear
+function guardarMonedasCreate() {
+    monedasSeleccionadasCreate = [];
+    const checkboxes = document.querySelectorAll('#checkboxMonedasCreateContainer input[type="checkbox"]:checked');
+    
+    checkboxes.forEach(checkbox => {
+        monedasSeleccionadasCreate.push(checkbox.value);
+    });
+    
+    actualizarDisplayMonedasCreate();
+    
+    // Cerrar modal
+    const modalElement = document.getElementById('modalMonedasCreate');
+    let modal = bootstrap.Modal.getInstance(modalElement);
+    if (!modal) {
+        modal = new bootstrap.Modal(modalElement);
+    }
+    modal.hide();
+}
+
+// Limpiar selección de monedas para crear
+function limpiarMonedasCreate() {
+    monedasSeleccionadasCreate = [];
+    document.querySelectorAll('#checkboxMonedasCreateContainer input[type="checkbox"]').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    actualizarDisplayMonedasCreate();
+}
+
+// Actualizar display de monedas seleccionadas para crear
+function actualizarDisplayMonedasCreate() {
+    const displayContainer = document.getElementById('monedasSeleccionadasCreateDisplay');
+    const listContainer = document.getElementById('monedasSeleccionadasCreateList');
+    
+    if (monedasSeleccionadasCreate.length === 0) {
+        displayContainer.style.display = 'none';
+        listContainer.innerHTML = '';
+    } else {
+        displayContainer.style.display = 'block';
+        listContainer.innerHTML = '';
+        
+        monedasSeleccionadasCreate.forEach(monedaId => {
+            const checkbox = document.querySelector(`#monedaCreate${monedaId}`);
+            if (checkbox) {
+                const label = checkbox.nextElementSibling.textContent.trim();
+                const badge = document.createElement('span');
+                badge.className = 'moneda-badge';
+                badge.innerHTML = `
+                    ${label}
+                    <i class="fas fa-times-circle remove-moneda" onclick="removerMonedaCreate('${monedaId}')"></i>
+                `;
+                listContainer.appendChild(badge);
+            }
+        });
+    }
+}
+
+// Remover una moneda de la selección para crear
+function removerMonedaCreate(monedaId) {
+    monedasSeleccionadasCreate = monedasSeleccionadasCreate.filter(id => id !== monedaId);
+    actualizarDisplayMonedasCreate();
+}
+
+// Abrir modal de monedas para editar
+function abrirModalMonedasEdit() {
+    // Marcar los checkboxes según selección actual
+    document.querySelectorAll('#checkboxMonedasEditContainer input[type="checkbox"]').forEach(checkbox => {
+        checkbox.checked = monedasSeleccionadasEdit.includes(checkbox.value);
+    });
+    
+    const modal = new bootstrap.Modal(document.getElementById('modalMonedasEdit'));
+    modal.show();
+}
+
+// Guardar monedas seleccionadas para editar
+function guardarMonedasEdit() {
+    monedasSeleccionadasEdit = [];
+    const checkboxes = document.querySelectorAll('#checkboxMonedasEditContainer input[type="checkbox"]:checked');
+    
+    checkboxes.forEach(checkbox => {
+        monedasSeleccionadasEdit.push(checkbox.value);
+    });
+    
+    actualizarDisplayMonedasEdit();
+    
+    // Cerrar modal
+    const modalElement = document.getElementById('modalMonedasEdit');
+    let modal = bootstrap.Modal.getInstance(modalElement);
+    if (!modal) {
+        modal = new bootstrap.Modal(modalElement);
+    }
+    modal.hide();
+}
+
+// Limpiar selección de monedas para editar
+function limpiarMonedasEdit() {
+    monedasSeleccionadasEdit = [];
+    document.querySelectorAll('#checkboxMonedasEditContainer input[type="checkbox"]').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    actualizarDisplayMonedasEdit();
+}
+
+// Actualizar display de monedas seleccionadas para editar
+function actualizarDisplayMonedasEdit() {
+    const displayContainer = document.getElementById('monedasSeleccionadasEditDisplay');
+    const listContainer = document.getElementById('monedasSeleccionadasEditList');
+    
+    if (monedasSeleccionadasEdit.length === 0) {
+        displayContainer.style.display = 'none';
+        listContainer.innerHTML = '';
+    } else {
+        displayContainer.style.display = 'block';
+        listContainer.innerHTML = '';
+        
+        monedasSeleccionadasEdit.forEach(monedaId => {
+            const checkbox = document.querySelector(`#monedaEdit${monedaId}`);
+            if (checkbox) {
+                const label = checkbox.nextElementSibling.textContent.trim();
+                const badge = document.createElement('span');
+                badge.className = 'moneda-badge';
+                badge.innerHTML = `
+                    ${label}
+                    <i class="fas fa-times-circle remove-moneda" onclick="removerMonedaEdit('${monedaId}')"></i>
+                `;
+                listContainer.appendChild(badge);
+            }
+        });
+    }
+}
+
+// Remover una moneda de la selección para editar
+function removerMonedaEdit(monedaId) {
+    monedasSeleccionadasEdit = monedasSeleccionadasEdit.filter(id => id !== monedaId);
+    actualizarDisplayMonedasEdit();
+}
+
+// ===== FIN FUNCIONES DE SELECCIÓN DE MONEDAS =====
+
+// Mostrar/ocultar campo de monedas según tipo de usuario en crear
+// Solo gestores y domicilios pueden tener monedas asignadas
+// Admin y contable siempre tienen acceso a todas las monedas
+document.getElementById('tipoUsuarioCreate').addEventListener('change', function() {
+    const monedasContainer = document.getElementById('monedasAsignadasCreateContainer');
+    const tipoUsuario = this.value;
+    
+    // Solo mostrar para gestor y domicilio
+    if (tipoUsuario === 'gestor' || tipoUsuario === 'domicilio') {
+        monedasContainer.style.display = 'block';
+    } else {
+        // Ocultar para admin y contable (siempre tienen acceso a todas)
+        monedasContainer.style.display = 'none';
+        // Limpiar selección cuando se cambia a admin o contable
+        monedasSeleccionadasCreate = [];
+        actualizarDisplayMonedasCreate();
+    }
+});
+
+// Mostrar/ocultar campo de monedas según tipo de usuario en editar
+// Solo gestores y domicilios pueden tener restricciones de monedas
+document.getElementById('editTipoUsuario').addEventListener('change', function() {
+    const monedasContainer = document.getElementById('monedasAsignadasEditContainer');
+    const tipoUsuario = this.value;
+    
+    if (tipoUsuario === 'gestor' || tipoUsuario === 'domicilio') {
+        // Mostrar para gestor y domicilio
+        monedasContainer.style.display = 'block';
+    } else if (tipoUsuario === 'admin' || tipoUsuario === 'contable') {
+        // Ocultar para admin y contable (siempre todas las monedas)
+        monedasContainer.style.display = 'none';
+    }
+    // Si está vacío (mantener actual), no cambiar el estado actual del display
+});
+
 // Manejar el envío del formulario de crear gestor
 document.getElementById('formAgregarGestor').addEventListener('submit', function(e) {
     e.preventDefault();
     
     const form = this;
     const formData = new FormData(form);
+    
+    // Agregar monedas seleccionadas al FormData
+    monedasSeleccionadasCreate.forEach(monedaId => {
+        formData.append('monedas_asignadas', monedaId);
+    });
+    
     const submitBtn = form.querySelector('button[type="submit"]');
     const btnText = submitBtn.querySelector('.btn-text');
     const spinner = submitBtn.querySelector('.spinner-border');

@@ -150,6 +150,20 @@ class Moneda(models.Model):
         verbose_name='Tipo de Moneda',
         help_text='Tipo de moneda: efectivo o transferencia'
     )
+    fondo_caja = models.DecimalField(
+        max_digits=15, 
+        decimal_places=2,
+        default=0,
+        verbose_name='Fondo de Caja',
+        help_text='Fondo de caja disponible para esta moneda'
+    )
+    alerta_fondo_minimo = models.DecimalField(
+        max_digits=15, 
+        decimal_places=2,
+        default=0,
+        verbose_name='Alerta de Fondo Mínimo',
+        help_text='Valor mínimo del fondo para emitir alerta'
+    )
     activa = models.BooleanField(default=True, verbose_name='Activa')
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
@@ -219,6 +233,20 @@ class Moneda(models.Model):
                 tipo_valor=tipo,
                 defaults={'valor': 0}
             )
+    
+    def fondo_esta_bajo(self):
+        """
+        Verifica si el fondo de caja está por debajo del umbral de alerta
+        """
+        return self.fondo_caja < self.alerta_fondo_minimo if self.alerta_fondo_minimo > 0 else False
+    
+    def porcentaje_fondo(self):
+        """
+        Calcula el porcentaje del fondo actual respecto al mínimo
+        """
+        if self.alerta_fondo_minimo > 0:
+            return (self.fondo_caja / self.alerta_fondo_minimo) * 100
+        return 100
 
     class Meta:
         verbose_name = 'Moneda'
@@ -523,6 +551,240 @@ class Pago(models.Model):
             
             # Guardar sin llamar save() completo para evitar recursión
             super(Pago, self).save(update_fields=['valor_moneda_historico', 'monto_usd_historico', 'editado', 'fecha_edicion', 'usuario_editor'])
+            return True
+        return False
+
+
+class PagoRemesa(models.Model):
+    """
+    Modelo para pagos vinculados a remesas.
+    Permite al gestor asociar uno o más pagos a una remesa específica.
+    """
+    TIPO_PAGO_CHOICES = [
+        ('transferencia', 'Transferencia'),
+        ('efectivo', 'Efectivo'),
+    ]
+    
+    ESTADO_CHOICES = [
+        ('pendiente', 'Pendiente'),
+        ('confirmado', 'Confirmado'),
+        ('cancelado', 'Cancelado'),
+    ]
+    
+    # Relación con la remesa (muchos pagos pueden estar enlazados a una remesa)
+    remesa = models.ForeignKey(
+        'Remesa', 
+        on_delete=models.CASCADE, 
+        related_name='pagos_enlazados',
+        help_text="Remesa a la que está vinculado este pago"
+    )
+    
+    pago_id = models.CharField(max_length=50, unique=True, blank=True, help_text="ID único del pago")
+    tipo_pago = models.CharField(max_length=20, choices=TIPO_PAGO_CHOICES, help_text="Tipo de pago")
+    tipo_moneda = models.ForeignKey(Moneda, on_delete=models.SET_NULL, blank=True, null=True, help_text="Tipo de moneda")
+    cantidad = models.DecimalField(max_digits=15, decimal_places=2, help_text="Cantidad a pagar")
+    
+    # Campos para valores históricos (inmutables una vez guardados)
+    valor_moneda_historico = models.DecimalField(
+        max_digits=15, 
+        decimal_places=6, 
+        null=True, 
+        blank=True,
+        help_text="Valor de la moneda al momento de crear el pago (inmutable)"
+    )
+    monto_usd_historico = models.DecimalField(
+        max_digits=15, 
+        decimal_places=2, 
+        null=True, 
+        blank=True,
+        help_text="Monto en USD calculado al momento de crear el pago (inmutable)"
+    )
+    
+    # Campos para controlar ediciones
+    editado = models.BooleanField(
+        default=False,
+        help_text="Indica si el pago ha sido editado después de su creación"
+    )
+    fecha_edicion = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Fecha y hora de la última edición"
+    )
+    usuario_editor = models.ForeignKey(
+        'auth.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pagos_remesa_editados',
+        help_text="Usuario que realizó la última edición"
+    )
+    
+    destinatario = models.CharField(max_length=255, help_text="Nombre del destinatario")
+    telefono = models.CharField(max_length=20, blank=True, null=True, help_text="Teléfono del destinatario")
+    direccion = models.TextField(blank=True, null=True, help_text="Dirección del destinatario")
+    carnet_identidad = models.CharField(max_length=50, blank=True, null=True, help_text="Carnet de identidad del destinatario")
+    fecha_creacion = models.DateTimeField(default=timezone.now, help_text="Fecha de creación del pago con zona horaria de Cuba")
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, help_text="Usuario que realizó el pago")
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='pendiente', help_text="Estado del pago")
+    
+    # Campos específicos para transferencia
+    tarjeta = models.CharField(max_length=19, blank=True, null=True, help_text="Número de tarjeta (para transferencias)")
+    comprobante_pago = models.ImageField(upload_to='comprobantes_pagos/', blank=True, null=True, help_text="Comprobante de pago")
+    
+    # Campos opcionales
+    observaciones = models.TextField(blank=True, null=True, help_text="Observaciones del pago")
+    
+    class Meta:
+        verbose_name = "Pago de Remesa"
+        verbose_name_plural = "Pagos de Remesas"
+        ordering = ['-fecha_creacion']
+    
+    def save(self, *args, **kwargs):
+        from decimal import Decimal
+        
+        # Generar ID automáticamente si no existe
+        if not self.pago_id:
+            # Obtener la fecha actual con zona horaria de Cuba (configurada en settings.py)
+            fecha_actual = timezone.now()
+            
+            cantidad = float(self.cantidad) if self.cantidad else 0
+            
+            # Generar el ID usando la misma fecha que se usará para el campo 'fecha_creacion'
+            self.pago_id = generar_id_pago(self.tipo_pago, cantidad, fecha_actual)
+            
+            # Si es un nuevo pago, establecer la fecha_creacion manualmente para que coincida con el ID
+            if not self.pk and not self.fecha_creacion:
+                self.fecha_creacion = fecha_actual
+        
+        # Calcular y guardar valores históricos solo al crear (no al editar)
+        if not self.pk and self.tipo_moneda and self.cantidad and self.usuario:
+            # Obtener el valor de la moneda para el usuario al momento de crear
+            valor_para_usuario = self.tipo_moneda.get_valor_para_usuario(self.usuario)
+            self.valor_moneda_historico = Decimal(str(valor_para_usuario))
+            
+            # Calcular el monto en USD al momento de crear
+            if self.tipo_moneda.codigo == 'USD':
+                self.monto_usd_historico = Decimal(str(self.cantidad))
+            else:
+                cantidad_decimal = Decimal(str(self.cantidad))
+                if self.valor_moneda_historico > 0:
+                    self.monto_usd_historico = cantidad_decimal / self.valor_moneda_historico
+                else:
+                    self.monto_usd_historico = Decimal('0')
+        
+        super().save(*args, **kwargs)
+    
+    def __str__(self):
+        return f"{self.pago_id} - Remesa: {self.remesa.remesa_id} - {self.get_tipo_pago_display()} - {self.destinatario} - {self.cantidad}"
+    
+    def get_estado_badge(self):
+        """Retorna la clase de Bootstrap para el badge según el estado"""
+        return {
+            'pendiente': 'warning',
+            'confirmado': 'success',
+            'cancelado': 'danger',
+        }.get(self.estado, 'secondary')
+
+    def get_estado_display(self):
+        """Retorna el texto para mostrar del estado"""
+        return {
+            'pendiente': 'Pendiente',
+            'confirmado': 'Confirmado',
+            'cancelado': 'Cancelado',
+        }.get(self.estado, 'Desconocido')
+
+    def puede_confirmar(self):
+        """Verifica si el pago puede pasar de pendiente a confirmado"""
+        return self.estado == 'pendiente'
+    
+    def puede_cancelar(self):
+        """Verifica si el pago puede ser cancelado (solo desde pendiente)"""
+        return self.estado == 'pendiente'
+    
+    def confirmar(self):
+        """Confirma el pago"""
+        if self.puede_confirmar():
+            self.estado = 'confirmado'
+            self.save()
+            return True
+        return False
+    
+    def cancelar(self):
+        """Cancela el pago"""
+        if self.puede_cancelar():
+            self.estado = 'cancelado'
+            self.save()
+            return True
+        return False
+    
+    def calcular_monto_en_usd(self, usuario=None):
+        """
+        Retorna el monto del pago convertido a USD
+        Usa valores históricos si están disponibles (inmutables),
+        sino calcula dinámicamente para compatibilidad con registros antiguos
+        """
+        from decimal import Decimal
+        
+        if not self.cantidad:
+            return Decimal('0')
+        
+        # Si tenemos el valor histórico guardado, usarlo (inmutable)
+        if self.monto_usd_historico is not None:
+            return self.monto_usd_historico
+        
+        # Fallback para registros antiguos sin valores históricos
+        if not self.tipo_moneda:
+            return Decimal('0')
+        
+        try:
+            if self.tipo_moneda.codigo == 'USD':
+                return self.cantidad
+            else:
+                # Solo calcular dinámicamente si no hay valor histórico
+                usuario_calculo = usuario or self.usuario
+                valor_para_usuario = self.tipo_moneda.get_valor_para_usuario(usuario_calculo)
+                
+                if valor_para_usuario and valor_para_usuario > 0:
+                    monto_usd = self.cantidad / valor_para_usuario
+                    return monto_usd
+                else:
+                    # Fallback al valor_actual si no hay valor específico
+                    if self.tipo_moneda.valor_actual and self.tipo_moneda.valor_actual > 0:
+                        return self.cantidad / self.tipo_moneda.valor_actual
+                    return Decimal('0')
+        except Exception:
+            return Decimal('0')
+
+    def recalcular_valores_por_edicion(self):
+        """
+        Recalcula y actualiza los valores históricos cuando se edita el pago
+        Usa las tasas actuales al momento de la edición
+        """
+        from decimal import Decimal
+        from django.utils import timezone
+        
+        if self.tipo_moneda and self.cantidad and self.usuario:
+            # Obtener el valor actual de la moneda para el usuario
+            valor_actual = self.tipo_moneda.get_valor_para_usuario(self.usuario)
+            self.valor_moneda_historico = Decimal(str(valor_actual))
+            
+            # Calcular nuevo monto en USD con la tasa actual
+            if self.tipo_moneda.codigo == 'USD':
+                self.monto_usd_historico = Decimal(str(self.cantidad))
+            else:
+                cantidad_decimal = Decimal(str(self.cantidad))
+                if valor_actual > 0:
+                    self.monto_usd_historico = cantidad_decimal / Decimal(str(valor_actual))
+                else:
+                    self.monto_usd_historico = Decimal('0')
+            
+            # Marcar como editado
+            self.editado = True
+            self.fecha_edicion = timezone.now()
+            # El usuario_editor se debe establecer desde la vista
+            
+            # Guardar sin llamar save() completo para evitar recursión
+            super(PagoRemesa, self).save(update_fields=['valor_moneda_historico', 'monto_usd_historico', 'editado', 'fecha_edicion', 'usuario_editor'])
             return True
         return False
 

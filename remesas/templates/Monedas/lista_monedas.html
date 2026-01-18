@@ -524,6 +524,8 @@
                                     {% endif %}
                                 </th>
                                 {% endfor %}
+                                <th class="text-center">Fondo de Caja</th>
+                                <th class="text-center">Alerta Mínima</th>
                                 <th>Estado</th>
                                 <th>Última Actualización</th>
                                 <th class="text-end">Acciones</th>
@@ -560,6 +562,55 @@
                                     </div>
                                 </td>
                                 {% endfor %}
+                                <td class="text-center">
+                                    <div class="d-flex align-items-center justify-content-center">
+                                        {% if moneda.fondo_esta_bajo %}
+                                        <i class="fas fa-exclamation-triangle text-danger me-2" title="Fondo bajo"></i>
+                                        {% endif %}
+                                        <span class="fw-bold {% if moneda.fondo_esta_bajo %}text-danger{% else %}text-warning{% endif %} me-2" id="fondo-{{ moneda.id }}">
+                                            ${{ moneda.fondo_caja|floatformat:2 }}
+                                        </span>
+                                        {% if user.is_superuser %}
+                                        <div class="btn-group btn-group-sm">
+                                            <button type="button" 
+                                                    class="btn btn-sm btn-success ajustar-fondo"
+                                                    data-moneda-id="{{ moneda.id }}"
+                                                    data-fondo-actual="{{ moneda.fondo_caja }}"
+                                                    data-moneda-codigo="{{ moneda.codigo }}"
+                                                    data-operacion="sumar"
+                                                    title="Adicionar al fondo">
+                                                <i class="fas fa-plus"></i>
+                                            </button>
+                                            <button type="button" 
+                                                    class="btn btn-sm btn-danger ajustar-fondo"
+                                                    data-moneda-id="{{ moneda.id }}"
+                                                    data-fondo-actual="{{ moneda.fondo_caja }}"
+                                                    data-moneda-codigo="{{ moneda.codigo }}"
+                                                    data-operacion="restar"
+                                                    title="Restar del fondo">
+                                                <i class="fas fa-minus"></i>
+                                            </button>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    <div class="d-flex align-items-center justify-content-center">
+                                        <span class="text-muted me-2" id="alerta-{{ moneda.id }}">
+                                            ${{ moneda.alerta_fondo_minimo|floatformat:2 }}
+                                        </span>
+                                        {% if user.is_superuser %}
+                                        <button type="button" 
+                                                class="btn btn-sm btn-outline-secondary editar-alerta"
+                                                data-moneda-id="{{ moneda.id }}"
+                                                data-alerta-actual="{{ moneda.alerta_fondo_minimo }}"
+                                                data-moneda-codigo="{{ moneda.codigo }}"
+                                                title="Editar alerta mínima">
+                                            <i class="fas fa-bell"></i>
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </td>
                                 <td>
                                     <button type="button" 
                                             class="btn btn-sm toggle-estado {% if moneda.activa %}btn-success{% else %}btn-outline-danger{% endif %}"
@@ -624,6 +675,63 @@
                                     <i class="fas {% if moneda.activa %}fa-check-circle{% else %}fa-times-circle{% endif %} me-1"></i>
                                     {% if moneda.activa %}Activa{% else %}Inactiva{% endif %}
                                 </span>
+                            </div>
+                        </div>
+                        
+                        <!-- Fondo de Caja -->
+                        <div class="valor-item" style="border-left-color: {% if moneda.fondo_esta_bajo %}#dc3545{% else %}#ffc107{% endif %};">
+                            <div class="valor-label">
+                                Fondo de Caja
+                                {% if moneda.fondo_esta_bajo %}
+                                <i class="fas fa-exclamation-triangle text-danger ms-1" title="Fondo bajo"></i>
+                                {% endif %}
+                            </div>
+                            <div class="valor-content">
+                                <span class="valor-amount {% if moneda.fondo_esta_bajo %}text-danger{% endif %}" id="fondo-mobile-{{ moneda.id }}">
+                                    ${{ moneda.fondo_caja|floatformat:2 }}
+                                </span>
+                                {% if user.is_superuser %}
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" 
+                                            class="btn-edit-valor ajustar-fondo" style="border-color: #28a745; color: #28a745;"
+                                            data-moneda-id="{{ moneda.id }}"
+                                            data-fondo-actual="{{ moneda.fondo_caja }}"
+                                            data-moneda-codigo="{{ moneda.codigo }}"
+                                            data-operacion="sumar"
+                                            title="Adicionar">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                    <button type="button" 
+                                            class="btn-edit-valor ajustar-fondo" style="border-color: #dc3545; color: #dc3545;"
+                                            data-moneda-id="{{ moneda.id }}"
+                                            data-fondo-actual="{{ moneda.fondo_caja }}"
+                                            data-moneda-codigo="{{ moneda.codigo }}"
+                                            data-operacion="restar"
+                                            title="Restar">
+                                        <i class="fas fa-minus"></i>
+                                    </button>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Alerta Mínima -->
+                        <div class="valor-item" style="border-left-color: #6c757d;">
+                            <div class="valor-label">Alerta Mínima</div>
+                            <div class="valor-content">
+                                <span class="valor-amount text-muted" id="alerta-mobile-{{ moneda.id }}">
+                                    ${{ moneda.alerta_fondo_minimo|floatformat:2 }}
+                                </span>
+                                {% if user.is_superuser %}
+                                <button type="button" 
+                                        class="btn-edit-valor editar-alerta" style="border-color: #6c757d; color: #6c757d;"
+                                        data-moneda-id="{{ moneda.id }}"
+                                        data-alerta-actual="{{ moneda.alerta_fondo_minimo }}"
+                                        data-moneda-codigo="{{ moneda.codigo }}"
+                                        title="Editar alerta">
+                                    <i class="fas fa-bell"></i>
+                                </button>
+                                {% endif %}
                             </div>
                         </div>
                         
@@ -829,6 +937,118 @@
     </div>
 </div>
 
+<!-- Modal para ajustar fondo de caja -->
+<div class="modal fade" id="editarFondoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header">
+                <h5 class="modal-title" id="tituloModalFondo">
+                    <i class="fas fa-wallet me-2"></i>Ajustar Fondo de Caja
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="cerrarModal('editarFondoModal')"></button>
+            </div>
+            <form id="formEditarFondo">
+                <div class="modal-body">
+                    <div class="alert" id="alertaOperacion">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Operación:</strong> <span id="textoOperacion"></span>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Moneda</label>
+                        <input type="text" id="editarFondoMoneda" class="form-control" readonly>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Fondo Actual</label>
+                        <input type="text" id="editarFondoActual" class="form-control" readonly>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label" id="labelCantidad">Cantidad a ajustar</label>
+                        <input type="number" 
+                               id="editarFondoCantidad" 
+                               name="cantidad" 
+                               class="form-control" 
+                               step="0.01" 
+                               min="0.01"
+                               required
+                               placeholder="Ingrese la cantidad">
+                        <small class="text-muted" id="ayudaCantidad">Ingrese la cantidad a adicionar o restar</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Nuevo Fondo</label>
+                        <input type="text" id="editarFondoNuevo" class="form-control" readonly>
+                    </div>
+                    
+                    <input type="hidden" id="editarFondoMonedaId" name="moneda_id">
+                    <input type="hidden" id="editarFondoOperacion" name="operacion">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="cerrarModal('editarFondoModal')">Cancelar</button>
+                    <button type="submit" class="btn" id="btnConfirmarFondo">
+                        <i class="fas fa-save me-2"></i>Confirmar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para editar alerta mínima -->
+<div class="modal fade" id="editarAlertaModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-bell me-2"></i>Configurar Alerta de Fondo Mínimo
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="cerrarModal('editarAlertaModal')"></button>
+            </div>
+            <form id="formEditarAlerta">
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Alerta:</strong> Se mostrará un indicador cuando el fondo de caja esté por debajo de este valor.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Moneda</label>
+                        <input type="text" id="editarAlertaMoneda" class="form-control" readonly>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Fondo Actual</label>
+                        <input type="text" id="editarAlertaFondoActual" class="form-control" readonly>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Valor Mínimo para Alerta</label>
+                        <input type="number" 
+                               id="editarAlertaValor" 
+                               name="alerta_minima" 
+                               class="form-control" 
+                               step="0.01" 
+                               min="0"
+                               required
+                               placeholder="Ingrese el valor mínimo">
+                        <small class="text-muted">Cuando el fondo esté por debajo de este valor, se mostrará una alerta</small>
+                    </div>
+                    
+                    <input type="hidden" id="editarAlertaMonedaId" name="moneda_id">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="cerrarModal('editarAlertaModal')">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>Guardar Alerta
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Event listeners para botones de eliminar, cambiar estado y editar valores
@@ -851,6 +1071,16 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.target.closest('.editar-valor')) {
             const btn = e.target.closest('.editar-valor');
             abrirModalEditarValor(btn);
+        }
+        
+        if (e.target.closest('.ajustar-fondo')) {
+            const btn = e.target.closest('.ajustar-fondo');
+            abrirModalAjustarFondo(btn);
+        }
+        
+        if (e.target.closest('.editar-alerta')) {
+            const btn = e.target.closest('.editar-alerta');
+            abrirModalEditarAlerta(btn);
         }
         
         if (e.target.closest('.editar-tipo')) {
@@ -1163,6 +1393,382 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+    
+    // Formulario para ajustar fondo de caja
+    document.getElementById('formEditarFondo').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const monedaId = formData.get('moneda_id');
+        const cantidad = formData.get('cantidad');
+        const operacion = formData.get('operacion');
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalBtnText = submitBtn.innerHTML;
+        
+        // Obtener el fondo actual desde el campo readonly
+        const fondoActualTexto = document.getElementById('editarFondoActual').value;
+        const fondoActual = parseFloat(fondoActualTexto.replace('$', '')) || 0;
+        
+        // Calcular el nuevo fondo
+        const cantidadNum = parseFloat(cantidad) || 0;
+        let nuevoFondo;
+        
+        if (operacion === 'sumar') {
+            nuevoFondo = fondoActual + cantidadNum;
+        } else if (operacion === 'restar') {
+            nuevoFondo = fondoActual - cantidadNum;
+            if (nuevoFondo < 0) {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'La cantidad a restar no puede ser mayor que el fondo actual',
+                        confirmButtonColor: '#e74c3c',
+                        background: '#2c3e50',
+                        color: '#fff'
+                    });
+                } else {
+                    alert('La cantidad a restar no puede ser mayor que el fondo actual');
+                }
+                return;
+            }
+        }
+        
+        // Validar datos antes de enviar
+        if (!monedaId || !cantidad || !operacion) {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Datos Incompletos',
+                    text: 'Por favor complete todos los campos requeridos.',
+                    confirmButtonColor: '#f39c12',
+                    background: '#2c3e50',
+                    color: '#fff'
+                });
+            } else {
+                alert('Faltan datos en el formulario');
+            }
+            return;
+        }
+        
+        // Deshabilitar botón y mostrar loading
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Guardando...';
+        
+        let requestOk = false;
+
+        fetch('{% url "remesas:actualizar_fondo_caja" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                moneda_id: monedaId,
+                fondo: nuevoFondo
+            })
+        })
+        .then(async response => {
+            if (!response.ok) {
+                throw new Error('Error en la respuesta del servidor');
+            }
+            requestOk = true;
+            const text = await response.text();
+            if (!text) {
+                return { success: true, message: 'Fondo de caja actualizado exitosamente' };
+            }
+            try {
+                return JSON.parse(text);
+            } catch (parseError) {
+                console.warn('Respuesta no JSON al actualizar fondo:', text);
+                return { success: true, message: 'Fondo de caja actualizado exitosamente' };
+            }
+        })
+        .then(data => {
+            try {
+                // Cerrar modal
+                cerrarModal('editarFondoModal');
+                
+                // Restaurar botón
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnText;
+                
+                if (data && data.success) {
+                    // Actualizar el valor en la página
+                    actualizarFondoEnPagina(monedaId, nuevoFondo);
+                    
+                    // Mensaje con SweetAlert2 y recarga
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'success',
+                            title: '¡Éxito!',
+                            text: data.message || 'Fondo de caja actualizado exitosamente',
+                            showConfirmButton: true,
+                            confirmButtonText: 'Aceptar',
+                            confirmButtonColor: '#27ae60',
+                            background: '#2c3e50',
+                            color: '#fff',
+                            iconColor: '#27ae60'
+                        }).then(() => {
+                            location.reload();
+                        });
+                    } else {
+                        alert(data.message || 'Fondo actualizado exitosamente');
+                        location.reload();
+                    }
+                } else {
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: data.message || 'Error desconocido',
+                            confirmButtonColor: '#e74c3c',
+                            background: '#2c3e50',
+                            color: '#fff'
+                        });
+                    } else {
+                        alert('Error: ' + (data.message || 'Error desconocido'));
+                    }
+                }
+            } catch (uiError) {
+                console.error('Error en la UI después de actualizar fondo:', uiError);
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Éxito!',
+                        text: 'Fondo de caja actualizado exitosamente',
+                        showConfirmButton: true,
+                        confirmButtonText: 'Aceptar',
+                        confirmButtonColor: '#27ae60',
+                        background: '#2c3e50',
+                        color: '#fff',
+                        iconColor: '#27ae60'
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    alert('Fondo actualizado exitosamente');
+                    location.reload();
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            
+            // Restaurar botón
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnText;
+            
+            if (requestOk) {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Éxito!',
+                        text: 'Fondo de caja actualizado exitosamente',
+                        showConfirmButton: true,
+                        confirmButtonText: 'Aceptar',
+                        confirmButtonColor: '#27ae60',
+                        background: '#2c3e50',
+                        color: '#fff',
+                        iconColor: '#27ae60'
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    alert('Fondo actualizado exitosamente');
+                    location.reload();
+                }
+                return;
+            }
+            
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error de Conexión',
+                    text: 'Error al actualizar el fondo. Intente nuevamente.',
+                    confirmButtonColor: '#e74c3c',
+                    background: '#2c3e50',
+                    color: '#fff'
+                });
+            } else {
+                alert('Error al actualizar el fondo');
+            }
+        });
+    });
+    
+    // Formulario para editar alerta mínima
+    document.getElementById('formEditarAlerta').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const monedaId = formData.get('moneda_id');
+        const alertaMinima = formData.get('alerta_minima');
+        const submitBtn = this.querySelector('button[type="submit"]');
+        const originalBtnText = submitBtn.innerHTML;
+        
+        // Validar datos antes de enviar
+        if (!monedaId || alertaMinima === null || alertaMinima === '') {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Datos Incompletos',
+                    text: 'Por favor complete todos los campos requeridos.',
+                    confirmButtonColor: '#f39c12',
+                    background: '#2c3e50',
+                    color: '#fff'
+                });
+            } else {
+                alert('Faltan datos en el formulario');
+            }
+            return;
+        }
+        
+        // Deshabilitar botón y mostrar loading
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Guardando...';
+        
+        let requestOk = false;
+
+        fetch('{% url "remesas:actualizar_alerta_minima" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                moneda_id: monedaId,
+                alerta_minima: alertaMinima
+            })
+        })
+        .then(async response => {
+            if (!response.ok) {
+                throw new Error('Error en la respuesta del servidor');
+            }
+            requestOk = true;
+            const text = await response.text();
+            if (!text) {
+                return { success: true, message: 'Alerta mínima actualizada exitosamente' };
+            }
+            try {
+                return JSON.parse(text);
+            } catch (parseError) {
+                console.warn('Respuesta no JSON al actualizar alerta:', text);
+                return { success: true, message: 'Alerta mínima actualizada exitosamente' };
+            }
+        })
+        .then(data => {
+            try {
+                if (data && data.success) {
+                    // Cerrar modal
+                    cerrarModal('editarAlertaModal');
+                    
+                    // Restaurar botón
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnText;
+                    
+                    // Mostrar mensaje de éxito y recargar para actualizar indicadores
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'success',
+                            title: '¡Éxito!',
+                            text: data.message || 'Alerta mínima actualizada exitosamente',
+                            showConfirmButton: true,
+                            confirmButtonText: 'Aceptar',
+                            confirmButtonColor: '#27ae60',
+                            background: '#2c3e50',
+                            color: '#fff',
+                            iconColor: '#27ae60'
+                        }).then(() => {
+                            // Recargar para actualizar indicadores visuales de alerta
+                            location.reload();
+                        });
+                    } else {
+                        alert(data.message || 'Alerta actualizada exitosamente');
+                        location.reload();
+                    }
+                } else {
+                    // Restaurar botón
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnText;
+                    
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: data.message || 'Error desconocido',
+                            confirmButtonColor: '#e74c3c',
+                            background: '#2c3e50',
+                            color: '#fff'
+                        });
+                    } else {
+                        alert('Error: ' + (data.message || 'Error desconocido'));
+                    }
+                }
+            } catch (uiError) {
+                console.error('Error en la UI después de actualizar alerta:', uiError);
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Éxito!',
+                        text: 'Alerta mínima actualizada exitosamente',
+                        showConfirmButton: true,
+                        confirmButtonText: 'Aceptar',
+                        confirmButtonColor: '#27ae60',
+                        background: '#2c3e50',
+                        color: '#fff',
+                        iconColor: '#27ae60'
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    alert('Alerta actualizada exitosamente');
+                    location.reload();
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            
+            // Restaurar botón
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalBtnText;
+            
+            if (requestOk) {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Éxito!',
+                        text: 'Alerta mínima actualizada exitosamente',
+                        showConfirmButton: true,
+                        confirmButtonText: 'Aceptar',
+                        confirmButtonColor: '#27ae60',
+                        background: '#2c3e50',
+                        color: '#fff',
+                        iconColor: '#27ae60'
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    alert('Alerta actualizada exitosamente');
+                    location.reload();
+                }
+                return;
+            }
+            
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error de Conexión',
+                    text: 'Error al actualizar la alerta. Intente nuevamente.',
+                    confirmButtonColor: '#e74c3c',
+                    background: '#2c3e50',
+                    color: '#fff'
+                });
+            } else {
+                alert('Error al actualizar la alerta');
+            }
+        });
+    });
 });
 
 // Función para obtener CSRF token
@@ -1179,6 +1785,99 @@ function getCookie(name) {
         }
     }
     return cookieValue;
+}
+
+// Función para abrir modal de editar alerta mínima
+function abrirModalEditarAlerta(btn) {
+    const monedaId = btn.dataset.monedaId;
+    const alertaActual = parseFloat(btn.dataset.alertaActual) || 0;
+    const monedaCodigo = btn.dataset.monedaCodigo;
+    
+    // Obtener el fondo actual desde la página
+    const elementoFondo = document.getElementById(`fondo-${monedaId}`);
+    const fondoTexto = elementoFondo ? elementoFondo.textContent.replace('$', '').trim() : '0.00';
+    
+    // Llenar los campos del modal
+    document.getElementById('editarAlertaMoneda').value = monedaCodigo;
+    document.getElementById('editarAlertaFondoActual').value = '$' + fondoTexto;
+    document.getElementById('editarAlertaValor').value = alertaActual;
+    document.getElementById('editarAlertaMonedaId').value = monedaId;
+    
+    // Mostrar el modal
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        const modal = new bootstrap.Modal(document.getElementById('editarAlertaModal'));
+        modal.show();
+    } else if (typeof $ !== 'undefined' && $.fn.modal) {
+        $('#editarAlertaModal').modal('show');
+    } else {
+        const modal = document.getElementById('editarAlertaModal');
+        modal.style.display = 'block';
+        modal.classList.add('show');
+        document.body.classList.add('modal-open');
+        
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop fade show';
+        backdrop.id = 'modalBackdrop';
+        document.body.appendChild(backdrop);
+    }
+    
+    // Enfocar el campo de valor
+    setTimeout(() => {
+        document.getElementById('editarAlertaValor').focus();
+        document.getElementById('editarAlertaValor').select();
+    }, 500);
+}
+
+// Función para actualizar alerta en la página sin recargar
+function actualizarAlertaEnPagina(monedaId, nuevaAlerta) {
+    try {
+        // Validar parámetros
+        if (!monedaId || nuevaAlerta === undefined || nuevaAlerta === null) {
+            console.warn('Parámetros inválidos para actualizar alerta en página:', { monedaId, nuevaAlerta });
+            return;
+        }
+        
+        // Convertir valor de forma segura
+        let alertaFormatted;
+        try {
+            alertaFormatted = '$' + parseFloat(nuevaAlerta).toFixed(2);
+        } catch (parseError) {
+            console.error('Error parseando alerta:', nuevaAlerta, parseError);
+            alertaFormatted = String(nuevaAlerta);
+        }
+        
+        let elementosActualizados = 0;
+        
+        // Actualizar en vista desktop
+        const elementoDesktop = document.getElementById(`alerta-${monedaId}`);
+        if (elementoDesktop) {
+            elementoDesktop.textContent = alertaFormatted;
+            elementosActualizados++;
+        }
+        
+        // Actualizar en vista móvil
+        const elementoMobile = document.getElementById(`alerta-mobile-${monedaId}`);
+        if (elementoMobile) {
+            elementoMobile.textContent = alertaFormatted;
+            elementosActualizados++;
+        }
+        
+        // Actualizar el atributo data-alerta-actual en todos los botones de editar
+        const botones = document.querySelectorAll(`[data-moneda-id="${monedaId}"].editar-alerta`);
+        botones.forEach(btn => {
+            btn.dataset.alertaActual = nuevaAlerta;
+            elementosActualizados++;
+        });
+        
+        console.log(`Alerta actualizada en página: Moneda ${monedaId}, Alerta ${alertaFormatted}, Elementos actualizados: ${elementosActualizados}`);
+        
+        if (elementosActualizados === 0) {
+            console.warn('No se encontraron elementos para actualizar la alerta');
+        }
+        
+    } catch (error) {
+        console.error('Error actualizando alerta en página:', error);
+    }
 }
 
 // Función para abrir modal de crear tipo de valor
@@ -1386,6 +2085,95 @@ function eliminarTipoValor(tipoId, nombre) {
     }
 }
 
+// Función para abrir modal de ajustar fondo
+function abrirModalAjustarFondo(btn) {
+    const monedaId = btn.dataset.monedaId;
+    const fondoActual = parseFloat(btn.dataset.fondoActual) || 0;
+    const monedaCodigo = btn.dataset.monedaCodigo;
+    const operacion = btn.dataset.operacion; // 'sumar' o 'restar'
+    
+    // Configurar el modal según la operación
+    const tituloModal = document.getElementById('tituloModalFondo');
+    const textoOperacion = document.getElementById('textoOperacion');
+    const alertaOperacion = document.getElementById('alertaOperacion');
+    const btnConfirmar = document.getElementById('btnConfirmarFondo');
+    const labelCantidad = document.getElementById('labelCantidad');
+    const ayudaCantidad = document.getElementById('ayudaCantidad');
+    
+    if (operacion === 'sumar') {
+        tituloModal.innerHTML = '<i class="fas fa-plus-circle me-2"></i>Adicionar al Fondo de Caja';
+        textoOperacion.textContent = 'Adicionar al fondo de caja';
+        alertaOperacion.className = 'alert alert-success';
+        btnConfirmar.className = 'btn btn-success';
+        btnConfirmar.innerHTML = '<i class="fas fa-plus me-2"></i>Adicionar';
+        labelCantidad.textContent = 'Cantidad a adicionar';
+        ayudaCantidad.textContent = 'Ingrese la cantidad a adicionar al fondo';
+    } else {
+        tituloModal.innerHTML = '<i class="fas fa-minus-circle me-2"></i>Restar del Fondo de Caja';
+        textoOperacion.textContent = 'Restar del fondo de caja';
+        alertaOperacion.className = 'alert alert-danger';
+        btnConfirmar.className = 'btn btn-danger';
+        btnConfirmar.innerHTML = '<i class="fas fa-minus me-2"></i>Restar';
+        labelCantidad.textContent = 'Cantidad a restar';
+        ayudaCantidad.textContent = 'Ingrese la cantidad a restar del fondo';
+    }
+    
+    // Llenar los campos del modal
+    document.getElementById('editarFondoMoneda').value = monedaCodigo;
+    document.getElementById('editarFondoActual').value = '$' + fondoActual.toFixed(2);
+    document.getElementById('editarFondoCantidad').value = '';
+    document.getElementById('editarFondoNuevo').value = '$' + fondoActual.toFixed(2);
+    document.getElementById('editarFondoMonedaId').value = monedaId;
+    document.getElementById('editarFondoOperacion').value = operacion;
+    
+    // Listener para calcular el nuevo fondo en tiempo real
+    const inputCantidad = document.getElementById('editarFondoCantidad');
+    inputCantidad.oninput = function() {
+        const cantidad = parseFloat(this.value) || 0;
+        let nuevoFondo = fondoActual;
+        
+        if (operacion === 'sumar') {
+            nuevoFondo = fondoActual + cantidad;
+        } else {
+            nuevoFondo = fondoActual - cantidad;
+        }
+        
+        document.getElementById('editarFondoNuevo').value = '$' + nuevoFondo.toFixed(2);
+        
+        // Validar que no sea negativo al restar
+        if (operacion === 'restar' && nuevoFondo < 0) {
+            inputCantidad.setCustomValidity('La cantidad a restar no puede ser mayor que el fondo actual');
+            document.getElementById('editarFondoNuevo').style.color = '#dc3545';
+        } else {
+            inputCantidad.setCustomValidity('');
+            document.getElementById('editarFondoNuevo').style.color = '';
+        }
+    };
+    
+    // Mostrar el modal
+    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        const modal = new bootstrap.Modal(document.getElementById('editarFondoModal'));
+        modal.show();
+    } else if (typeof $ !== 'undefined' && $.fn.modal) {
+        $('#editarFondoModal').modal('show');
+    } else {
+        const modal = document.getElementById('editarFondoModal');
+        modal.style.display = 'block';
+        modal.classList.add('show');
+        document.body.classList.add('modal-open');
+        
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop fade show';
+        backdrop.id = 'modalBackdrop';
+        document.body.appendChild(backdrop);
+    }
+    
+    // Enfocar el campo de cantidad
+    setTimeout(() => {
+        document.getElementById('editarFondoCantidad').focus();
+    }, 500);
+}
+
 // Función para abrir modal de editar valor
 function abrirModalEditarValor(btn) {
     const monedaId = btn.dataset.monedaId;
@@ -1483,6 +2271,58 @@ function actualizarValorEnPagina(monedaId, tipoId, nuevoValor) {
     } catch (error) {
         console.error('Error actualizando valor en página:', error);
         // No lanzar el error para evitar que se propague al catch principal
+    }
+}
+
+// Función para actualizar fondo en la página sin recargar
+function actualizarFondoEnPagina(monedaId, nuevoFondo) {
+    try {
+        // Validar parámetros
+        if (!monedaId || nuevoFondo === undefined || nuevoFondo === null) {
+            console.warn('Parámetros inválidos para actualizar fondo en página:', { monedaId, nuevoFondo });
+            return;
+        }
+        
+        // Convertir valor de forma segura
+        let fondoFormatted;
+        try {
+            fondoFormatted = '$' + parseFloat(nuevoFondo).toFixed(2);
+        } catch (parseError) {
+            console.error('Error parseando fondo:', nuevoFondo, parseError);
+            fondoFormatted = String(nuevoFondo);
+        }
+        
+        let elementosActualizados = 0;
+        
+        // Actualizar en vista desktop
+        const elementoDesktop = document.getElementById(`fondo-${monedaId}`);
+        if (elementoDesktop) {
+            elementoDesktop.textContent = fondoFormatted;
+            elementosActualizados++;
+        }
+        
+        // Actualizar en vista móvil
+        const elementoMobile = document.getElementById(`fondo-mobile-${monedaId}`);
+        if (elementoMobile) {
+            elementoMobile.textContent = fondoFormatted;
+            elementosActualizados++;
+        }
+        
+        // Actualizar el atributo data-fondo-actual en todos los botones de ajustar
+        const botones = document.querySelectorAll(`[data-moneda-id="${monedaId}"].ajustar-fondo`);
+        botones.forEach(btn => {
+            btn.dataset.fondoActual = nuevoFondo;
+            elementosActualizados++;
+        });
+        
+        console.log(`Fondo actualizado en página: Moneda ${monedaId}, Fondo ${fondoFormatted}, Elementos actualizados: ${elementosActualizados}`);
+        
+        if (elementosActualizados === 0) {
+            console.warn('No se encontraron elementos para actualizar el fondo');
+        }
+        
+    } catch (error) {
+        console.error('Error actualizando fondo en página:', error);
     }
 }
 

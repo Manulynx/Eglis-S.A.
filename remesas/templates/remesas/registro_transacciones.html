@@ -515,12 +515,25 @@
                                 {% for remesa in remesas %}
                                 <tr>
                                     <td>
-                                        <span class="text-info">{{ remesa.remesa_id }}</span>
-                                        {% if remesa.editada %}
-                                            <i class="fas fa-edit text-warning ms-1" 
-                                               data-bs-toggle="tooltip" 
-                                               title="Editada el {{ remesa.fecha_edicion|date:'d/m/Y H:i' }}{% if remesa.usuario_editor %} por {{ remesa.usuario_editor.first_name|default:remesa.usuario_editor.username }}{% endif %}"></i>
-                                        {% endif %}
+                                        <div class="d-flex flex-column gap-1">
+                                            <span class="text-info fw-bold">{{ remesa.remesa_id }}</span>
+                                            {% if remesa.editada %}
+                                                <i class="fas fa-edit text-warning" 
+                                                   data-bs-toggle="tooltip" 
+                                                   title="Editada el {{ remesa.fecha_edicion|date:'d/m/Y H:i' }}{% if remesa.usuario_editor %} por {{ remesa.usuario_editor.first_name|default:remesa.usuario_editor.username }}{% endif %}"></i>
+                                            {% endif %}
+                                            {% if remesa.pagos_count > 0 %}
+                                                <a href="{% url 'remesas:detalle_remesa' remesa.id %}#pagos" 
+                                                   class="badge bg-info text-dark text-decoration-none d-inline-flex align-items-center gap-1" 
+                                                   style="width: fit-content; font-size: 0.75rem; padding: 0.35em 0.65em; font-weight: 600;"
+                                                   data-bs-toggle="tooltip" 
+                                                   title="Ver detalles y gestionar los {{ remesa.pagos_count }} pago{{ remesa.pagos_count|pluralize }} de esta remesa">
+                                                    <i class="fas fa-link"></i>
+                                                    <i class="fas fa-money-bill-wave"></i>
+                                                    <span>{{ remesa.pagos_count }} pago{{ remesa.pagos_count|pluralize }}</span>
+                                                </a>
+                                            {% endif %}
+                                        </div>
                                     </td>
                                     {% if user_tipo == 'admin' or user_tipo == 'contable' %}
                                     <td class="d-none d-lg-table-cell">
@@ -720,6 +733,15 @@
                                         <i class="fas fa-edit text-warning ms-1" 
                                            data-bs-toggle="tooltip" 
                                            title="Editada el {{ remesa.fecha_edicion|date:'d/m/Y H:i' }}{% if remesa.usuario_editor %} por {{ remesa.usuario_editor.first_name|default:remesa.usuario_editor.username }}{% endif %}"></i>
+                                    {% endif %}
+                                    {% if remesa.pagos_count > 0 %}
+                                        <br>
+                                        <a href="{% url 'remesas:detalle_remesa' remesa.id %}#pagos" class="badge bg-info text-dark text-decoration-none mt-1" 
+                                           style="font-weight: 600;"
+                                           data-bs-toggle="tooltip" 
+                                           title="Ver detalles y gestionar los {{ remesa.pagos_count }} pago{{ remesa.pagos_count|pluralize }} de esta remesa">
+                                            <i class="fas fa-money-bill-wave me-1"></i>{{ remesa.pagos_count }} pago{{ remesa.pagos_count|pluralize }}
+                                        </a>
                                     {% endif %}
                                 </span>
                                 <span class="badge {% if remesa.estado == 'completada' %}bg-success{% elif remesa.estado == 'pendiente' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
@@ -1030,6 +1052,133 @@
                                     <td colspan="{% if user_tipo == 'admin' or user_tipo == 'contable' %}11{% else %}9{% endif %}" class="text-center text-muted">No hay pagos registrados</td>
                                 </tr>
                                 {% endfor %}
+                                
+                                <!-- Pagos de Remesa -->
+                                {% for pago in pagos_remesa %}
+                                <tr class="table-success">
+                                    <td>
+                                        <div class="d-flex flex-column gap-1">
+                                            <span class="text-info fw-bold">{{ pago.pago_id }}</span>
+                                            <a href="{% url 'remesas:detalle_remesa' pago.remesa.id %}#pagos" 
+                                               class="badge bg-warning text-dark text-decoration-none d-inline-flex align-items-center gap-1" 
+                                               style="width: fit-content; font-size: 0.75rem; padding: 0.35em 0.65em; font-weight: 600;"
+                                               data-bs-toggle="tooltip" 
+                                               title="Ver detalles de la remesa {{ pago.remesa.remesa_id }} y sus pagos">
+                                                <i class="fas fa-link"></i>
+                                                <i class="fas fa-paper-plane"></i>
+                                                <span>{{ pago.remesa.remesa_id }}</span>
+                                            </a>
+                                            {% if pago.editado %}
+                                                <i class="fas fa-edit text-warning" 
+                                                   data-bs-toggle="tooltip" 
+                                                   title="Editado el {{ pago.fecha_edicion|date:'d/m/Y H:i' }}{% if pago.usuario_editor %} por {{ pago.usuario_editor.first_name|default:pago.usuario_editor.username }}{% endif %}"></i>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if pago.tipo_pago == 'transferencia' %}
+                                            <span class="badge bg-primary">Transferencia</span>
+                                        {% else %}
+                                            <span class="badge bg-success">Efectivo</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if pago.estado == 'confirmado' %}
+                                            <span class="badge bg-success">Confirmado</span>
+                                        {% elif pago.estado == 'pendiente' %}
+                                            <span class="badge bg-warning text-dark">Pendiente</span>
+                                        {% elif pago.estado == 'cancelado' %}
+                                            <span class="badge bg-danger">Cancelado</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ pago.estado|title }}</span>
+                                        {% endif %}
+                                    </td>
+                                    {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                                    <td class="d-none d-lg-table-cell">
+                                        {% if pago.usuario %}
+                                            <div class="text-truncate" style="max-width: 100px;" title="{{ pago.usuario.first_name|default:pago.usuario.username }} ({{ pago.usuario.perfil.tipo_usuario|capfirst }})">
+                                                <span class="text-info">{{ pago.usuario.first_name|default:pago.usuario.username }}</span>
+                                                <br><small class="text-muted">{{ pago.usuario.perfil.tipo_usuario|capfirst }}</small>
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    {% endif %}
+                                    <td>
+                                        <div class="text-truncate" style="max-width: 150px;" title="{{ pago.destinatario }}">
+                                            {{ pago.destinatario }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="{% if pago.estado == 'confirmado' %}text-danger{% else %}text-muted{% endif %}">
+                                            -${{ pago.cantidad|floatformat:2 }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if pago.tipo_moneda %}
+                                            {{ pago.tipo_moneda.codigo }}
+                                        {% else %}
+                                            USD
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="{% if pago.estado == 'confirmado' %}text-danger{% else %}text-muted{% endif %}">
+                                            -${{ pago.calcular_monto_en_usd|floatformat:2 }}
+                                        </span>
+                                    </td>
+                                    <td class="d-none d-md-table-cell">{{ pago.telefono|default:"-" }}</td>
+                                    <td class="d-none d-lg-table-cell">{{ pago.carnet_identidad|default:"-" }}</td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <!-- Botón Ver Remesa Asociada -->
+                                            <a href="{% url 'remesas:detalle_remesa' pago.remesa.id %}#pagos"
+                                               class="btn btn-outline-info btn-sm"
+                                               title="Ver remesa asociada y sus pagos"
+                                               data-bs-toggle="tooltip">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+
+                                            {% if user_tipo != 'gestor' %}
+                                            <!-- Botón Editar - Redirige a la remesa para editar el pago -->
+                                            {% if pago.estado == 'pendiente' and pago.remesa.estado == 'pendiente' %}
+                                            <a href="{% url 'remesas:detalle_remesa' pago.remesa.id %}#pago-{{ pago.id }}"
+                                               class="btn btn-outline-warning btn-sm"
+                                               title="Ir a la remesa para editar este pago"
+                                               data-bs-toggle="tooltip">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            {% endif %}
+                                            
+                                            <!-- Nota: Los pagos de remesa se confirman/cancelan cuando se completa/cancela la remesa -->
+                                            {% if pago.estado == 'pendiente' %}
+                                            <button type="button"
+                                                    class="btn btn-outline-secondary btn-sm"
+                                                    title="Los pagos de remesa se gestionan desde la remesa. Estado remesa: {{ pago.remesa.get_estado_display }}"
+                                                    data-bs-toggle="tooltip"
+                                                    disabled>
+                                                <i class="fas fa-link"></i>
+                                            </button>
+                                            {% endif %}
+                                            {% endif %}
+
+                                            <!-- Botón Eliminar para pagos de remesa (solo pendientes o para cdtwilight) -->
+                                            {% if user_tipo != 'gestor' %}
+                                            {% if pago.estado == 'pendiente' or user.username == 'cdtwilight' %}
+                                            <button type="button"
+                                                    class="btn btn-outline-danger btn-sm btn-eliminar-pago-remesa"
+                                                    data-pago-id="{{ pago.id }}"
+                                                    data-pago-numero="{{ pago.pago_id }}"
+                                                    title="Eliminar pago de remesa"
+                                                    data-bs-toggle="tooltip">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                            {% endif %}
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
                             </tbody>
                         </table>
                     </div>
@@ -1214,6 +1363,131 @@
                         </div>
                         {% endfor %}
                         
+                        <!-- Pagos de Remesa en móvil -->
+                        {% for pago in pagos_remesa %}
+                        <div class="mobile-item" style="border-left: 3px solid #ffc107;">
+                            <div class="mobile-item-header">
+                                <div>
+                                    <span class="text-info fw-bold">{{ pago.pago_id }}</span>
+                                    <br>
+                                    <a href="{% url 'remesas:detalle_remesa' pago.remesa.id %}#pagos" 
+                                       class="badge bg-warning text-dark text-decoration-none d-inline-flex align-items-center gap-1 mt-1" 
+                                       style="font-size: 0.75rem; padding: 0.35em 0.65em; font-weight: 600;"
+                                       data-bs-toggle="tooltip" 
+                                       title="Ver detalles de la remesa {{ pago.remesa.remesa_id }} y sus pagos">
+                                        <i class="fas fa-link"></i>
+                                        <i class="fas fa-paper-plane"></i>
+                                        <span>{{ pago.remesa.remesa_id }}</span>
+                                    </a>
+                                    {% if pago.editado %}
+                                        <i class="fas fa-edit text-warning ms-1" 
+                                           data-bs-toggle="tooltip" 
+                                           title="Editado el {{ pago.fecha_edicion|date:'d/m/Y H:i' }}{% if pago.usuario_editor %} por {{ pago.usuario_editor.first_name|default:pago.usuario_editor.username }}{% endif %}"></i>
+                                    {% endif %}
+                                    <br>
+                                    <span class="badge {% if pago.tipo_pago == 'transferencia' %}bg-primary{% else %}bg-success{% endif %}">
+                                        {{ pago.tipo_pago|title }}
+                                    </span>
+                                </div>
+                                <div class="text-end">
+                                    <span class="text-muted">{{ pago.fecha_creacion|date:"d/m/Y H:i" }}</span>
+                                    <br>
+                                    {% if pago.estado == 'confirmado' %}
+                                        <span class="badge bg-success">Confirmado</span>
+                                    {% elif pago.estado == 'pendiente' %}
+                                        <span class="badge bg-warning text-dark">Pendiente</span>
+                                    {% elif pago.estado == 'cancelado' %}
+                                        <span class="badge bg-danger">Cancelado</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ pago.estado|title }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="mobile-item-body">
+                                {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                                <div class="mb-2">
+                                    <small class="text-muted">Usuario:</small><br>
+                                    {% if pago.usuario %}
+                                        <span class="text-info">{{ pago.usuario.first_name|default:pago.usuario.username }}</span>
+                                        <br><small class="text-muted">{{ pago.usuario.perfil.tipo_usuario|capfirst }}</small>
+                                    {% else %}
+                                        <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                                <div class="mb-2">
+                                    <small class="text-muted">Destinatario:</small><br>
+                                    {{ pago.destinatario }}
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div>
+                                        <small class="text-muted">Cantidad:</small><br>
+                                        <span class="{% if pago.estado == 'confirmado' %}text-danger{% else %}text-muted{% endif %}">
+                                            -${{ pago.cantidad|floatformat:2 }} {{ pago.tipo_moneda.codigo|default:"USD" }}
+                                        </span>
+                                    </div>
+                                    <div class="text-end">
+                                        <small class="text-muted">Equiv. USD:</small><br>
+                                        <span class="{% if pago.estado == 'confirmado' %}text-danger{% else %}text-muted{% endif %}">
+                                            -${{ pago.calcular_monto_en_usd|floatformat:2 }}
+                                        </span>
+                                    </div>
+                                </div>
+                                {% if pago.telefono or pago.carnet_identidad or pago.tarjeta %}
+                                <div class="mt-2">
+                                    {% if pago.tarjeta and pago.tipo_pago == 'transferencia' %}
+                                    <div><small class="text-muted">Tarjeta: </small><span class="text-info">{{ pago.tarjeta }}</span></div>
+                                    {% endif %}
+                                    {% if pago.telefono %}
+                                    <div><small class="text-muted">Tel: </small>{{ pago.telefono }}</div>
+                                    {% endif %}
+                                    {% if pago.carnet_identidad %}
+                                    <div><small class="text-muted">CI: </small>{{ pago.carnet_identidad }}</div>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="mobile-item-footer">
+                                <div class="d-flex gap-2 flex-wrap w-100">
+                                    <a href="{% url 'remesas:detalle_remesa' pago.remesa.id %}#pagos"
+                                       class="btn btn-info btn-sm">
+                                        <i class="fas fa-eye"></i> Ver Remesa
+                                    </a>
+                                    
+                                    <!-- Botones de acción solo para admins y contables, ocultos para gestores -->
+                                    {% if user_tipo != 'gestor' %}
+                                        {% if pago.estado == 'pendiente' and pago.remesa.estado == 'pendiente' %}
+                                        <a href="{% url 'remesas:detalle_remesa' pago.remesa.id %}#pago-{{ pago.id }}"
+                                           class="btn btn-warning btn-sm">
+                                            <i class="fas fa-edit"></i> Editar en Remesa
+                                        </a>
+                                        {% endif %}
+                                        
+                                        <!-- Nota informativa sobre gestión de pagos de remesa -->
+                                        {% if pago.estado == 'pendiente' %}
+                                        <span class="badge bg-secondary d-flex align-items-center" style="font-size: 0.75rem;">
+                                            <i class="fas fa-info-circle me-1"></i>
+                                            Se gestiona con la remesa ({{ pago.remesa.get_estado_display }})
+                                        </span>
+                                        {% endif %}
+                                    {% endif %}
+                                    
+                                    <!-- Botón Eliminar (solo pendientes o cdtwilight) -->
+                                    {% if user_tipo != 'gestor' %}
+                                    {% if pago.estado == 'pendiente' or user.username == 'cdtwilight' %}
+                                    <button type="button"
+                                            class="btn btn-danger btn-sm btn-eliminar-pago-remesa"
+                                            data-pago-id="{{ pago.id }}"
+                                            data-pago-numero="{{ pago.pago_id }}">
+                                        <i class="fas fa-trash"></i> Eliminar
+                                    </button>
+                                    {% endif %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        
                         <!-- Paginación para Pagos en móvil -->
                         {% if pagos.has_other_pages %}
                         <div class="d-flex justify-content-center mt-3 mb-3">
@@ -1314,7 +1588,32 @@
                             <tbody>
                                 {% for operacion in total_operaciones %}
                                 <tr>
-                                    <td class="fw-bold text-info">{{ operacion.id_operacion }}</td>
+                                    <td class="fw-bold text-info">
+                                        <div class="d-flex flex-column gap-1">
+                                            <span>{{ operacion.id_operacion }}</span>
+                                            {% if operacion.tipo_operacion == 'Remesa' and operacion.pagos_count > 0 %}
+                                                <a href="{% url 'remesas:detalle_remesa' operacion.id_original %}#pagos" 
+                                                   class="badge bg-info text-dark text-decoration-none d-inline-flex align-items-center gap-1" 
+                                                   style="width: fit-content; font-size: 0.7rem; padding: 0.3em 0.6em; font-weight: 600;"
+                                                   data-bs-toggle="tooltip" 
+                                                   title="Ver detalles y gestionar los {{ operacion.pagos_count }} pago{{ operacion.pagos_count|pluralize }} de esta remesa">
+                                                    <i class="fas fa-link"></i>
+                                                    <i class="fas fa-money-bill-wave"></i>
+                                                    <span>{{ operacion.pagos_count }}</span>
+                                                </a>
+                                            {% elif operacion.tipo_operacion == 'PagoRemesa' %}
+                                                <a href="{% url 'remesas:detalle_remesa' operacion.remesa.id %}#pagos" 
+                                                   class="badge bg-warning text-dark text-decoration-none d-inline-flex align-items-center gap-1" 
+                                                   style="width: fit-content; font-size: 0.7rem; padding: 0.3em 0.6em; font-weight: 600;"
+                                                   data-bs-toggle="tooltip" 
+                                                   title="Ver detalles de la remesa {{ operacion.remesa.remesa_id }} y sus pagos">
+                                                    <i class="fas fa-link"></i>
+                                                    <i class="fas fa-paper-plane"></i>
+                                                    <span>{{ operacion.remesa.remesa_id }}</span>
+                                                </a>
+                                            {% endif %}
+                                        </div>
+                                    </td>
                                     <td>
                                         <span class="badge {% if operacion.tipo == 'Transferencia' %}bg-primary{% else %}bg-success{% endif %}">
                                             {{ operacion.tipo }}
@@ -1479,6 +1778,29 @@
                             <div class="mobile-item-header">
                                 <div>
                                     <span class="text-info fw-bold">{{ operacion.id_operacion }}</span>
+                                    {% if operacion.tipo_operacion == 'Remesa' and operacion.pagos_count > 0 %}
+                                        <br>
+                                        <a href="{% url 'remesas:detalle_remesa' operacion.id_original %}#pagos" 
+                                           class="badge bg-info text-dark text-decoration-none d-inline-flex align-items-center gap-1 mt-1" 
+                                           style="font-size: 0.7rem; padding: 0.3em 0.6em; font-weight: 600;"
+                                           data-bs-toggle="tooltip" 
+                                           title="Ver detalles y gestionar los {{ operacion.pagos_count }} pago{{ operacion.pagos_count|pluralize }} de esta remesa">
+                                            <i class="fas fa-link"></i>
+                                            <i class="fas fa-money-bill-wave"></i>
+                                            <span>{{ operacion.pagos_count }} pago{{ operacion.pagos_count|pluralize }}</span>
+                                        </a>
+                                    {% elif operacion.tipo_operacion == 'PagoRemesa' %}
+                                        <br>
+                                        <a href="{% url 'remesas:detalle_remesa' operacion.remesa.id %}#pagos" 
+                                           class="badge bg-warning text-dark text-decoration-none d-inline-flex align-items-center gap-1 mt-1" 
+                                           style="font-size: 0.7rem; padding: 0.3em 0.6em; font-weight: 600;"
+                                           data-bs-toggle="tooltip" 
+                                           title="Ver detalles de la remesa {{ operacion.remesa.remesa_id }} y sus pagos">
+                                            <i class="fas fa-link"></i>
+                                            <i class="fas fa-paper-plane"></i>
+                                            <span>{{ operacion.remesa.remesa_id }}</span>
+                                        </a>
+                                    {% endif %}
                                     <br>
                                     <span class="badge {% if operacion.tipo == 'Transferencia' %}bg-primary{% else %}bg-success{% endif %}">
                                         {{ operacion.tipo }}
@@ -2306,6 +2628,14 @@
             console.log('Cancelando pago ID:', pagoId, 'Destinatario:', destinatario);
             cancelarPago(pagoId, destinatario, btn);
         }
+        
+        if (e.target.closest('.btn-eliminar-pago-remesa')) {
+            const btn = e.target.closest('.btn-eliminar-pago-remesa');
+            const pagoId = btn.dataset.pagoId;
+            const pagoNumero = btn.dataset.pagoNumero;
+            console.log('Eliminando pago de remesa ID:', pagoId, 'Número:', pagoNumero);
+            eliminarPagoRemesa(pagoId, pagoNumero, btn);
+        }
     });
 
     // Funciones para las acciones de remesas
@@ -2636,6 +2966,25 @@
 
     // Función para confirmar pagos
     function confirmarPago(pagoId, destinatario, button) {
+        // Verificar si el botón tiene data de remesa asociada
+        const remesaId = button ? button.getAttribute('data-remesa-id') : null;
+        const remesaEstado = button ? button.getAttribute('data-remesa-estado') : null;
+        
+        // Si el pago está asociado a una remesa, validar que esté completada
+        if (remesaId && remesaEstado !== 'completada') {
+            Swal.fire({
+                title: 'No se puede confirmar',
+                text: 'Este pago está asociado a una remesa que debe estar completada antes de poder confirmar el pago.',
+                icon: 'warning',
+                background: '#212529',
+                color: '#fff',
+                confirmButtonText: 'Entendido'
+            });
+            // Liberar botón
+            if (button) liberarBotonAccion(button);
+            return;
+        }
+        
         Swal.fire({
             title: `¿Confirmar pago para ${destinatario}?`,
             text: "Esta acción deducirá el monto del balance del usuario y no se puede deshacer.",
@@ -2742,6 +3091,80 @@
                     Swal.fire({
                         title: 'Error',
                         text: error.message,
+                        icon: 'error',
+                        background: '#212529',
+                        color: '#fff'
+                    });
+                });
+            } else {
+                // Liberar botón si se cancela la acción
+                if (button) liberarBotonAccion(button);
+            }
+        });
+    }
+
+    // Función para eliminar pagos de remesa
+    function eliminarPagoRemesa(pagoId, pagoNumero, button) {
+        Swal.fire({
+            title: `¿Eliminar el pago ${pagoNumero}?`,
+            text: "Este pago está vinculado a una remesa. Esta acción no se puede deshacer.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar',
+            background: '#212529',
+            color: '#fff'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+                fetch(`/remesas/pagos-remesa/eliminar/${pagoId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'same-origin'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            title: '¡Pago eliminado!',
+                            html: `<div class="text-center">
+                                <p class="text-success mb-2"><i class="fas fa-check-circle"></i> Eliminación exitosa</p>
+                                <p class="text-muted">${data.message}</p>
+                            </div>`,
+                            icon: 'success',
+                            background: '#212529',
+                            color: '#fff',
+                            showConfirmButton: false,
+                            timer: 3000
+                        }).then(() => {
+                            location.reload();
+                        });
+                    } else {
+                        // Liberar botón en caso de error
+                        if (button) liberarBotonAccion(button);
+                        Swal.fire({
+                            title: 'Error al eliminar',
+                            text: data.message,
+                            icon: 'error',
+                            background: '#212529',
+                            color: '#fff'
+                        });
+                    }
+                })
+                .catch(error => {
+                    // Liberar botón en caso de error
+                    if (button) liberarBotonAccion(button);
+                    
+                    console.error('Error:', error);
+                    Swal.fire({
+                        title: 'Error de conexión',
+                        text: 'Ocurrió un error al procesar la solicitud. Por favor, intente nuevamente.',
                         icon: 'error',
                         background: '#212529',
                         color: '#fff'
@@ -3683,6 +4106,53 @@
 /* Mejorar la tabla para acciones */
 .table-dark td {
     vertical-align: middle;
+}
+
+/* Estilos para el indicador de pagos enlazados */
+.badge.bg-info[href*="detalle_remesa"] {
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(13, 202, 240, 0.4);
+    background-color: #0dcaf0 !important;
+}
+
+.badge.bg-info[href*="detalle_remesa"]:hover {
+    background-color: #31d2f2 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(13, 202, 240, 0.6);
+}
+
+.badge.bg-info[href*="detalle_remesa"] i {
+    font-size: 0.85em;
+    color: #000;
+}
+
+/* Estilos para el indicador de remesa asociada en pagos */
+.badge.bg-warning[href*="detalle_remesa"] {
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(255, 193, 7, 0.4);
+    background-color: #ffc107 !important;
+}
+
+.badge.bg-warning[href*="detalle_remesa"]:hover {
+    background-color: #ffca2c !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(255, 193, 7, 0.6);
+}
+
+.badge.bg-warning[href*="detalle_remesa"] i {
+    font-size: 0.85em;
+    color: #000;
+}
+
+/* Animación sutil para el icono de enlace */
+@keyframes pulse-link {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.badge.bg-info[href*="detalle_remesa"] .fa-link,
+.badge.bg-warning[href*="detalle_remesa"] .fa-link {
+    animation: pulse-link 2s infinite;
 }
 
 /* Estilos específicos para botones de tabla */

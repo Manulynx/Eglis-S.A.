@@ -117,6 +117,194 @@
                     </form>
                 </div>
             </div>
+            
+            <!-- Sección de Pagos Enlazados -->
+            <div class="card bg-dark border-secondary mt-3" id="seccionPagos" style="display: none;">
+                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="fas fa-money-bill-wave me-2"></i>
+                        Pagos para esta Remesa
+                    </h6>
+                    <button type="button" class="btn btn-sm btn-light" id="btnMostrarFormularioPago">
+                        <i class="fas fa-plus me-2"></i>
+                        Agregar Pago
+                    </button>
+                </div>
+                <div class="card-body p-2 p-md-3">
+                    <!-- Formulario para crear pago (inicialmente oculto) -->
+                    <div id="formularioPagoRemesa" style="display: none;" class="mb-4">
+                        <div class="card bg-secondary">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0 text-white">Nuevo Pago</h6>
+                                <button type="button" class="btn btn-sm btn-danger" id="btnCerrarFormularioPago">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <form id="formPagoRemesa" enctype="multipart/form-data">
+                                    {% csrf_token %}
+                                    <div class="row">
+                                        <!-- Tipo de Pago -->
+                                        <div class="col-md-6 mb-3">
+                                            <label for="pago_tipo_pago" class="form-label text-white">
+                                                Tipo de Pago <span class="text-danger">*</span>
+                                            </label>
+                                            <select class="form-control bg-dark text-white border-secondary" 
+                                                    id="pago_tipo_pago" 
+                                                    name="tipo_pago" 
+                                                    required>
+                                                <option value="">Seleccionar...</option>
+                                                <option value="transferencia">Transferencia</option>
+                                                <option value="efectivo">Efectivo</option>
+                                            </select>
+                                            <div class="invalid-feedback"></div>
+                                        </div>
+                                        
+                                        <!-- Moneda -->
+                                        <div class="col-md-6 mb-3">
+                                            <label for="pago_tipo_moneda" class="form-label text-white">
+                                                Moneda <span class="text-danger">*</span>
+                                            </label>
+                                            <select class="form-control bg-dark text-white border-secondary" 
+                                                    id="pago_tipo_moneda" 
+                                                    name="tipo_moneda" 
+                                                    required>
+                                                <option value="">Seleccionar...</option>
+                                            </select>
+                                            <div class="invalid-feedback"></div>
+                                        </div>
+                                        
+                                        <!-- Cantidad -->
+                                        <div class="col-md-6 mb-3">
+                                            <label for="pago_cantidad" class="form-label text-white">
+                                                Cantidad <span class="text-danger">*</span>
+                                            </label>
+                                            <input type="number" 
+                                                   class="form-control bg-dark text-white border-secondary" 
+                                                   id="pago_cantidad" 
+                                                   name="cantidad" 
+                                                   step="0.01" 
+                                                   placeholder="0.00"
+                                                   required>
+                                            <div class="invalid-feedback"></div>
+                                        </div>
+                                        
+                                        <!-- Destinatario -->
+                                        <div class="col-md-6 mb-3">
+                                            <label for="pago_destinatario" class="form-label text-white">
+                                                Destinatario <span class="text-danger">*</span>
+                                            </label>
+                                            <input type="text" 
+                                                   class="form-control bg-dark text-white border-secondary" 
+                                                   id="pago_destinatario" 
+                                                   name="destinatario" 
+                                                   placeholder="Nombre completo"
+                                                   required>
+                                            <div class="invalid-feedback"></div>
+                                        </div>
+                                        
+                                        <!-- Teléfono -->
+                                        <div class="col-md-6 mb-3" id="pago_div_telefono">
+                                            <label for="pago_telefono" class="form-label text-white">
+                                                Teléfono <span class="text-danger" id="pago_telefono_required" style="display: none;">*</span>
+                                            </label>
+                                            <input type="text" 
+                                                   class="form-control bg-dark text-white border-secondary" 
+                                                   id="pago_telefono" 
+                                                   name="telefono" 
+                                                   placeholder="+1234567890">
+                                            <div class="invalid-feedback"></div>
+                                        </div>
+                                        
+                                        <!-- Dirección -->
+                                        <div class="col-md-6 mb-3" id="pago_div_direccion">
+                                            <label for="pago_direccion" class="form-label text-white">
+                                                Dirección <span class="text-danger" id="pago_direccion_required" style="display: none;">*</span>
+                                            </label>
+                                            <textarea class="form-control bg-dark text-white border-secondary" 
+                                                      id="pago_direccion" 
+                                                      name="direccion" 
+                                                      rows="2" 
+                                                      placeholder="Dirección completa"></textarea>
+                                            <div class="invalid-feedback"></div>
+                                        </div>
+                                        
+                                        <!-- Cédula/Documento -->
+                                        <div class="col-md-6 mb-3">
+                                            <label for="pago_carnet_identidad" class="form-label text-white">
+                                                Cédula/Documento
+                                            </label>
+                                            <input type="text" 
+                                                   class="form-control bg-dark text-white border-secondary" 
+                                                   id="pago_carnet_identidad" 
+                                                   name="carnet_identidad" 
+                                                   placeholder="Número de identificación">
+                                            <div class="invalid-feedback"></div>
+                                        </div>
+                                        
+                                        <!-- Número de Tarjeta -->
+                                        <div class="col-md-6 mb-3" id="pago_div_tarjeta" style="display: none;">
+                                            <label for="pago_tarjeta" class="form-label text-white">
+                                                Número de Tarjeta <span class="text-danger">*</span>
+                                            </label>
+                                            <input type="text" 
+                                                   class="form-control bg-dark text-white border-secondary" 
+                                                   id="pago_tarjeta" 
+                                                   name="tarjeta" 
+                                                   placeholder="1234-5678-9012-3456"
+                                                   maxlength="19">
+                                            <div class="invalid-feedback"></div>
+                                        </div>
+                                        
+                                        <!-- Comprobante -->
+                                        <div class="col-md-6 mb-3">
+                                            <label for="pago_comprobante_pago" class="form-label text-white">
+                                                Comprobante de Pago
+                                            </label>
+                                            <input type="file" 
+                                                   class="form-control bg-dark text-white border-secondary" 
+                                                   id="pago_comprobante_pago" 
+                                                   name="comprobante_pago" 
+                                                   accept="image/*">
+                                            <div class="invalid-feedback"></div>
+                                        </div>
+                                        
+                                        <!-- Observaciones -->
+                                        <div class="col-12 mb-3">
+                                            <label for="pago_observaciones" class="form-label text-white">
+                                                Observaciones
+                                            </label>
+                                            <textarea class="form-control bg-dark text-white border-secondary" 
+                                                      id="pago_observaciones" 
+                                                      name="observaciones" 
+                                                      rows="2" 
+                                                      placeholder="Observaciones adicionales (opcional)"></textarea>
+                                            <div class="invalid-feedback"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="d-flex justify-content-end gap-2">
+                                        <button type="button" class="btn btn-secondary" id="btnCancelarPago">
+                                            <i class="fas fa-times me-2"></i>Cancelar
+                                        </button>
+                                        <button type="submit" class="btn btn-success" id="btnGuardarPago">
+                                            <i class="fas fa-save me-2"></i>Agregar Pago
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Lista de pagos temporales -->
+                    <div id="listaPagosTemporales">
+                        <div class="alert alert-info mb-0">
+                            <i class="fas fa-info-circle me-2"></i>
+                            No hay pagos agregados todavía. Use el botón "Agregar Pago" para añadir pagos a esta remesa.
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -1088,19 +1276,36 @@ function enviarRemesa() {
         if (result.success) {
             cambiarEstadoBoton('success', '¡Guardado!', 'fas fa-check me-2');
             
+            // Guardar el ID de la remesa creada
+            remesaCreada = {
+                id: result.remesa_pk,  // ID numérico
+                remesa_numero: result.remesa_id  // ID formato texto
+            };
+            
             Swal.fire({
                 title: '¡Remesa creada exitosamente!',
-                text: result.message,
+                text: '¿Desea agregar pagos a esta remesa?',
                 icon: 'success',
-                confirmButtonText: 'Aceptar',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, agregar pagos',
+                cancelButtonText: 'No, terminar',
                 confirmButtonColor: '#198754',
+                cancelButtonColor: '#6c757d',
                 background: '#212529',
                 color: '#fff',
                 allowOutsideClick: false,
                 allowEscapeKey: false
             }).then((swalResult) => {
                 if (swalResult.isConfirmed) {
-                    // Redirigir a la lista de transacciones con la pestaña de remesas activa
+                    // Mostrar sección de pagos
+                    mostrarSeccionPagos();
+                    // Deshabilitar el formulario de remesa
+                    document.getElementById('formRemesa').style.opacity = '0.5';
+                    document.getElementById('formRemesa').style.pointerEvents = 'none';
+                    // Scroll a la sección de pagos
+                    document.getElementById('seccionPagos').scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    // Redirigir a la lista de transacciones
                     window.location.href = '/remesas/registro/?tab=remesas';
                 }
             });
@@ -1140,6 +1345,370 @@ function enviarRemesa() {
         });
     });
 }
+
+// ============ FUNCIONALIDAD DE PAGOS DE REMESA ============
+
+// Variable para almacenar la remesa creada
+let remesaCreada = null;
+// Array para almacenar pagos temporales
+let pagosTemporales = [];
+
+function mostrarSeccionPagos() {
+    document.getElementById('seccionPagos').style.display = 'block';
+    // Cargar monedas en el select de pagos
+    cargarMonedasPago();
+}
+
+function cargarMonedasPago() {
+    fetch('/remesas/api/monedas/')
+        .then(response => response.json())
+        .then(data => {
+            const select = document.getElementById('pago_tipo_moneda');
+            select.innerHTML = '<option value="">Seleccionar...</option>';
+            
+            data.forEach(moneda => {
+                const option = document.createElement('option');
+                option.value = moneda.id;
+                option.textContent = moneda.nombre;
+                select.appendChild(option);
+            });
+        })
+        .catch(error => {
+            console.error('Error cargando monedas:', error);
+        });
+}
+
+// Mostrar/Ocultar formulario de pago
+const btnMostrarFormulario = document.getElementById('btnMostrarFormularioPago');
+const btnCerrarFormulario = document.getElementById('btnCerrarFormularioPago');
+const btnCancelarPago = document.getElementById('btnCancelarPago');
+const formularioPagoRemesa = document.getElementById('formularioPagoRemesa');
+const formPagoRemesa = document.getElementById('formPagoRemesa');
+
+if (btnMostrarFormulario) {
+    btnMostrarFormulario.addEventListener('click', function() {
+        formularioPagoRemesa.style.display = 'block';
+        this.style.display = 'none';
+    });
+}
+
+function ocultarFormularioPago() {
+    if (formularioPagoRemesa) {
+        formularioPagoRemesa.style.display = 'none';
+    }
+    if (btnMostrarFormulario) {
+        btnMostrarFormulario.style.display = 'inline-block';
+    }
+    if (formPagoRemesa) {
+        formPagoRemesa.reset();
+        // Limpiar mensajes de error
+        const invalidFeedbacks = formPagoRemesa.querySelectorAll('.invalid-feedback');
+        invalidFeedbacks.forEach(feedback => {
+            feedback.textContent = '';
+            feedback.style.display = 'none';
+        });
+        const inputs = formPagoRemesa.querySelectorAll('.is-invalid');
+        inputs.forEach(input => input.classList.remove('is-invalid'));
+    }
+}
+
+if (btnCerrarFormulario) {
+    btnCerrarFormulario.addEventListener('click', ocultarFormularioPago);
+}
+
+if (btnCancelarPago) {
+    btnCancelarPago.addEventListener('click', ocultarFormularioPago);
+}
+
+// Manejar cambio de tipo de pago (mostrar/ocultar campos)
+const pagoTipoPagoSelect = document.getElementById('pago_tipo_pago');
+const pagoDivTarjeta = document.getElementById('pago_div_tarjeta');
+
+if (pagoTipoPagoSelect) {
+    pagoTipoPagoSelect.addEventListener('change', function() {
+        if (this.value === 'transferencia') {
+            pagoDivTarjeta.style.display = 'block';
+            document.getElementById('pago_telefono_required').style.display = 'none';
+            document.getElementById('pago_direccion_required').style.display = 'none';
+        } else if (this.value === 'efectivo') {
+            pagoDivTarjeta.style.display = 'none';
+            document.getElementById('pago_telefono_required').style.display = 'inline';
+            document.getElementById('pago_direccion_required').style.display = 'inline';
+        }
+    });
+}
+
+// Enviar formulario de pago
+if (formPagoRemesa) {
+    formPagoRemesa.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        if (!remesaCreada) {
+            Swal.fire({
+                title: 'Error',
+                text: 'Primero debe crear la remesa',
+                icon: 'error',
+                background: '#212529',
+                color: '#fff'
+            });
+            return;
+        }
+        
+        const btnGuardar = document.getElementById('btnGuardarPago');
+        const originalText = btnGuardar.innerHTML;
+        btnGuardar.disabled = true;
+        btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Guardando...';
+        
+        // Crear FormData con los datos del formulario
+        const formData = new FormData(this);
+        
+        // Enviar petición AJAX
+        fetch(`/remesas/pagos-remesa/crear/${remesaCreada.id}/`, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': getCSRFToken(),
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            btnGuardar.disabled = false;
+            btnGuardar.innerHTML = originalText;
+            
+            if (data.success) {
+                // Agregar pago a la lista temporal
+                const pagoData = {
+                    pago_id: data.pago_id,
+                    pago_pk: data.pago_pk,
+                    destinatario: formData.get('destinatario'),
+                    cantidad: formData.get('cantidad'),
+                    tipo_pago: formData.get('tipo_pago'),
+                    moneda_id: formData.get('tipo_moneda')
+                };
+                pagosTemporales.push(pagoData);
+                
+                // Actualizar la lista visual
+                actualizarListaPagos();
+                
+                // Limpiar y ocultar formulario
+                ocultarFormularioPago();
+                
+                Swal.fire({
+                    title: '¡Éxito!',
+                    text: data.message,
+                    icon: 'success',
+                    background: '#212529',
+                    color: '#fff',
+                    confirmButtonColor: '#198754',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            } else {
+                // Mostrar errores del formulario
+                if (data.errors) {
+                    for (const [field, errors] of Object.entries(data.errors)) {
+                        const input = document.getElementById(`pago_${field}`);
+                        if (input) {
+                            input.classList.add('is-invalid');
+                            const feedback = input.parentElement.querySelector('.invalid-feedback');
+                            if (feedback) {
+                                feedback.textContent = errors.join(', ');
+                                feedback.style.display = 'block';
+                            }
+                        }
+                    }
+                }
+                
+                Swal.fire({
+                    title: 'Error',
+                    text: data.message,
+                    icon: 'error',
+                    background: '#212529',
+                    color: '#fff',
+                    confirmButtonColor: '#dc3545'
+                });
+            }
+        })
+        .catch(error => {
+            btnGuardar.disabled = false;
+            btnGuardar.innerHTML = originalText;
+            
+            Swal.fire({
+                title: 'Error',
+                text: 'Error al enviar el formulario: ' + error.message,
+                icon: 'error',
+                background: '#212529',
+                color: '#fff',
+                confirmButtonColor: '#dc3545'
+            });
+        });
+    });
+}
+
+function actualizarListaPagos() {
+    const lista = document.getElementById('listaPagosTemporales');
+    
+    if (pagosTemporales.length === 0) {
+        lista.innerHTML = `
+            <div class="alert alert-info mb-0">
+                <i class="fas fa-info-circle me-2"></i>
+                No hay pagos agregados todavía. Use el botón "Agregar Pago" para añadir pagos a esta remesa.
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>ID Pago</th>
+                        <th>Destinatario</th>
+                        <th>Cantidad</th>
+                        <th>Tipo</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    pagosTemporales.forEach((pago, index) => {
+        const tipoPagoTexto = pago.tipo_pago === 'transferencia' ? 'Transferencia' : 'Efectivo';
+        const tipoBadge = pago.tipo_pago === 'transferencia' ? 'info' : 'warning';
+        
+        html += `
+            <tr>
+                <td><small>${pago.pago_id}</small></td>
+                <td>${pago.destinatario}</td>
+                <td><strong class="text-success">${parseFloat(pago.cantidad).toFixed(2)}</strong></td>
+                <td><span class="badge badge-${tipoBadge}">${tipoPagoTexto}</span></td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="eliminarPagoTemporal(${pago.pago_pk})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-3 d-flex justify-content-end">
+            <button type="button" class="btn btn-primary" onclick="finalizarYVolver()">
+                <i class="fas fa-check me-2"></i>Finalizar y Ver Remesa
+            </button>
+        </div>
+    `;
+    
+    lista.innerHTML = html;
+}
+
+function eliminarPagoTemporal(pagoPk) {
+    Swal.fire({
+        title: '¿Eliminar Pago?',
+        text: '¿Está seguro que desea eliminar este pago?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar',
+        background: '#212529',
+        color: '#fff'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            fetch(`/remesas/pagos-remesa/eliminar/${pagoPk}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCSRFToken(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Eliminar del array temporal
+                    pagosTemporales = pagosTemporales.filter(p => p.pago_pk !== pagoPk);
+                    actualizarListaPagos();
+                    
+                    Swal.fire({
+                        title: '¡Eliminado!',
+                        text: data.message,
+                        icon: 'success',
+                        background: '#212529',
+                        color: '#fff',
+                        confirmButtonColor: '#198754',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                } else {
+                    Swal.fire({
+                        title: 'Error',
+                        text: data.message,
+                        icon: 'error',
+                        background: '#212529',
+                        color: '#fff',
+                        confirmButtonColor: '#dc3545'
+                    });
+                }
+            })
+            .catch(error => {
+                Swal.fire({
+                    title: 'Error',
+                    text: 'Error al eliminar el pago: ' + error.message,
+                    icon: 'error',
+                    background: '#212529',
+                    color: '#fff',
+                    confirmButtonColor: '#dc3545'
+                });
+            });
+        }
+    });
+}
+
+function finalizarYVolver() {
+    Swal.fire({
+        title: 'Remesa Completada',
+        text: `Se ha creado la remesa con ${pagosTemporales.length} pago(s) enlazado(s).`,
+        icon: 'success',
+        confirmButtonText: 'Ver Remesa',
+        confirmButtonColor: '#198754',
+        background: '#212529',
+        color: '#fff'
+    }).then(() => {
+        if (remesaCreada && remesaCreada.id) {
+            window.location.href = `/remesas/detalle/${remesaCreada.id}/`;
+        } else {
+            window.location.href = '/remesas/registro/?tab=remesas';
+        }
+    });
+}
+
+function getCSRFToken() {
+    let csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+    if (csrfToken) {
+        return csrfToken.value;
+    }
+    
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, 10) === 'csrftoken=') {
+                cookieValue = decodeURIComponent(cookie.substring(10));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
 </script>
 
 {% endblock %}

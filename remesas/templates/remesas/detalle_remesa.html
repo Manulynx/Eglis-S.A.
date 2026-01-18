@@ -245,51 +245,511 @@
                 </div>
             </div>
 
-            <!-- Historial de la remesa -->
-            {% if registros %}
-            <div class="card bg-dark border-secondary mt-3">
-                <div class="card-header bg-info text-white">
+
+
+            <!-- Pagos Enlazados a la Remesa -->
+            <div class="card bg-dark border-secondary mt-3" id="pagos">
+                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
                     <h6 class="mb-0">
-                        <i class="fas fa-history mr-1"></i>
-                        Historial de Movimientos
+                        <i class="fas fa-money-bill-wave mr-1"></i>
+                        Pagos Enlazados a esta Remesa
                     </h6>
+                    {% if remesa.estado == 'pendiente' or user_tipo == 'admin' or user_tipo == 'contable' %}
+                    <button type="button" class="btn btn-sm btn-light" id="btnMostrarFormularioPago">
+                        <i class="fas fa-plus mr-1"></i>
+                        Agregar Pago
+                    </button>
+                    {% endif %}
                 </div>
                 <div class="card-body p-2 p-md-3">
-                    <div class="table-responsive">
-                        <table class="table table-dark table-hover mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Fecha</th>
-                                    <th>Tipo</th>
-                                    <th>Usuario</th>
-                                    <th class="d-none d-md-table-cell">Detalles</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for registro in registros %}
-                                <tr>
-                                    <td>
-                                        <small>{{ registro.fecha_registro|date:"d/m/Y" }}</small>
-                                        <br>
-                                        <small class="text-muted">{{ registro.fecha_registro|date:"H:i" }}</small>
-                                    </td>
-                                    <td>
-                                        <span class="badge badge-{{ registro.get_tipo_badge|default:'secondary' }}">
-                                            {{ registro.get_tipo_display|default:registro.tipo }}
+                    <!-- Formulario para crear pago (inicialmente oculto) -->
+                    <div id="formularioPagoRemesa" style="display: none;" class="mb-4">
+                        <div class="card bg-secondary">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0 text-white">Nuevo Pago para Remesa {{ remesa.remesa_id }}</h6>
+                                <button type="button" class="btn btn-sm btn-danger" id="btnCerrarFormularioPago">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <form id="formPagoRemesa" enctype="multipart/form-data">
+                                    {% csrf_token %}
+                                    <div class="row">
+                                        <!-- Tipo de Pago -->
+                                        <div class="col-md-6 mb-3">
+                                            <label for="{{ form_pago_remesa.tipo_pago.id_for_label }}" class="form-label text-white">
+                                                {{ form_pago_remesa.tipo_pago.label }}
+                                                <span class="text-danger">*</span>
+                                            </label>
+                                            {{ form_pago_remesa.tipo_pago }}
+                                            <div class="invalid-feedback"></div>
+                                        </div>
+                                        
+                                        <!-- Moneda -->
+                                        <div class="col-md-6 mb-3">
+                                            <label for="{{ form_pago_remesa.tipo_moneda.id_for_label }}" class="form-label text-white">
+                                                {{ form_pago_remesa.tipo_moneda.label }}
+                                                <span class="text-danger">*</span>
+                                            </label>
+                                            {{ form_pago_remesa.tipo_moneda }}
+                                            <div class="invalid-feedback"></div>
+                                        </div>
+                                        
+                                        <!-- Cantidad -->
+                                        <div class="col-md-6 mb-3">
+                                            <label for="{{ form_pago_remesa.cantidad.id_for_label }}" class="form-label text-white">
+                                                {{ form_pago_remesa.cantidad.label }}
+                                                <span class="text-danger">*</span>
+                                            </label>
+                                            {{ form_pago_remesa.cantidad }}
+                                            <div class="invalid-feedback"></div>
+                                        </div>
+                                        
+                                        <!-- Destinatario -->
+                                        <div class="col-md-6 mb-3">
+                                            <label for="{{ form_pago_remesa.destinatario.id_for_label }}" class="form-label text-white">
+                                                {{ form_pago_remesa.destinatario.label }}
+                                                <span class="text-danger">*</span>
+                                            </label>
+                                            {{ form_pago_remesa.destinatario }}
+                                            <div class="invalid-feedback"></div>
+                                        </div>
+                                        
+                                        <!-- Teléfono -->
+                                        <div class="col-md-6 mb-3" id="div_telefono">
+                                            <label for="{{ form_pago_remesa.telefono.id_for_label }}" class="form-label text-white">
+                                                {{ form_pago_remesa.telefono.label }}
+                                                <span class="text-danger" id="telefono_required" style="display: none;">*</span>
+                                            </label>
+                                            {{ form_pago_remesa.telefono }}
+                                            <div class="invalid-feedback"></div>
+                                        </div>
+                                        
+                                        <!-- Dirección -->
+                                        <div class="col-md-6 mb-3" id="div_direccion">
+                                            <label for="{{ form_pago_remesa.direccion.id_for_label }}" class="form-label text-white">
+                                                {{ form_pago_remesa.direccion.label }}
+                                                <span class="text-danger" id="direccion_required" style="display: none;">*</span>
+                                            </label>
+                                            {{ form_pago_remesa.direccion }}
+                                            <div class="invalid-feedback"></div>
+                                        </div>
+                                        
+                                        <!-- Cédula/Documento -->
+                                        <div class="col-md-6 mb-3">
+                                            <label for="{{ form_pago_remesa.carnet_identidad.id_for_label }}" class="form-label text-white">
+                                                {{ form_pago_remesa.carnet_identidad.label }}
+                                            </label>
+                                            {{ form_pago_remesa.carnet_identidad }}
+                                            <div class="invalid-feedback"></div>
+                                        </div>
+                                        
+                                        <!-- Número de Tarjeta -->
+                                        <div class="col-md-6 mb-3" id="div_tarjeta" style="display: none;">
+                                            <label for="{{ form_pago_remesa.tarjeta.id_for_label }}" class="form-label text-white">
+                                                {{ form_pago_remesa.tarjeta.label }}
+                                                <span class="text-danger">*</span>
+                                            </label>
+                                            {{ form_pago_remesa.tarjeta }}
+                                            <div class="invalid-feedback"></div>
+                                        </div>
+                                        
+                                        <!-- Comprobante -->
+                                        <div class="col-md-6 mb-3">
+                                            <label for="{{ form_pago_remesa.comprobante_pago.id_for_label }}" class="form-label text-white">
+                                                {{ form_pago_remesa.comprobante_pago.label }}
+                                            </label>
+                                            {{ form_pago_remesa.comprobante_pago }}
+                                            <div class="invalid-feedback"></div>
+                                        </div>
+                                        
+                                        <!-- Observaciones -->
+                                        <div class="col-12 mb-3">
+                                            <label for="{{ form_pago_remesa.observaciones.id_for_label }}" class="form-label text-white">
+                                                {{ form_pago_remesa.observaciones.label }}
+                                            </label>
+                                            {{ form_pago_remesa.observaciones }}
+                                            <div class="invalid-feedback"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="d-flex justify-content-end gap-2">
+                                        <button type="button" class="btn btn-secondary" id="btnCancelarPago">
+                                            <i class="fas fa-times mr-1"></i>Cancelar
+                                        </button>
+                                        <button type="submit" class="btn btn-success" id="btnGuardarPago">
+                                            <i class="fas fa-save mr-1"></i>Guardar Pago
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Lista de pagos enlazados -->
+                    <div id="listaPagosEnlazados">
+                        {% if pagos_enlazados %}
+                        <!-- Vista Desktop -->
+                        <div class="d-none d-lg-block">
+                            {% for pago in pagos_enlazados %}
+                            <div class="card bg-secondary border-secondary mb-3" id="pago-{{ pago.id }}">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <span class="badge badge-primary mr-2">{{ pago.pago_id }}</span>
+                                        <span class="badge badge-{% if pago.tipo_pago == 'transferencia' %}info{% else %}warning{% endif %}">
+                                            {{ pago.get_tipo_pago_display }}
                                         </span>
-                                    </td>
-                                    <td>{{ registro.usuario_registro|default:"Sistema" }}</td>
-                                    <td class="d-none d-md-table-cell">
-                                        <small class="word-break">{{ registro.detalles|default:"Sin detalles" }}</small>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                                        <span class="badge badge-{% if pago.estado == 'confirmado' %}success{% elif pago.estado == 'pendiente' %}warning{% else %}danger{% endif %}">
+                                            {{ pago.get_estado_display }}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        {% if pago.estado == 'pendiente' %}
+                                            {% if user_tipo == 'admin' or user_tipo == 'contable' or remesa.gestor == request.user %}
+                                            <a href="{% url 'remesas:editar_pago_remesa' pago.id %}" 
+                                               class="btn btn-sm btn-warning mr-1"
+                                               title="Editar pago">
+                                                <i class="fas fa-edit mr-1"></i>Editar
+                                            </a>
+                                            {% endif %}
+                                            {% if remesa.estado == 'completada' %}
+                                                {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                                                <button type="button" class="btn btn-sm btn-success btn-confirmar-pago-remesa"
+                                                        data-pago-id="{{ pago.id }}"
+                                                        data-pago-numero="{{ pago.pago_id }}"
+                                                        title="Confirmar pago">
+                                                    <i class="fas fa-check mr-1"></i>Confirmar
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-danger btn-cancelar-pago-remesa"
+                                                        data-pago-id="{{ pago.id }}"
+                                                        data-pago-numero="{{ pago.pago_id }}"
+                                                        title="Cancelar pago">
+                                                    <i class="fas fa-times mr-1"></i>Cancelar
+                                                </button>
+                                                {% endif %}
+                                            {% else %}
+                                                {% if user_tipo == 'admin' or user_tipo == 'contable' or remesa.gestor == request.user %}
+                                                <button type="button" class="btn btn-sm btn-outline-danger btn-eliminar-pago-remesa" 
+                                                        data-pago-id="{{ pago.id }}" 
+                                                        data-pago-numero="{{ pago.pago_id }}"
+                                                        title="Eliminar pago">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                                {% endif %}
+                                            {% endif %}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="text-muted small">Destinatario:</label>
+                                                <div class="text-white"><strong>{{ pago.destinatario }}</strong></div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="text-muted small">Cantidad:</label>
+                                                <div>
+                                                    <span class="h5 text-success">{{ pago.cantidad|floatformat:2 }}</span>
+                                                    {% if pago.tipo_moneda %}
+                                                    <span class="badge badge-secondary ml-2">{{ pago.tipo_moneda.codigo }}</span>
+                                                    {% endif %}
+                                                </div>
+                                                {% if pago.monto_usd_historico %}
+                                                <small class="text-muted">Equiv. USD: ${{ pago.monto_usd_historico|floatformat:2 }}</small>
+                                                {% endif %}
+                                            </div>
+                                            {% if pago.telefono %}
+                                            <div class="mb-3">
+                                                <label class="text-muted small">Teléfono:</label>
+                                                <div class="text-white">
+                                                    <i class="fas fa-phone mr-1"></i>
+                                                    <a href="tel:{{ pago.telefono }}" class="text-info">{{ pago.telefono }}</a>
+                                                </div>
+                                            </div>
+                                            {% endif %}
+                                            {% if pago.carnet_identidad %}
+                                            <div class="mb-3">
+                                                <label class="text-muted small">CI/Documento:</label>
+                                                <div class="text-white">{{ pago.carnet_identidad }}</div>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        <div class="col-md-6">
+                                            {% if pago.tarjeta %}
+                                            <div class="mb-3">
+                                                <label class="text-muted small">Número de Tarjeta:</label>
+                                                <div class="text-white">
+                                                    <i class="fas fa-credit-card mr-1"></i>{{ pago.tarjeta }}
+                                                </div>
+                                            </div>
+                                            {% endif %}
+                                            {% if pago.direccion %}
+                                            <div class="mb-3">
+                                                <label class="text-muted small">Dirección:</label>
+                                                <div class="text-white">{{ pago.direccion }}</div>
+                                            </div>
+                                            {% endif %}
+                                            <div class="mb-3">
+                                                <label class="text-muted small">Fecha de Creación:</label>
+                                                <div class="text-white">
+                                                    <i class="fas fa-calendar mr-1"></i>
+                                                    {{ pago.fecha_creacion|date:"d/m/Y H:i" }}
+                                                </div>
+                                            </div>
+                                            {% if pago.usuario %}
+                                            <div class="mb-3">
+                                                <label class="text-muted small">Creado por:</label>
+                                                <div class="text-white">
+                                                    <i class="fas fa-user mr-1"></i>
+                                                    {{ pago.usuario.get_full_name|default:pago.usuario.username }}
+                                                </div>
+                                            </div>
+                                            {% endif %}
+                                            {% if pago.editado %}
+                                            <div class="mb-3">
+                                                <span class="badge badge-warning">
+                                                    <i class="fas fa-edit mr-1"></i>Editado
+                                                </span>
+                                                {% if pago.fecha_edicion %}
+                                                <small class="text-muted d-block">{{ pago.fecha_edicion|date:"d/m/Y H:i" }}</small>
+                                                {% endif %}
+                                                {% if pago.usuario_editor %}
+                                                <small class="text-muted d-block">Por: {{ pago.usuario_editor.get_full_name|default:pago.usuario_editor.username }}</small>
+                                                {% endif %}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    {% if pago.observaciones %}
+                                    <div class="row">
+                                        <div class="col-12">
+                                            <label class="text-muted small">Observaciones:</label>
+                                            <div class="text-white">{{ pago.observaciones }}</div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    {% if pago.comprobante_pago %}
+                                    <div class="row mt-3">
+                                        <div class="col-12">
+                                            <label class="text-muted small">Comprobante:</label>
+                                            <div class="text-center">
+                                                <img src="{{ pago.comprobante_pago.url }}" 
+                                                     alt="Comprobante" 
+                                                     class="img-fluid rounded border border-secondary"
+                                                     style="max-height: 200px; cursor: pointer;"
+                                                     onclick="mostrarComprobanteCompleto('{{ pago.comprobante_pago.url }}')">
+                                                <div class="mt-2">
+                                                    <a href="{{ pago.comprobante_pago.url }}" target="_blank" class="btn btn-sm btn-outline-light">
+                                                        <i class="fas fa-eye mr-1"></i>Ver
+                                                    </a>
+                                                    <a href="{{ pago.comprobante_pago.url }}" download class="btn btn-sm btn-outline-success">
+                                                        <i class="fas fa-download mr-1"></i>Descargar
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <!-- Vista Mobile/Tablet -->
+                        <div class="d-lg-none">
+                            {% for pago in pagos_enlazados %}
+                            <div class="card bg-secondary border-secondary mb-3" id="pago-{{ pago.id }}">
+                                <div class="card-header">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div style="flex: 1;">
+                                            <div class="mb-2">
+                                                <span class="badge badge-primary d-inline-block">{{ pago.pago_id }}</span>
+                                            </div>
+                                            <div>
+                                                <span class="badge badge-{% if pago.tipo_pago == 'transferencia' %}info{% else %}warning{% endif %}">
+                                                    <i class="fas fa-{% if pago.tipo_pago == 'transferencia' %}exchange-alt{% else %}money-bill-wave{% endif %}"></i>
+                                                    {{ pago.get_tipo_pago_display }}
+                                                </span>
+                                                <span class="badge badge-{% if pago.estado == 'confirmado' %}success{% elif pago.estado == 'pendiente' %}warning{% else %}danger{% endif %}">
+                                                    <i class="fas fa-{% if pago.estado == 'confirmado' %}check-circle{% elif pago.estado == 'pendiente' %}clock{% else %}times-circle{% endif %}"></i>
+                                                    {{ pago.get_estado_display }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="text-end" style="margin-left: 0.5rem;">
+                                            <div class="h5 text-success mb-1" style="white-space: nowrap;">
+                                                ${{ pago.cantidad|floatformat:2 }}
+                                            </div>
+                                            {% if pago.tipo_moneda %}
+                                            <span class="badge badge-secondary" style="font-size: 0.7rem;">{{ pago.tipo_moneda.codigo }}</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <!-- Destinatario -->
+                                    <div class="mb-2 pb-2 border-bottom border-secondary">
+                                        <small class="text-muted small d-block mb-1">Destinatario:</small>
+                                        <strong class="text-white d-block">{{ pago.destinatario }}</strong>
+                                    </div>
+                                    
+                                    <!-- Información de contacto -->
+                                    {% if pago.telefono or pago.carnet_identidad %}
+                                    <div class="mb-2 pb-2 border-bottom border-secondary">
+                                        {% if pago.telefono %}
+                                        <div class="mb-1">
+                                            <small class="text-muted small">Teléfono:</small>
+                                            <a href="tel:{{ pago.telefono }}" class="text-info d-block">
+                                                <i class="fas fa-phone"></i> {{ pago.telefono }}
+                                            </a>
+                                        </div>
+                                        {% endif %}
+                                        {% if pago.carnet_identidad %}
+                                        <div class="mb-1">
+                                            <small class="text-muted small">CI/Documento:</small>
+                                            <span class="text-white d-block">{{ pago.carnet_identidad }}</span>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- Dirección -->
+                                    {% if pago.direccion %}
+                                    <div class="mb-2 pb-2 border-bottom border-secondary">
+                                        <small class="text-muted small d-block mb-1">Dirección:</small>
+                                        <span class="text-white d-block" style="font-size: 0.85rem;">{{ pago.direccion }}</span>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- Tarjeta (para transferencias) -->
+                                    {% if pago.tarjeta %}
+                                    <div class="mb-2 pb-2 border-bottom border-secondary">
+                                        <small class="text-muted small d-block mb-1">Número de Tarjeta:</small>
+                                        <span class="text-white d-block">
+                                            <i class="fas fa-credit-card text-info"></i> {{ pago.tarjeta }}
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- Equivalente USD -->
+                                    {% if pago.monto_usd_historico %}
+                                    <div class="mb-2 pb-2 border-bottom border-secondary">
+                                        <small class="text-muted small d-block mb-1">Equivalente USD:</small>
+                                        <span class="text-success d-block" style="font-weight: 600;">
+                                            ${{ pago.monto_usd_historico|floatformat:2 }} USD
+                                        </span>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- Fecha y usuario -->
+                                    <div class="mb-2 pb-2 border-bottom border-secondary">
+                                        <div class="d-flex justify-content-between align-items-start flex-wrap">
+                                            <div style="flex: 1; min-width: 0;">
+                                                <small class="text-muted small d-block mb-1">Fecha:</small>
+                                                <span class="text-white d-block" style="font-size: 0.8rem;">
+                                                    <i class="fas fa-calendar"></i> {{ pago.fecha_creacion|date:"d/m/Y H:i" }}
+                                                </span>
+                                            </div>
+                                            {% if pago.usuario %}
+                                            <div style="margin-left: 0.5rem; flex: 1; min-width: 0;">
+                                                <small class="text-muted small d-block mb-1">Creado por:</small>
+                                                <span class="text-white d-block" style="font-size: 0.8rem;">
+                                                    <i class="fas fa-user"></i> {{ pago.usuario.get_full_name|default:pago.usuario.username|truncatechars:20 }}
+                                                </span>
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Observaciones -->
+                                    {% if pago.observaciones %}
+                                    <div class="mb-2 pb-2 border-bottom border-secondary">
+                                        <small class="text-muted small d-block mb-1">Observaciones:</small>
+                                        <span class="text-white d-block" style="font-size: 0.85rem;">{{ pago.observaciones }}</span>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- Editado -->
+                                    {% if pago.editado %}
+                                    <div class="mb-2 pb-2 border-bottom border-secondary">
+                                        <span class="badge badge-warning d-inline-block mb-1">
+                                            <i class="fas fa-edit"></i> Editado
+                                        </span>
+                                        {% if pago.fecha_edicion %}
+                                        <small class="text-muted d-block" style="font-size: 0.7rem;">{{ pago.fecha_edicion|date:"d/m/Y H:i" }}</small>
+                                        {% endif %}
+                                        {% if pago.usuario_editor %}
+                                        <small class="text-muted d-block" style="font-size: 0.7rem;">Por: {{ pago.usuario_editor.get_full_name|default:pago.usuario_editor.username }}</small>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- Comprobante -->
+                                    {% if pago.comprobante_pago %}
+                                    <div class="mb-3 text-center">
+                                        <small class="text-muted small d-block mb-2">Comprobante de Pago:</small>
+                                        <img src="{{ pago.comprobante_pago.url }}" 
+                                             alt="Comprobante" 
+                                             class="img-fluid rounded border border-secondary"
+                                             style="max-height: 150px; cursor: pointer;"
+                                             onclick="mostrarComprobanteCompleto('{{ pago.comprobante_pago.url }}')">
+                                        <div class="mt-2">
+                                            <a href="{{ pago.comprobante_pago.url }}" target="_blank" class="btn btn-sm btn-outline-info">
+                                                <i class="fas fa-eye"></i> Ver
+                                            </a>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <!-- Botones de acción -->
+                                    <div class="mt-3 pt-2 border-top border-secondary">
+                                        <div class="d-flex gap-2 flex-wrap">
+                                            {% if pago.estado == 'pendiente' %}
+                                                {% if user_tipo == 'admin' or user_tipo == 'contable' or remesa.gestor == request.user %}
+                                                <a href="{% url 'remesas:editar_pago_remesa' pago.id %}" 
+                                                   class="btn btn-sm btn-warning flex-fill">
+                                                    <i class="fas fa-edit"></i> Editar
+                                                </a>
+                                                {% endif %}
+                                                {% if remesa.estado == 'completada' %}
+                                                    {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                                                    <button type="button" class="btn btn-sm btn-success flex-fill btn-confirmar-pago-remesa"
+                                                            data-pago-id="{{ pago.id }}"
+                                                            data-pago-numero="{{ pago.pago_id }}">
+                                                        <i class="fas fa-check"></i> Confirmar
+                                                    </button>
+                                                    <button type="button" class="btn btn-sm btn-danger flex-fill btn-cancelar-pago-remesa"
+                                                            data-pago-id="{{ pago.id }}"
+                                                            data-pago-numero="{{ pago.pago_id }}">
+                                                        <i class="fas fa-times"></i> Cancelar
+                                                    </button>
+                                                    {% endif %}
+                                                {% else %}
+                                                    {% if user_tipo == 'admin' or user_tipo == 'contable' or remesa.gestor == request.user %}
+                                                    <button type="button" class="btn btn-sm btn-outline-danger flex-fill btn-eliminar-pago-remesa" 
+                                                            data-pago-id="{{ pago.id }}" 
+                                                            data-pago-numero="{{ pago.pago_id }}">
+                                                        <i class="fas fa-trash"></i> Eliminar
+                                                    </button>
+                                                    {% endif %}
+                                                {% endif %}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="alert alert-info mb-0">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            No hay pagos enlazados a esta remesa todavía.
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
-            {% endif %}
 
             <!-- Información adicional - Resumen 
             <div class="card bg-dark border-secondary mt-3">
@@ -343,7 +803,7 @@
 </div>
 
 <style>
-/* Estilos responsive para mobile */
+/* ========== ESTILOS GENERALES ========== */
 .gap-2 {
     gap: 0.5rem !important;
 }
@@ -355,6 +815,7 @@
 .badge-lg {
     font-size: 0.875rem;
     padding: 0.5rem 0.75rem;
+    font-weight: 600;
 }
 
 .word-break {
@@ -371,13 +832,198 @@
     max-height: 300px;
     cursor: pointer;
     transition: transform 0.2s;
+    border: 2px solid rgba(255, 255, 255, 0.1);
 }
 
 .comprobante-img:hover {
     transform: scale(1.02);
+    border-color: rgba(255, 255, 255, 0.3);
 }
 
-/* Media queries para diferentes dispositivos */
+/* ========== TARJETAS DE PAGOS ========== */
+.card.bg-secondary {
+    background: linear-gradient(145deg, #2d3238 0%, #1f2226 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+}
+
+.card.bg-secondary:hover {
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+    border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.card.bg-secondary .card-header {
+    background: linear-gradient(135deg, #3a4149 0%, #2d3238 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 1rem;
+}
+
+.card.bg-secondary .card-body {
+    padding: 1.25rem;
+}
+
+/* ========== BADGES MEJORADOS ========== */
+.badge-primary {
+    background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%) !important;
+    color: #ffffff !important;
+    font-weight: 600;
+    padding: 0.5em 0.8em;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(13, 110, 253, 0.3);
+}
+
+.badge-info {
+    background: linear-gradient(135deg, #0dcaf0 0%, #0aa2c0 100%) !important;
+    color: #000000 !important;
+    font-weight: 600;
+    padding: 0.5em 0.8em;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(13, 202, 240, 0.3);
+}
+
+.badge-warning {
+    background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%) !important;
+    color: #000000 !important;
+    font-weight: 600;
+    padding: 0.5em 0.8em;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(255, 193, 7, 0.3);
+}
+
+.badge-success {
+    background: linear-gradient(135deg, #198754 0%, #146c43 100%) !important;
+    color: #ffffff !important;
+    font-weight: 600;
+    padding: 0.5em 0.8em;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(25, 135, 84, 0.3);
+}
+
+.badge-danger {
+    background: linear-gradient(135deg, #dc3545 0%, #bb2d3b 100%) !important;
+    color: #ffffff !important;
+    font-weight: 600;
+    padding: 0.5em 0.8em;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+}
+
+.badge-secondary {
+    background: linear-gradient(135deg, #6c757d 0%, #565e64 100%) !important;
+    color: #ffffff !important;
+    font-weight: 600;
+    padding: 0.5em 0.8em;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(108, 117, 125, 0.3);
+}
+
+/* ========== TEXTOS Y LABELS ========== */
+.text-muted.small {
+    color: #adb5bd !important;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 0.75rem;
+}
+
+.text-white {
+    color: #f8f9fa !important;
+}
+
+.text-success {
+    color: #20c997 !important;
+    font-weight: 600;
+}
+
+.text-info {
+    color: #0dcaf0 !important;
+}
+
+.h5.text-success {
+    color: #20c997 !important;
+    text-shadow: 0 0 10px rgba(32, 201, 151, 0.3);
+}
+
+/* ========== BOTONES MEJORADOS ========== */
+.btn-success {
+    background: linear-gradient(135deg, #198754 0%, #146c43 100%);
+    border: none;
+    box-shadow: 0 2px 4px rgba(25, 135, 84, 0.3);
+    transition: all 0.3s ease;
+}
+
+.btn-success:hover {
+    background: linear-gradient(135deg, #157347 0%, #0f5132 100%);
+    box-shadow: 0 4px 8px rgba(25, 135, 84, 0.4);
+    transform: translateY(-1px);
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #dc3545 0%, #bb2d3b 100%);
+    border: none;
+    box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+    transition: all 0.3s ease;
+}
+
+.btn-danger:hover {
+    background: linear-gradient(135deg, #bb2d3b 0%, #a02834 100%);
+    box-shadow: 0 4px 8px rgba(220, 53, 69, 0.4);
+    transform: translateY(-1px);
+}
+
+.btn-outline-danger {
+    border-color: #dc3545;
+    color: #dc3545;
+    transition: all 0.3s ease;
+}
+
+.btn-outline-danger:hover {
+    background-color: #dc3545;
+    color: #ffffff;
+    box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+    transform: translateY(-1px);
+}
+
+.btn-outline-light {
+    border-color: rgba(255, 255, 255, 0.3);
+    color: #f8f9fa;
+    transition: all 0.3s ease;
+}
+
+.btn-outline-light:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.5);
+    color: #ffffff;
+}
+
+.btn-outline-success {
+    border-color: #198754;
+    color: #20c997;
+    transition: all 0.3s ease;
+}
+
+.btn-outline-success:hover {
+    background-color: #198754;
+    color: #ffffff;
+    box-shadow: 0 4px 8px rgba(25, 135, 84, 0.3);
+    transform: translateY(-1px);
+}
+
+.btn-outline-info {
+    border-color: #0dcaf0;
+    color: #0dcaf0;
+    transition: all 0.3s ease;
+}
+
+.btn-outline-info:hover {
+    background-color: #0dcaf0;
+    color: #000000;
+    box-shadow: 0 4px 8px rgba(13, 202, 240, 0.3);
+    transform: translateY(-1px);
+}
+
+/* ========== VISTA MÓVIL ========== */
 @media (max-width: 575.98px) {
     /* Mobile */
     .d-flex.flex-wrap.gap-2.justify-content-end {
@@ -387,20 +1033,29 @@
     
     .btn-sm {
         font-size: 0.75rem;
-        padding: 0.25rem 0.5rem;
+        padding: 0.35rem 0.65rem;
+        white-space: nowrap;
     }
     
     .h4 {
         font-size: 1.2rem;
     }
     
+    .h5 {
+        font-size: 1.1rem;
+    }
+    
     .badge-lg {
-        font-size: 0.75rem;
-        padding: 0.375rem 0.5rem;
+        font-size: 0.7rem;
+        padding: 0.35rem 0.5rem;
     }
     
     .card-header h5 {
-        font-size: 1rem;
+        font-size: 0.95rem;
+    }
+    
+    .card-header h6 {
+        font-size: 0.85rem;
     }
     
     .h6 {
@@ -410,21 +1065,73 @@
     .comprobante-img {
         max-height: 200px;
     }
+    
+    /* Ajustes para las tarjetas de pago en móvil */
+    .card.bg-secondary .card-header {
+        padding: 0.75rem;
+    }
+    
+    .card.bg-secondary .card-body {
+        padding: 0.75rem;
+    }
+    
+    .mb-2 {
+        margin-bottom: 0.75rem !important;
+    }
+    
+    /* Mejoras para badges en móvil */
+    .badge {
+        font-size: 0.7rem;
+        padding: 0.35em 0.6em;
+        display: inline-block;
+        margin: 0.15rem 0.15rem 0.15rem 0;
+    }
+    
+    /* Ajustar gap en móvil */
+    .d-flex.gap-2 {
+        gap: 0.35rem !important;
+    }
+    
+    /* Botones en móvil ocupan todo el ancho disponible */
+    .d-flex.gap-2.flex-wrap .btn {
+        flex: 1 1 auto;
+        min-width: fit-content;
+    }
+    
+    /* Texto más pequeño en móvil */
+    small {
+        font-size: 0.75rem;
+    }
+    
+    .text-muted.small {
+        font-size: 0.7rem;
+    }
 }
 
 @media (min-width: 576px) and (max-width: 767.98px) {
     /* Tablet */
     .btn-sm {
         font-size: 0.8rem;
-        padding: 0.375rem 0.75rem;
+        padding: 0.4rem 0.75rem;
     }
     
     .comprobante-img {
         max-height: 250px;
     }
+    
+    .card.bg-secondary .card-body {
+        padding: 1rem;
+    }
 }
 
-@media (min-width: 768px) {
+@media (min-width: 768px) and (max-width: 991.98px) {
+    /* Tablet grande */
+    .comprobante-img {
+        max-height: 300px;
+    }
+}
+
+@media (min-width: 992px) {
     /* Desktop */
     .comprobante-img {
         max-height: 400px;
@@ -437,10 +1144,58 @@
         justify-content: flex-end !important;
         margin-left: auto !important;
     }
+    
+    /* Mejorar espaciado en tarjetas de pago móvil */
+    .card.bg-secondary {
+        margin-bottom: 1rem;
+    }
+}
+
+/* ========== TRANSICIONES Y ANIMACIONES ========== */
+.card, .btn, .badge {
+    transition: all 0.3s ease;
+}
+
+/* ========== ICONOS ========== */
+.fas, .fa {
+    margin-right: 0.35rem;
+}
+
+/* ========== MEJORAS VISUALES ========== */
+.border-secondary {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+hr.border-secondary {
+    opacity: 0.2;
+}
+
+/* Enlaces mejorados */
+a.text-info {
+    color: #0dcaf0 !important;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+a.text-info:hover {
+    color: #31d2f2 !important;
+    text-decoration: underline;
+}
+
+/* Alertas */
+.alert-info {
+    background-color: rgba(13, 202, 240, 0.1);
+    border-color: rgba(13, 202, 240, 0.3);
+    color: #0dcaf0;
 }
 </style>
 
+<script id="monedas-data" type="application/json">
+{% if monedas_data_json %}{{ monedas_data_json|safe }}{% else %}{}{% endif %}
+</script>
+
 <script>
+
 // Variable global para prevenir múltiples envíos
 let isProcessing = false;
 
@@ -704,6 +1459,469 @@ document.addEventListener('DOMContentLoaded', function() {
         isProcessing = true;
         toggleActionButtons(true);
     });
+    
+    // ============ FUNCIONALIDAD DE PAGOS DE REMESA ============
+    
+    // Mostrar/Ocultar formulario de pago
+    const btnMostrarFormulario = document.getElementById('btnMostrarFormularioPago');
+    const btnCerrarFormulario = document.getElementById('btnCerrarFormularioPago');
+    const btnCancelarPago = document.getElementById('btnCancelarPago');
+    const formularioPagoRemesa = document.getElementById('formularioPagoRemesa');
+    const formPagoRemesa = document.getElementById('formPagoRemesa');
+    
+    if (btnMostrarFormulario) {
+        btnMostrarFormulario.addEventListener('click', function() {
+            formularioPagoRemesa.style.display = 'block';
+            this.style.display = 'none';
+        });
+    }
+    
+    function ocultarFormularioPago() {
+        if (formularioPagoRemesa) {
+            formularioPagoRemesa.style.display = 'none';
+        }
+        if (btnMostrarFormulario) {
+            btnMostrarFormulario.style.display = 'inline-block';
+        }
+        if (formPagoRemesa) {
+            formPagoRemesa.reset();
+            // Limpiar mensajes de error
+            const invalidFeedbacks = formPagoRemesa.querySelectorAll('.invalid-feedback');
+            invalidFeedbacks.forEach(feedback => {
+                feedback.textContent = '';
+                feedback.style.display = 'none';
+            });
+            const inputs = formPagoRemesa.querySelectorAll('.is-invalid');
+            inputs.forEach(input => input.classList.remove('is-invalid'));
+        }
+    }
+    
+    if (btnCerrarFormulario) {
+        btnCerrarFormulario.addEventListener('click', ocultarFormularioPago);
+    }
+    
+    if (btnCancelarPago) {
+        btnCancelarPago.addEventListener('click', ocultarFormularioPago);
+    }
+    
+    // Manejar cambio de tipo de pago (mostrar/ocultar campos)
+    const tipoPagoSelect = document.getElementById('id_tipo_pago');
+    const divTarjeta = document.getElementById('div_tarjeta');
+    const divTelefono = document.getElementById('div_telefono');
+    const divDireccion = document.getElementById('div_direccion');
+    
+    if (tipoPagoSelect) {
+        tipoPagoSelect.addEventListener('change', function() {
+            if (this.value === 'transferencia') {
+                divTarjeta.style.display = 'block';
+                document.getElementById('telefono_required').style.display = 'none';
+                document.getElementById('direccion_required').style.display = 'none';
+            } else if (this.value === 'efectivo') {
+                divTarjeta.style.display = 'none';
+                document.getElementById('telefono_required').style.display = 'inline';
+                document.getElementById('direccion_required').style.display = 'inline';
+            }
+        });
+    }
+    
+    // Calcular y mostrar monto en USD y balance resultante
+    let monedasData = {};
+    const monedasDataEl = document.getElementById('monedas-data');
+    if (monedasDataEl) {
+        try {
+            monedasData = JSON.parse(monedasDataEl.textContent || '{}');
+        } catch (error) {
+            console.error('Error parseando monedas_data_json:', error);
+            monedasData = {};
+        }
+    }
+    const balanceActual = parseFloat('{{ user_balance|default:"0" }}'.replace(',', '.')) || 0;
+    const cantidadInput = document.getElementById('id_cantidad');
+    const monedaSelect = document.getElementById('id_tipo_moneda');
+    
+    function calcularYMostrarBalance() {
+        const cantidad = parseFloat(cantidadInput.value);
+        const monedaId = monedaSelect.value;
+        
+        if (cantidad && cantidad > 0 && monedaId && monedasData[monedaId]) {
+            const monedaInfo = monedasData[monedaId];
+            let montoUSD = 0;
+            
+            // Calcular monto en USD
+            if (monedaInfo.codigo === 'USD') {
+                montoUSD = cantidad;
+            } else {
+                if (monedaInfo.valor_usuario && monedaInfo.valor_usuario > 0) {
+                    montoUSD = cantidad / monedaInfo.valor_usuario;
+                }
+            }
+            
+            // Calcular balance resultante
+            const balanceResultante = balanceActual - montoUSD;
+            
+            // Mostrar el cálculo
+            let calculoDiv = document.getElementById('calculo-usd-remesa');
+            if (!calculoDiv) {
+                calculoDiv = document.createElement('div');
+                calculoDiv.id = 'calculo-usd-remesa';
+                calculoDiv.className = 'alert mt-2';
+                cantidadInput.parentElement.appendChild(calculoDiv);
+            }
+            
+            let mensaje = '<strong>Balance actual:</strong> $' + balanceActual.toFixed(2) + ' USD<br>';
+            mensaje += '<strong>Monto del pago:</strong> $' + montoUSD.toFixed(2) + ' USD<br>';
+            mensaje += '<strong>Balance después del pago:</strong> $' + balanceResultante.toFixed(2) + ' USD';
+            
+            if (balanceResultante < 0) {
+                calculoDiv.className = 'alert alert-warning mt-2';
+                mensaje += '<br><span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>El balance resultará negativo</span>';
+            } else {
+                calculoDiv.className = 'alert alert-info mt-2';
+            }
+            
+            calculoDiv.innerHTML = mensaje;
+        } else {
+            const calculoDiv = document.getElementById('calculo-usd-remesa');
+            if (calculoDiv) {
+                calculoDiv.remove();
+            }
+        }
+    }
+    
+    if (cantidadInput && monedaSelect) {
+        cantidadInput.addEventListener('input', calcularYMostrarBalance);
+        monedaSelect.addEventListener('change', calcularYMostrarBalance);
+    }
+    
+    // Enviar formulario de pago
+    if (formPagoRemesa) {
+        formPagoRemesa.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            if (isProcessing) {
+                Swal.fire({
+                    title: 'Procesando',
+                    text: 'Por favor espere...',
+                    icon: 'info',
+                    background: '#343a40',
+                    color: '#ffffff'
+                });
+                return;
+            }
+            
+            isProcessing = true;
+            const btnGuardar = document.getElementById('btnGuardarPago');
+            const originalText = btnGuardar.innerHTML;
+            btnGuardar.disabled = true;
+            btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Guardando...';
+            
+            // Crear FormData con los datos del formulario
+            const formData = new FormData(this);
+            
+            // Enviar petición AJAX
+            fetch('{% url "remesas:crear_pago_remesa" remesa.id %}', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': getCSRFToken(),
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                isProcessing = false;
+                btnGuardar.disabled = false;
+                btnGuardar.innerHTML = originalText;
+                
+                if (data.success) {
+                    Swal.fire({
+                        title: '¡Éxito!',
+                        text: data.message,
+                        icon: 'success',
+                        background: '#343a40',
+                        color: '#ffffff',
+                        confirmButtonColor: '#28a745'
+                    }).then(() => {
+                        // Recargar la página para mostrar el nuevo pago
+                        window.location.reload();
+                    });
+                } else {
+                    // Mostrar errores del formulario
+                    if (data.errors) {
+                        // Limpiar errores previos
+                        const invalidFeedbacks = formPagoRemesa.querySelectorAll('.invalid-feedback');
+                        invalidFeedbacks.forEach(feedback => {
+                            feedback.textContent = '';
+                            feedback.style.display = 'none';
+                        });
+                        const inputs = formPagoRemesa.querySelectorAll('.is-invalid');
+                        inputs.forEach(input => input.classList.remove('is-invalid'));
+                        
+                        // Mostrar nuevos errores
+                        for (const [field, errors] of Object.entries(data.errors)) {
+                            const input = document.getElementById(`id_${field}`);
+                            if (input) {
+                                input.classList.add('is-invalid');
+                                const feedback = input.parentElement.querySelector('.invalid-feedback');
+                                if (feedback) {
+                                    feedback.textContent = errors.join(', ');
+                                    feedback.style.display = 'block';
+                                }
+                            }
+                        }
+                    }
+                    
+                    Swal.fire({
+                        title: 'Error',
+                        text: data.message,
+                        icon: 'error',
+                        background: '#343a40',
+                        color: '#ffffff',
+                        confirmButtonColor: '#dc3545'
+                    });
+                }
+            })
+            .catch(error => {
+                isProcessing = false;
+                btnGuardar.disabled = false;
+                btnGuardar.innerHTML = originalText;
+                
+                Swal.fire({
+                    title: 'Error',
+                    text: 'Error al enviar el formulario: ' + error.message,
+                    icon: 'error',
+                    background: '#343a40',
+                    color: '#ffffff',
+                    confirmButtonColor: '#dc3545'
+                });
+            });
+        });
+    }
+});
+
+// Manejador de eventos delegado para botones de pagos de remesa (fuera del DOMContentLoaded para asegurar que siempre se cargue)
+
+document.addEventListener('click', function(e) {
+    // Confirmar pago de remesa
+    const btnConfirmar = e.target.closest('.btn-confirmar-pago-remesa');
+    if (btnConfirmar) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const pagoId = btnConfirmar.getAttribute('data-pago-id');
+        const pagoNumero = btnConfirmar.getAttribute('data-pago-numero');
+        
+        if (!pagoId || !pagoNumero) {
+            console.error('Faltan datos del pago');
+            Swal.fire({
+                title: 'Error',
+                text: 'No se pudieron obtener los datos del pago',
+                icon: 'error',
+                background: '#343a40',
+                color: '#ffffff'
+            });
+            return;
+        }
+        
+        Swal.fire({
+            title: '¿Confirmar Pago?',
+            text: `¿Está seguro que desea confirmar el pago ${pagoNumero}? Esta acción deducirá el monto del balance del usuario.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#28a745',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Sí, confirmar',
+            cancelButtonText: 'Cancelar',
+            background: '#343a40',
+            color: '#ffffff'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const url = `/remesas/pagos-remesa/confirmar/${pagoId}/`;
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCSRFToken(),
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            title: '¡Confirmado!',
+                            text: data.message,
+                            icon: 'success',
+                            background: '#343a40',
+                            color: '#ffffff',
+                            confirmButtonColor: '#28a745'
+                        }).then(() => {
+                            window.location.reload();
+                        });
+                    } else {
+                        Swal.fire({
+                            title: 'Error',
+                            text: data.message,
+                            icon: 'error',
+                            background: '#343a40',
+                            color: '#ffffff',
+                            confirmButtonColor: '#dc3545'
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error en petición:', error);
+                    Swal.fire({
+                        title: 'Error',
+                        text: 'Error al confirmar el pago: ' + error.message,
+                        icon: 'error',
+                        background: '#343a40',
+                        color: '#ffffff',
+                        confirmButtonColor: '#dc3545'
+                    });
+                });
+            }
+        });
+        return;
+    }
+    
+    // Cancelar pago de remesa
+    const btnCancelar = e.target.closest('.btn-cancelar-pago-remesa');
+    if (btnCancelar) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const pagoId = btnCancelar.getAttribute('data-pago-id');
+        const pagoNumero = btnCancelar.getAttribute('data-pago-numero');
+        
+        Swal.fire({
+            title: '¿Cancelar Pago?',
+            text: `¿Está seguro que desea cancelar el pago ${pagoNumero}? Esta acción no se puede deshacer.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Sí, cancelar',
+            cancelButtonText: 'No',
+            background: '#343a40',
+            color: '#ffffff'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                fetch(`/remesas/pagos-remesa/cancelar/${pagoId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCSRFToken(),
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            title: '¡Cancelado!',
+                            text: data.message,
+                            icon: 'success',
+                            background: '#343a40',
+                            color: '#ffffff',
+                            confirmButtonColor: '#28a745'
+                        }).then(() => {
+                            window.location.reload();
+                        });
+                    } else {
+                        Swal.fire({
+                            title: 'Error',
+                            text: data.message,
+                            icon: 'error',
+                            background: '#343a40',
+                            color: '#ffffff',
+                            confirmButtonColor: '#dc3545'
+                        });
+                    }
+                })
+                .catch(error => {
+                    Swal.fire({
+                        title: 'Error',
+                        text: 'Error al cancelar el pago: ' + error.message,
+                        icon: 'error',
+                        background: '#343a40',
+                        color: '#ffffff',
+                        confirmButtonColor: '#dc3545'
+                    });
+                });
+            }
+        });
+        return;
+    }
+    
+    // Eliminar pago de remesa
+    const btnEliminar = e.target.closest('.btn-eliminar-pago-remesa');
+    if (btnEliminar) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const pagoId = btnEliminar.getAttribute('data-pago-id');
+        const pagoNumero = btnEliminar.getAttribute('data-pago-numero');
+        
+        Swal.fire({
+            title: '¿Eliminar Pago?',
+            text: `¿Está seguro que desea eliminar el pago ${pagoNumero}?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar',
+            background: '#343a40',
+            color: '#ffffff'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                fetch(`/remesas/pagos-remesa/eliminar/${pagoId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCSRFToken(),
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            title: '¡Eliminado!',
+                            text: data.message,
+                            icon: 'success',
+                            background: '#343a40',
+                            color: '#ffffff',
+                            confirmButtonColor: '#28a745'
+                        }).then(() => {
+                            window.location.reload();
+                        });
+                    } else {
+                        Swal.fire({
+                            title: 'Error',
+                            text: data.message,
+                            icon: 'error',
+                            background: '#343a40',
+                            color: '#ffffff',
+                            confirmButtonColor: '#dc3545'
+                        });
+                    }
+                })
+                .catch(error => {
+                    Swal.fire({
+                        title: 'Error',
+                        text: 'Error al eliminar el pago: ' + error.message,
+                        icon: 'error',
+                        background: '#343a40',
+                        color: '#ffffff',
+                        confirmButtonColor: '#dc3545'
+                    });
+                });
+            }
+        });
+        return;
+    }
 });
 </script>
 

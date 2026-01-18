@@ -58,6 +58,7 @@
                                         <th class="py-4 text-center text-uppercase"><small>Código</small></th>
                                         <th class="py-4 text-uppercase"><small>Nombre</small></th>
                                         <th class="py-4 text-end text-uppercase"><small>Valor Actual</small></th>
+                                        <th class="py-4 text-end text-uppercase"><small>Fondo de Caja</small></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -72,10 +73,13 @@
                                         <td class="py-3 px-4 border-0 text-end">
                                             <span class="fw-semibold" style="color: #ffd700;">$ {{ item.valor_usuario|floatformat:3 }}</span>
                                         </td>
+                                        <td class="py-3 px-4 border-0 text-end">
+                                            <span class="fw-semibold text-warning">$ {{ item.moneda.fondo_caja|floatformat:2 }}</span>
+                                        </td>
                                     </tr>
                                     {% empty %}
                                     <tr>
-                                        <td colspan="3" class="text-center py-4 text-muted">
+                                        <td colspan="4" class="text-center py-4 text-muted">
                                             <i class="fas fa-info-circle me-2"></i>
                                             No hay monedas disponibles
                                         </td>

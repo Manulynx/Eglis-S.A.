@@ -10,6 +10,7 @@ class PerfilUsuario(models.Model):
         ('admin', 'Administrador'),
         ('gestor', 'Gestor'),
         ('contable', 'Contable'),
+        ('domicilio', 'Domicilio'),
     ]
     
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='perfil')
@@ -24,6 +25,14 @@ class PerfilUsuario(models.Model):
         blank=True,
         verbose_name="Tipo de Valor de Moneda",
         help_text="Tipo de valor de moneda que utiliza este usuario para los cálculos"
+    )
+    # Campo para monedas asignadas (para gestores y domicilios)
+    monedas_asignadas = models.ManyToManyField(
+        'remesas.Moneda',
+        blank=True,
+        verbose_name="Monedas Asignadas",
+        help_text="Monedas que este usuario puede utilizar (solo para gestores y domicilios)",
+        related_name='usuarios_asignados'
     )
     direccion = models.TextField(blank=True, null=True, verbose_name="Dirección")
     fecha_nacimiento = models.DateField(blank=True, null=True, verbose_name="Fecha de Nacimiento")
@@ -49,6 +58,40 @@ class PerfilUsuario(models.Model):
     @property
     def nombre_completo(self):
         return f"{self.user.first_name} {self.user.last_name}".strip() or self.user.username
+    
+    def puede_usar_moneda(self, moneda):
+        """
+        Verifica si el usuario puede usar una moneda específica
+        - Administradores y contables pueden usar todas las monedas
+        - Gestores y domicilios solo pueden usar las monedas asignadas
+        """
+        if self.tipo_usuario in ['admin', 'contable']:
+            return True
+        
+        if self.tipo_usuario in ['gestor', 'domicilio']:
+            # Si no tiene monedas asignadas, puede usar todas por defecto
+            if not self.monedas_asignadas.exists():
+                return True
+            return self.monedas_asignadas.filter(id=moneda.id).exists()
+        
+        return False
+    
+    def get_monedas_disponibles(self):
+        """
+        Retorna las monedas que el usuario puede utilizar
+        """
+        from remesas.models import Moneda
+        
+        if self.tipo_usuario in ['admin', 'contable']:
+            return Moneda.objects.filter(activa=True)
+        
+        if self.tipo_usuario in ['gestor', 'domicilio']:
+            # Si no tiene monedas asignadas, retornar todas las activas
+            if not self.monedas_asignadas.exists():
+                return Moneda.objects.filter(activa=True)
+            return self.monedas_asignadas.filter(activa=True)
+        
+        return Moneda.objects.none()
     
     def calcular_balance_real(self):
         """

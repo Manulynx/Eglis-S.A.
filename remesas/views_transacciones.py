@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 from django.conf import settings
 from zoneinfo import ZoneInfo
-from .models import Remesa, Pago, Moneda
+from .models import Remesa, Pago, PagoRemesa, Moneda
 from django.http import HttpResponse, JsonResponse
 import csv
 import io
@@ -26,14 +26,17 @@ def registro_transacciones(request):
         # Si es admin, mostrar todos los registros
         remesas = Remesa.objects.select_related('moneda', 'gestor').all()
         pagos = Pago.objects.select_related('tipo_moneda').all()
+        pagos_remesa = PagoRemesa.objects.select_related('tipo_moneda', 'usuario', 'remesa').all()
     elif user_tipo == 'contable':
         # Si es contable, mostrar todos los registros (incluyendo los de administradores)
         remesas = Remesa.objects.select_related('moneda', 'gestor').all()
         pagos = Pago.objects.select_related('tipo_moneda').all()
+        pagos_remesa = PagoRemesa.objects.select_related('tipo_moneda', 'usuario', 'remesa').all()
     else:
         # Si es gestor u otro tipo, mostrar solo los registros del usuario actual
         remesas = Remesa.objects.select_related('moneda', 'gestor').filter(gestor=request.user)
         pagos = Pago.objects.select_related('tipo_moneda').filter(usuario=request.user)
+        pagos_remesa = PagoRemesa.objects.select_related('tipo_moneda', 'usuario', 'remesa').filter(usuario=request.user)
     
     # Filtro de fecha rápido (Default: hoy)
     filtro_fecha = request.GET.get('filtro_fecha', 'hoy')
@@ -48,18 +51,22 @@ def registro_transacciones(request):
         if filtro_fecha == 'hoy':
             remesas = remesas.filter(fecha__date=today)
             pagos = pagos.filter(fecha_creacion__date=today)
+            pagos_remesa = pagos_remesa.filter(fecha_creacion__date=today)
         elif filtro_fecha == 'ayer':
             yesterday = today - timedelta(days=1)
             remesas = remesas.filter(fecha__date=yesterday)
             pagos = pagos.filter(fecha_creacion__date=yesterday)
+            pagos_remesa = pagos_remesa.filter(fecha_creacion__date=yesterday)
         elif filtro_fecha == 'semana':
             week_ago = today - timedelta(weeks=1)
             remesas = remesas.filter(fecha__date__gte=week_ago, fecha__date__lte=today)
             pagos = pagos.filter(fecha_creacion__date__gte=week_ago, fecha_creacion__date__lte=today)
+            pagos_remesa = pagos_remesa.filter(fecha_creacion__date__gte=week_ago, fecha_creacion__date__lte=today)
         elif filtro_fecha == 'mes':
             month_ago = today - timedelta(days=30)
             remesas = remesas.filter(fecha__date__gte=month_ago, fecha__date__lte=today)
             pagos = pagos.filter(fecha_creacion__date__gte=month_ago, fecha_creacion__date__lte=today)
+            pagos_remesa = pagos_remesa.filter(fecha_creacion__date__gte=month_ago, fecha_creacion__date__lte=today)
 
     # Aplicar filtros específicos para REMESAS
     search_remesas = request.GET.get('search_remesas')
@@ -189,6 +196,7 @@ def registro_transacciones(request):
     # 1. Preparar QuerySets base (copias para no afectar las pestañas individuales)
     total_remesas_qs = remesas.all()
     total_pagos_qs = pagos.all()
+    total_pagos_remesa_qs = pagos_remesa.all()
     
     # 2. Obtener filtros de la pestaña TOTAL
     search_total = request.GET.get('search_total')
@@ -211,10 +219,15 @@ def registro_transacciones(request):
             Q(pago_id__icontains=search_total) | 
             Q(destinatario__icontains=search_total)
         )
+        total_pagos_remesa_qs = total_pagos_remesa_qs.filter(
+            Q(pago_id__icontains=search_total) | 
+            Q(destinatario__icontains=search_total)
+        )
     
     if tipo_operacion:
         if tipo_operacion == 'remesa':
             total_pagos_qs = total_pagos_qs.none()
+            total_pagos_remesa_qs = total_pagos_remesa_qs.none()
         elif tipo_operacion == 'pago':
             total_remesas_qs = total_remesas_qs.none()
             
@@ -223,18 +236,21 @@ def registro_transacciones(request):
             moneda_obj = Moneda.objects.get(id=moneda_total)
             total_remesas_qs = total_remesas_qs.filter(moneda__codigo=moneda_obj.codigo)
             total_pagos_qs = total_pagos_qs.filter(tipo_moneda__codigo=moneda_obj.codigo)
+            total_pagos_remesa_qs = total_pagos_remesa_qs.filter(tipo_moneda__codigo=moneda_obj.codigo)
         except Moneda.DoesNotExist:
             pass
             
     if usuario_total:
         total_remesas_qs = total_remesas_qs.filter(gestor_id=usuario_total)
         total_pagos_qs = total_pagos_qs.filter(usuario_id=usuario_total)
+        total_pagos_remesa_qs = total_pagos_remesa_qs.filter(usuario_id=usuario_total)
         
     if fecha_desde_total:
         try:
             fd = datetime.strptime(fecha_desde_total, '%Y-%m-%d').date()
             total_remesas_qs = total_remesas_qs.filter(fecha__date__gte=fd)
             total_pagos_qs = total_pagos_qs.filter(fecha_creacion__date__gte=fd)
+            total_pagos_remesa_qs = total_pagos_remesa_qs.filter(fecha_creacion__date__gte=fd)
         except ValueError: pass
 
     if fecha_hasta_total:
@@ -242,6 +258,7 @@ def registro_transacciones(request):
             fh = datetime.strptime(fecha_hasta_total, '%Y-%m-%d').date()
             total_remesas_qs = total_remesas_qs.filter(fecha__date__lte=fh)
             total_pagos_qs = total_pagos_qs.filter(fecha_creacion__date__lte=fh)
+            total_pagos_remesa_qs = total_pagos_remesa_qs.filter(fecha_creacion__date__lte=fh)
         except ValueError: pass
 
     if cantidad_min_total:
@@ -249,6 +266,7 @@ def registro_transacciones(request):
             cmin = float(cantidad_min_total)
             total_remesas_qs = total_remesas_qs.filter(importe__gte=cmin)
             total_pagos_qs = total_pagos_qs.filter(cantidad__gte=cmin)
+            total_pagos_remesa_qs = total_pagos_remesa_qs.filter(cantidad__gte=cmin)
         except ValueError: pass
 
     if cantidad_max_total:
@@ -256,6 +274,7 @@ def registro_transacciones(request):
             cmax = float(cantidad_max_total)
             total_remesas_qs = total_remesas_qs.filter(importe__lte=cmax)
             total_pagos_qs = total_pagos_qs.filter(cantidad__lte=cmax)
+            total_pagos_remesa_qs = total_pagos_remesa_qs.filter(cantidad__lte=cmax)
         except ValueError: pass
         
     if rango_usd:
@@ -263,18 +282,23 @@ def registro_transacciones(request):
         if rango_usd == '0-100':
             total_remesas_qs = total_remesas_qs.filter(monto_usd_historico__gte=0, monto_usd_historico__lte=100)
             total_pagos_qs = total_pagos_qs.filter(monto_usd_historico__gte=0, monto_usd_historico__lte=100)
+            total_pagos_remesa_qs = total_pagos_remesa_qs.filter(monto_usd_historico__gte=0, monto_usd_historico__lte=100)
         elif rango_usd == '100-500':
             total_remesas_qs = total_remesas_qs.filter(monto_usd_historico__gt=100, monto_usd_historico__lte=500)
             total_pagos_qs = total_pagos_qs.filter(monto_usd_historico__gt=100, monto_usd_historico__lte=500)
+            total_pagos_remesa_qs = total_pagos_remesa_qs.filter(monto_usd_historico__gt=100, monto_usd_historico__lte=500)
         elif rango_usd == '500-1000':
             total_remesas_qs = total_remesas_qs.filter(monto_usd_historico__gt=500, monto_usd_historico__lte=1000)
             total_pagos_qs = total_pagos_qs.filter(monto_usd_historico__gt=500, monto_usd_historico__lte=1000)
+            total_pagos_remesa_qs = total_pagos_remesa_qs.filter(monto_usd_historico__gt=500, monto_usd_historico__lte=1000)
         elif rango_usd == '1000-5000':
             total_remesas_qs = total_remesas_qs.filter(monto_usd_historico__gt=1000, monto_usd_historico__lte=5000)
             total_pagos_qs = total_pagos_qs.filter(monto_usd_historico__gt=1000, monto_usd_historico__lte=5000)
+            total_pagos_remesa_qs = total_pagos_remesa_qs.filter(monto_usd_historico__gt=1000, monto_usd_historico__lte=5000)
         elif rango_usd == '5000+':
             total_remesas_qs = total_remesas_qs.filter(monto_usd_historico__gt=5000)
             total_pagos_qs = total_pagos_qs.filter(monto_usd_historico__gt=5000)
+            total_pagos_remesa_qs = total_pagos_remesa_qs.filter(monto_usd_historico__gt=5000)
 
     # 4. Crear UNION de valores ligeros
     from django.db.models import Value, CharField, F
@@ -292,8 +316,13 @@ def registro_transacciones(request):
         type_op=Value('pago', output_field=CharField())
     ).values('id', 'fecha_sort', 'type_op')
     
+    pagos_remesa_values = total_pagos_remesa_qs.order_by().annotate(
+        fecha_sort=F('fecha_creacion'), 
+        type_op=Value('pago_remesa', output_field=CharField())
+    ).values('id', 'fecha_sort', 'type_op')
+    
     # Esta es la lista que se paginará (QuerySet)
-    total_operaciones_list = remesas_values.union(pagos_values).order_by('-fecha_sort')
+    total_operaciones_list = remesas_values.union(pagos_values, pagos_remesa_values).order_by('-fecha_sort')
     
     # Ordenar resultados individuales
     remesas = remesas.order_by('-fecha')
@@ -308,6 +337,8 @@ def registro_transacciones(request):
     # Calcular totales en USD
     remesas_count = remesas.count()
     pagos_count = pagos.count()
+    pagos_remesa_count = pagos_remesa.count()
+    total_pagos_count = pagos_count + pagos_remesa_count  # Sumar ambos tipos de pagos
     # total_operaciones_list es ahora un QuerySet, usar count()
     total_operaciones_count = total_operaciones_list.count()
     
@@ -332,6 +363,8 @@ def registro_transacciones(request):
     # Calcular totales filtrados (mismo que el count ya que sin paginación)
     remesas_filtradas_count = remesas.count()
     pagos_filtrados_count = pagos.count()
+    pagos_remesa_filtrados_count = pagos_remesa.count()
+    total_pagos_filtrados_count = pagos_filtrados_count + pagos_remesa_filtrados_count
     total_filtradas_count = total_operaciones_count
     
     # TOTAL REMESAS: Sumar remesas filtradas (excluyendo canceladas a menos que se filtre explícitamente por ellas)
@@ -351,33 +384,25 @@ def registro_transacciones(request):
     # Limitamos el cálculo de totales si hay demasiados registros y no es una petición de exportación
     MAX_ITEMS_FOR_TOTAL = 1000
     
+    # TOTAL REMESAS: Solo contar remesas completadas
     if remesas_filtradas_count > MAX_ITEMS_FOR_TOTAL:
         # Si hay muchos, usar una aproximación o solo sumar los visibles si se prefiere
         # O mejor, usar los campos históricos que ya están en la DB
-        if estado_remesas == 'cancelada':
-            total_remesas_agg = remesas.aggregate(total=Sum('monto_usd_historico'))
-        else:
-            total_remesas_agg = remesas.exclude(estado='cancelada').aggregate(total=Sum('monto_usd_historico'))
+        total_remesas_agg = remesas.filter(estado='completada').aggregate(total=Sum('monto_usd_historico'))
         total_remesas = total_remesas_agg['total'] or 0
     else:
-        # Comportamiento original para pocos registros
-        if estado_remesas == 'cancelada':
-            total_remesas = sum(remesa.calcular_monto_en_usd() for remesa in remesas)
-        else:
-            total_remesas = sum(remesa.calcular_monto_en_usd() for remesa in remesas if remesa.estado != 'cancelada')
+        # Comportamiento original para pocos registros - solo completadas
+        total_remesas = sum(remesa.calcular_monto_en_usd() for remesa in remesas if remesa.estado == 'completada')
     
-    # TOTAL PAGOS: Sumar pagos filtrados
+    # TOTAL PAGOS: Solo contar pagos completados (incluyendo PagoRemesa)
     if pagos_filtrados_count > MAX_ITEMS_FOR_TOTAL:
-        if estado_pagos == 'cancelado':
-            total_pagos_agg = pagos.aggregate(total=Sum('monto_usd_historico'))
-        else:
-            total_pagos_agg = pagos.exclude(estado='cancelado').aggregate(total=Sum('monto_usd_historico'))
-        total_pagos = total_pagos_agg['total'] or 0
+        total_pagos_agg = pagos.filter(estado='completado').aggregate(total=Sum('monto_usd_historico'))
+        total_pagos_remesa_agg = pagos_remesa.filter(estado='completado').aggregate(total=Sum('monto_usd_historico'))
+        total_pagos = (total_pagos_agg['total'] or 0) + (total_pagos_remesa_agg['total'] or 0)
     else:
-        if estado_pagos == 'cancelado':
-            total_pagos = sum(pago.calcular_monto_en_usd() for pago in pagos)
-        else:
-            total_pagos = sum(pago.calcular_monto_en_usd() for pago in pagos if pago.estado != 'cancelado')
+        # Solo completados
+        total_pagos = sum(pago.calcular_monto_en_usd() for pago in pagos if pago.estado == 'completado')
+        total_pagos += sum(pago.calcular_monto_en_usd() for pago in pagos_remesa if pago.estado == 'completado')
     
     # Obtener monedas para filtros
     monedas = Moneda.objects.filter(activa=True)
@@ -404,10 +429,19 @@ def registro_transacciones(request):
     
     try:
         remesas_page = remesas_paginator.page(remesas_page_num)
+        # Agregar conteo de pagos enlazados a cada remesa en la página
+        for remesa in remesas_page:
+            remesa.pagos_count = remesa.pagos_enlazados.count()
     except PageNotAnInteger:
         remesas_page = remesas_paginator.page(1)
+        # Agregar conteo de pagos enlazados
+        for remesa in remesas_page:
+            remesa.pagos_count = remesa.pagos_enlazados.count()
     except EmptyPage:
         remesas_page = remesas_paginator.page(remesas_paginator.num_pages)
+        # Agregar conteo de pagos enlazados
+        for remesa in remesas_page:
+            remesa.pagos_count = remesa.pagos_enlazados.count()
 
     try:
         pagos_page = pagos_paginator.page(pagos_page_num)
@@ -430,10 +464,12 @@ def registro_transacciones(request):
     page_items = list(total_page.object_list)
     remesa_ids = [item['id'] for item in page_items if item['type_op'] == 'remesa']
     pago_ids = [item['id'] for item in page_items if item['type_op'] == 'pago']
+    pago_remesa_ids = [item['id'] for item in page_items if item['type_op'] == 'pago_remesa']
     
     # 2. Fetch eficiente de objetos
-    remesas_dict = {r.id: r for r in Remesa.objects.filter(id__in=remesa_ids).select_related('moneda', 'gestor')}
+    remesas_dict = {r.id: r for r in Remesa.objects.filter(id__in=remesa_ids).select_related('moneda', 'gestor').prefetch_related('pagos_enlazados')}
     pagos_dict = {p.id: p for p in Pago.objects.filter(id__in=pago_ids).select_related('tipo_moneda', 'usuario')}
+    pagos_remesa_dict = {p.id: p for p in PagoRemesa.objects.filter(id__in=pago_remesa_ids).select_related('tipo_moneda', 'usuario', 'remesa')}
     
     # 3. Reconstruir lista de diccionarios para el template
     transformed_list = []
@@ -441,6 +477,9 @@ def registro_transacciones(request):
         if item['type_op'] == 'remesa':
             remesa = remesas_dict.get(item['id'])
             if remesa:
+                # Agregar conteo de pagos enlazados
+                pagos_count = remesa.pagos_enlazados.count()
+                
                 transformed_list.append({
                     'id_operacion': remesa.remesa_id,
                     'tipo': remesa.tipo_pago.capitalize() if remesa.tipo_pago else 'Transferencia',
@@ -454,9 +493,10 @@ def registro_transacciones(request):
                     'remitente': remesa.receptor_nombre or '',
                     'destinatario': '',
                     'gestor': remesa.gestor,
-                    'usuario': remesa.gestor
+                    'usuario': remesa.gestor,
+                    'pagos_count': pagos_count  # Agregar conteo de pagos enlazados
                 })
-        else:
+        elif item['type_op'] == 'pago':
             pago = pagos_dict.get(item['id'])
             if pago:
                 transformed_list.append({
@@ -477,6 +517,28 @@ def registro_transacciones(request):
                     'telefono': pago.telefono if pago.telefono else None,
                     'carnet_identidad': pago.carnet_identidad if pago.carnet_identidad else None
                 })
+        else:  # pago_remesa
+            pago = pagos_remesa_dict.get(item['id'])
+            if pago:
+                transformed_list.append({
+                    'id_operacion': pago.pago_id,
+                    'tipo': pago.tipo_pago.capitalize() if pago.tipo_pago else 'Efectivo',
+                    'cantidad': pago.cantidad,
+                    'moneda': pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD',
+                    'equiv_usd': pago.calcular_monto_en_usd(),
+                    'estado': pago.estado,
+                    'fecha': pago.fecha_creacion,
+                    'id_original': pago.id,
+                    'tipo_operacion': 'PagoRemesa',
+                    'remitente': '',
+                    'destinatario': pago.destinatario,
+                    'gestor': pago.usuario,
+                    'usuario': pago.usuario,
+                    'tarjeta': pago.tarjeta if pago.tarjeta else None,
+                    'telefono': pago.telefono if pago.telefono else None,
+                    'carnet_identidad': pago.carnet_identidad if pago.carnet_identidad else None,
+                    'remesa': pago.remesa  # Agregar referencia a la remesa asociada
+                })
     
     # 4. Reemplazar la lista de objetos en la página
     total_page.object_list = transformed_list
@@ -494,6 +556,7 @@ def registro_transacciones(request):
     context = {
         'remesas': remesas_page,
         'pagos': pagos_page,
+        'pagos_remesa': pagos_remesa.order_by('-fecha_creacion'),  # Agregar pagos de remesa
         'total_operaciones': total_page,
         'filtro_fecha': filtro_fecha,
         'total_pendientes': total_pendientes,
@@ -503,10 +566,10 @@ def registro_transacciones(request):
         'tipo_actual': tipo,
         'tab_activa': tab_activa,  # Agregar para que el template sepa qué pestaña mostrar
         'remesas_count': remesas_count,
-        'pagos_count': pagos_count,
+        'pagos_count': total_pagos_count,  # Usar contador total que incluye Pago y PagoRemesa
         'total_operaciones_count': total_operaciones_count,
         'remesas_filtradas_count': remesas_filtradas_count,
-        'pagos_filtrados_count': pagos_filtrados_count,
+        'pagos_filtrados_count': total_pagos_filtrados_count,  # Usar contador total filtrado
         'total_filtradas_count': total_filtradas_count,
         'total_remesas': total_remesas,
         'total_pagos': total_pagos,

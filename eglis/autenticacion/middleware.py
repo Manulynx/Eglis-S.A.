@@ -39,3 +39,40 @@ class AuthenticationRequiredMiddleware:
         
         response = self.get_response(request)
         return response
+
+
+class DomicilioAccessMiddleware:
+    """
+    Middleware que restringe el acceso de usuarios con rol 'domicilio'
+    solo a la página principal y páginas de perfil.
+    """
+    
+    def __init__(self, get_response):
+        self.get_response = get_response
+        
+        # URLs permitidas para usuarios domicilio (además de la home)
+        self.allowed_urls = [
+            '/login/',
+            '/admin/',
+            '/logout/',
+            '/perfil/',
+            '/cambiar-password/',
+            '/',  # Home page
+        ]
+    
+    def __call__(self, request):
+        # Solo aplicar restricciones si el usuario está autenticado
+        if request.user.is_authenticated and hasattr(request.user, 'perfil'):
+            # Verificar si el usuario es tipo domicilio
+            if request.user.perfil.tipo_usuario == 'domicilio':
+                current_url = request.path
+                
+                # Verificar si la URL actual está permitida
+                is_allowed = any(current_url.startswith(url) for url in self.allowed_urls)
+                
+                # Si no está permitida, redirigir a la home
+                if not is_allowed:
+                    return redirect('/')
+        
+        response = self.get_response(request)
+        return response

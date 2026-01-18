@@ -64,6 +64,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'eglis.autenticacion.middleware.AuthenticationRequiredMiddleware',  # Middleware personalizado
+    'eglis.autenticacion.middleware.DomicilioAccessMiddleware',  # Middleware para restringir acceso de domicilios
 ]
 
 ROOT_URLCONF = 'eglis.urls'
@@ -158,6 +159,21 @@ CRISPY_TEMPLATE_PACK = "bootstrap4"
 LOGIN_URL = 'login:login'  # URL para redirigir cuando se requiere login
 LOGIN_REDIRECT_URL = '/'   # URL para redirigir después del login exitoso
 LOGOUT_REDIRECT_URL = 'login:login'  # URL para redirigir después del logout
+
+# Configuración de sesiones para seguridad
+# La sesión expira después de 15 horas de inactividad
+SESSION_COOKIE_AGE = 54000  # 15 horas en segundos (15 * 60 * 60)
+
+# Actualiza el tiempo de expiración en cada petición (mantiene activa la sesión mientras se usa)
+SESSION_SAVE_EVERY_REQUEST = True
+
+# La sesión expira al cerrar el navegador (opcional, puedes desactivar si prefieres mantener sesiones)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+
+# Configuración de seguridad de cookies de sesión
+SESSION_COOKIE_HTTPONLY = True  # Protege contra XSS
+SESSION_COOKIE_SECURE = False  # Cambiar a True en producción con HTTPS
+SESSION_COOKIE_SAMESITE = 'Lax'  # Protección contra CSRF
 
 # Configuración de logging para debug
 LOGGING = {

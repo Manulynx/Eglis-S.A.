@@ -9,7 +9,8 @@ class PerfilUsuarioInline(admin.StackedInline):
     can_delete = False
     verbose_name_plural = 'Perfil'
     fk_name = 'user'  # Especificar el campo FK correcto
-    fields = ('tipo_usuario', 'tipo_valor_moneda', 'telefono', 'direccion', 'fecha_nacimiento', 'codigo_gestor', 'limite_remesas', 'comision_porcentaje')
+    fields = ('tipo_usuario', 'tipo_valor_moneda', 'monedas_asignadas', 'telefono', 'direccion', 'fecha_nacimiento', 'codigo_gestor', 'limite_remesas', 'comision_porcentaje')
+    filter_horizontal = ('monedas_asignadas',)
 
 # Extender el UserAdmin para incluir el perfil
 class UserAdmin(BaseUserAdmin):
@@ -29,10 +30,15 @@ class PerfilUsuarioAdmin(admin.ModelAdmin):
     list_filter = ('tipo_usuario', 'tipo_valor_moneda', 'fecha_creacion', 'fecha_actualizacion')
     search_fields = ('user__username', 'user__first_name', 'user__last_name', 'codigo_gestor', 'telefono')
     readonly_fields = ('fecha_creacion', 'fecha_actualizacion')
+    filter_horizontal = ('monedas_asignadas',)
     
     fieldsets = (
         ('Información Personal', {
             'fields': ('user', 'tipo_usuario', 'tipo_valor_moneda', 'telefono', 'direccion', 'fecha_nacimiento', 'avatar')
+        }),
+        ('Monedas Disponibles', {
+            'fields': ('monedas_asignadas',),
+            'description': 'Seleccione las monedas que este usuario puede utilizar (solo para gestores y domicilios). Si no se selecciona ninguna, podrá usar todas las monedas activas.'
         }),
         ('Información de Gestor', {
             'fields': ('codigo_gestor', 'limite_remesas', 'comision_porcentaje')

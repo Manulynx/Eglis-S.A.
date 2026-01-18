@@ -31,6 +31,8 @@ urlpatterns = [
     path('monedas/editar/<int:moneda_id>/', views.editar_moneda, name='editar_moneda'),
     path('monedas/eliminar/<int:moneda_id>/', views.eliminar_moneda, name='eliminar_moneda'),
     path('monedas/toggle-estado/<int:moneda_id>/', views.toggle_estado_moneda, name='toggle_estado_moneda'),
+    path('monedas/actualizar-fondo/', views.actualizar_fondo_caja, name='actualizar_fondo_caja'),
+    path('monedas/actualizar-alerta/', views.actualizar_alerta_minima, name='actualizar_alerta_minima'),
     
     # URLs para Tipos de Valores de Monedas
     path('tipos-valores/', views.lista_tipos_valores, name='lista_tipos_valores'),
@@ -51,4 +53,12 @@ urlpatterns = [
     path('pagos/confirmar/<int:pago_id>/', views.confirmar_pago, name='confirmar_pago'),
     path('pagos/cancelar/<int:pago_id>/', views.cancelar_pago, name='cancelar_pago'),
     path('pagos/eliminar/<int:pago_id>/', views.eliminar_pago, name='eliminar_pago'),
+    
+    # URLs para Pagos de Remesas
+    path('pagos-remesa/crear/<int:remesa_id>/', views.crear_pago_remesa, name='crear_pago_remesa'),
+    path('pagos-remesa/listar/<int:remesa_id>/', views.listar_pagos_remesa, name='listar_pagos_remesa'),
+    path('pagos-remesa/editar/<int:pago_id>/', views.editar_pago_remesa, name='editar_pago_remesa'),
+    path('pagos-remesa/eliminar/<int:pago_id>/', views.eliminar_pago_remesa, name='eliminar_pago_remesa'),
+    path('pagos-remesa/confirmar/<int:pago_id>/', views.confirmar_pago_remesa, name='confirmar_pago_remesa'),
+    path('pagos-remesa/cancelar/<int:pago_id>/', views.cancelar_pago_remesa, name='cancelar_pago_remesa'),
 ]

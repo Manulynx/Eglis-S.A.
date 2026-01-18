@@ -267,8 +267,11 @@ def administrar_usuarios(request):
     ).count()
 
     # Obtener tipos de valores de moneda para los formularios
-    from remesas.models import TipoValorMoneda
+    from remesas.models import TipoValorMoneda, Moneda
     tipos_valor_moneda = TipoValorMoneda.objects.filter(activo=True).order_by('orden', 'nombre')
+    
+    # Obtener todas las monedas activas para asignación
+    monedas_disponibles = Moneda.objects.filter(activa=True).order_by('nombre')
     
     context = {
         'usuarios': usuarios_page,
@@ -286,6 +289,7 @@ def administrar_usuarios(request):
         'total_pagos': total_pagos_count,      # Total de pagos realizados
         'suma_todos_balances': suma_todos_balances,  # Suma de todos los balances
         'tipos_valor_moneda': tipos_valor_moneda,  # Para los formularios
+        'monedas_disponibles': monedas_disponibles,  # Para asignación de monedas
     }
     
     return render(request, 'autenticacion/administrar_usuarios.html', context)
@@ -308,8 +312,9 @@ def crear_usuario(request):
             tipo_usuario = request.POST.get('tipo_usuario', 'gestor')
             telefono = request.POST.get('telefono', '').strip()
             tipo_valor_moneda_id = request.POST.get('tipo_valor_moneda', '')
+            monedas_asignadas = request.POST.getlist('monedas_asignadas')  # Lista de IDs de monedas
             
-            print(f"DEBUG: Datos recibidos - username: {username}, telefono: {telefono}")  # Debug log
+            print(f"DEBUG: Datos recibidos - username: {username}, telefono: {telefono}, monedas: {monedas_asignadas}")  # Debug log
             
             # Validar campos requeridos
             if not username or not password1:
@@ -357,6 +362,16 @@ def crear_usuario(request):
             
             perfil.save()
             print(f"DEBUG: Perfil guardado exitosamente")  # Debug log
+            
+            # Asignar monedas si se proporcionaron (solo para gestor y domicilio)
+            if monedas_asignadas and tipo_usuario in ['gestor', 'domicilio']:
+                from remesas.models import Moneda
+                try:
+                    monedas_objetos = Moneda.objects.filter(id__in=monedas_asignadas, activa=True)
+                    perfil.monedas_asignadas.set(monedas_objetos)
+                    print(f"DEBUG: {len(monedas_objetos)} monedas asignadas al usuario")  # Debug log
+                except Exception as e:
+                    print(f"DEBUG: Error asignando monedas: {e}")  # Debug log
             
             # Registrar acción si hay usuario autenticado
             if request.user.is_authenticated:
@@ -420,10 +435,17 @@ def obtener_usuario(request, user_id):
                 telefono = perfil.telefono if perfil.telefono else ''
                 tipo_valor_moneda_id = perfil.tipo_valor_moneda.id if perfil.tipo_valor_moneda else None
                 tipo_valor_moneda_nombre = perfil.tipo_valor_moneda.nombre if perfil.tipo_valor_moneda else ''
+                # Obtener monedas asignadas
+                monedas_asignadas = list(perfil.monedas_asignadas.values_list('id', flat=True))
+                monedas_asignadas_display = ', '.join(
+                    perfil.monedas_asignadas.values_list('codigo', flat=True)
+                ) if perfil.monedas_asignadas.exists() else 'Todas las monedas'
             except:
                 telefono = ''
                 tipo_valor_moneda_id = None
                 tipo_valor_moneda_nombre = ''
+                monedas_asignadas = []
+                monedas_asignadas_display = 'Todas las monedas'
         else:
             try:
                 perfil = usuario.perfil
@@ -433,12 +455,20 @@ def obtener_usuario(request, user_id):
                 tipo_valor_moneda_nombre = perfil.tipo_valor_moneda.nombre if perfil.tipo_valor_moneda else ''
                 # Usar el display definido en las opciones del modelo
                 tipo_usuario_display = dict(perfil.TIPO_USUARIO_CHOICES).get(tipo_usuario, 'Gestor')
+                
+                # Obtener monedas asignadas
+                monedas_asignadas = list(perfil.monedas_asignadas.values_list('id', flat=True))
+                monedas_asignadas_display = ', '.join(
+                    perfil.monedas_asignadas.values_list('codigo', flat=True)
+                ) if perfil.monedas_asignadas.exists() else 'Todas las monedas'
             except:
                 tipo_usuario = 'gestor'
                 tipo_usuario_display = 'Gestor'
                 telefono = ''
                 tipo_valor_moneda_id = None
                 tipo_valor_moneda_nombre = ''
+                monedas_asignadas = []
+                monedas_asignadas_display = 'Todas las monedas'
         
         return JsonResponse({
             'status': 'success',
@@ -454,6 +484,8 @@ def obtener_usuario(request, user_id):
                 'tipo_usuario_display': tipo_usuario_display,
                 'tipo_valor_moneda_id': tipo_valor_moneda_id,
                 'tipo_valor_moneda_nombre': tipo_valor_moneda_nombre,
+                'monedas_asignadas': monedas_asignadas,
+                'monedas_asignadas_display': monedas_asignadas_display,
                 'is_active': usuario.is_active,
                 'date_joined': usuario.date_joined.strftime('%Y-%m-%d'),
                 'last_login': usuario.last_login.strftime('%Y-%m-%d %H:%M') if usuario.last_login else 'Nunca'
@@ -486,6 +518,7 @@ def editar_usuario(request, user_id):
             tipo_usuario = request.POST.get('tipo_usuario', '').strip()
             telefono = request.POST.get('telefono', '').strip()
             tipo_valor_moneda_id = request.POST.get('tipo_valor_moneda', '').strip()
+            monedas_asignadas = request.POST.getlist('monedas_asignadas')  # Lista de IDs de monedas
             
             # Actualizar campos del usuario solo si se proporcionaron valores
             if username:
@@ -529,6 +562,12 @@ def editar_usuario(request, user_id):
                                 pass  # Mantener el valor actual
                         
                         perfil.save()
+                        
+                        # Actualizar monedas asignadas (admin puede tenerlas o no)
+                        if monedas_asignadas is not None:
+                            from remesas.models import Moneda
+                            monedas_objetos = Moneda.objects.filter(id__in=monedas_asignadas, activa=True)
+                            perfil.monedas_asignadas.set(monedas_objetos)
                     except:
                         # Si no tiene perfil, crear uno nuevo para admin
                         tipo_valor_obj = None
@@ -539,12 +578,18 @@ def editar_usuario(request, user_id):
                             except TipoValorMoneda.DoesNotExist:
                                 pass
                         
-                        PerfilUsuario.objects.create(
+                        perfil = PerfilUsuario.objects.create(
                             user=usuario, 
                             tipo_usuario='admin',
                             telefono=telefono if telefono else '',
                             tipo_valor_moneda=tipo_valor_obj
                         )
+                        
+                        # Asignar monedas si se proporcionaron
+                        if monedas_asignadas:
+                            from remesas.models import Moneda
+                            monedas_objetos = Moneda.objects.filter(id__in=monedas_asignadas, activa=True)
+                            perfil.monedas_asignadas.set(monedas_objetos)
                 else:
                     usuario.is_superuser = False
                     usuario.is_staff = False
@@ -566,6 +611,12 @@ def editar_usuario(request, user_id):
                                 pass  # Mantener el valor actual
                         
                         perfil.save()
+                        
+                        # Actualizar monedas asignadas (solo para gestor y domicilio)
+                        if tipo_usuario in ['gestor', 'domicilio'] and monedas_asignadas is not None:
+                            from remesas.models import Moneda
+                            monedas_objetos = Moneda.objects.filter(id__in=monedas_asignadas, activa=True)
+                            perfil.monedas_asignadas.set(monedas_objetos)
                     except:
                         # Si no tiene perfil, crear uno nuevo
                         tipo_valor_obj = None
@@ -576,12 +627,18 @@ def editar_usuario(request, user_id):
                             except TipoValorMoneda.DoesNotExist:
                                 pass
                         
-                        PerfilUsuario.objects.create(
+                        perfil = PerfilUsuario.objects.create(
                             user=usuario, 
                             tipo_usuario=tipo_usuario,
                             telefono=telefono if telefono else '',
                             tipo_valor_moneda=tipo_valor_obj
                         )
+                        
+                        # Asignar monedas si se proporcionaron (solo para gestor y domicilio)
+                        if tipo_usuario in ['gestor', 'domicilio'] and monedas_asignadas:
+                            from remesas.models import Moneda
+                            monedas_objetos = Moneda.objects.filter(id__in=monedas_asignadas, activa=True)
+                            perfil.monedas_asignadas.set(monedas_objetos)
             
             # Validar y guardar usuario
             usuario.full_clean()
