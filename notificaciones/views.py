@@ -3,8 +3,10 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
+from django.views.decorators.http import require_GET, require_POST
+from django.urls import reverse
 from django.utils import timezone
-from .models import ConfiguracionNotificacion, DestinatarioNotificacion, LogNotificacion
+from .models import ConfiguracionNotificacion, DestinatarioNotificacion, LogNotificacion, NotificacionInterna
 from .services import WhatsAppService
 from .forms import ConfiguracionForm, DestinatarioForm
 
@@ -264,6 +266,73 @@ _Sistema de gestión de remesas Eglis_"""
             })
     
     return JsonResponse({'success': False, 'message': 'Método no permitido'})
+
+
+@login_required
+def internas(request):
+    """Inbox/página de notificaciones internas."""
+    return render(request, 'notificaciones/internas.html', {})
+
+
+@login_required
+@require_GET
+def internas_api_unread_count(request):
+    count = NotificacionInterna.objects.filter(recipient=request.user, read_at__isnull=True).count()
+    return JsonResponse({'count': count})
+
+
+def _serialize_notificacion(request, n: NotificacionInterna):
+    created_local = timezone.localtime(n.created_at)
+    return {
+        'id': n.id,
+        'message': n.message,
+        'level': n.level,
+        'link': n.link,
+        'is_read': n.is_read,
+        'created_at': n.created_at.isoformat(),
+        'created_at_human': created_local.strftime('%d/%m/%Y %H:%M'),
+        'mark_read_url': reverse('notificaciones:internas_api_mark_read', args=[n.id]),
+    }
+
+
+@login_required
+@require_GET
+def internas_api_list(request):
+    try:
+        limit = int(request.GET.get('limit', '10'))
+        offset = int(request.GET.get('offset', '0'))
+    except ValueError:
+        limit = 10
+        offset = 0
+
+    limit = max(1, min(limit, 50))
+    offset = max(0, offset)
+
+    qs = NotificacionInterna.objects.filter(recipient=request.user).order_by('-created_at')
+    total_unread = qs.filter(read_at__isnull=True).count()
+    items = list(qs[offset:offset + limit])
+
+    return JsonResponse({
+        'unread_count': total_unread,
+        'notifications': [_serialize_notificacion(request, n) for n in items],
+    })
+
+
+@login_required
+@require_POST
+def internas_api_mark_read(request, notificacion_id: int):
+    notificacion = get_object_or_404(NotificacionInterna, id=notificacion_id, recipient=request.user)
+    notificacion.mark_read()
+    unread = NotificacionInterna.objects.filter(recipient=request.user, read_at__isnull=True).count()
+    return JsonResponse({'success': True, 'unread_count': unread})
+
+
+@login_required
+@require_POST
+def internas_api_mark_all_read(request):
+    now = timezone.now()
+    NotificacionInterna.objects.filter(recipient=request.user, read_at__isnull=True).update(read_at=now)
+    return JsonResponse({'success': True, 'unread_count': 0})
 
 
 @staff_member_required

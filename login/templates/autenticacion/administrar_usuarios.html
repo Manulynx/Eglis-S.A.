@@ -365,10 +365,10 @@
                     <div class="mb-3">
                         <label class="form-label">Tipo de Usuario</label>
                         <select name="tipo_usuario" id="tipoUsuarioCreate" class="form-select" required>
-                            <option value="gestor" selected>Gestor</option>
-                            <option value="admin">Administrador</option>
+                            <option value="admin" selected>Administrador</option>
                             <option value="contable">Contable</option>
                             <option value="domicilio">Domicilio</option>
+                            <option value="gestor">Gestor</option>
                         </select>
                     </div>
                     <div class="mb-3">
@@ -385,17 +385,37 @@
                     </div>
                     <div class="mb-3" id="monedasAsignadasCreateContainer" style="display: none;">
                         <label class="form-label">Monedas Asignadas <span class="text-warning">(Opcional)</span></label>
-                        <button type="button" class="btn btn-outline-primary w-100" onclick="abrirModalMonedasCreate()">
-                            <i class="fas fa-coins me-2"></i>Seleccionar Monedas
-                        </button>
+                        <div class="alert alert-info mb-2">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Sin selección:</strong> el usuario tendrá acceso a <strong>todas las monedas</strong>.
+                        </div>
+                        <div class="border border-secondary rounded p-2" style="max-height: 260px; overflow-y: auto;">
+                            <div id="checkboxMonedasCreateContainer" class="row g-2">
+                                {% for moneda in monedas_disponibles %}
+                                <div class="col-12 col-md-6">
+                                    <div class="form-check p-3 bg-secondary bg-opacity-10 rounded hover-highlight">
+                                        <input class="form-check-input" type="checkbox" value="{{ moneda.id }}" id="monedaCreate{{ moneda.id }}">
+                                        <label class="form-check-label w-100 cursor-pointer" for="monedaCreate{{ moneda.id }}">
+                                            <strong class="text-warning">{{ moneda.codigo }}</strong> <span class="text-muted">-</span> {{ moneda.nombre }}
+                                        </label>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="limpiarMonedasCreate()">
+                                <i class="fas fa-times me-1"></i>Limpiar
+                            </button>
+                            <small class="text-muted">
+                                <i class="fas fa-mouse-pointer me-1"></i>
+                                Marca/desmarca monedas
+                            </small>
+                        </div>
                         <div id="monedasSeleccionadasCreateDisplay" class="mt-2" style="display: none;">
                             <small class="text-muted d-block mb-2">Monedas seleccionadas:</small>
                             <div id="monedasSeleccionadasCreateList" class="d-flex flex-wrap gap-2"></div>
                         </div>
-                        <small class="text-muted d-block mt-2">
-                            <i class="fas fa-info-circle me-1"></i>
-                            <strong>Sin selección:</strong> Acceso a <strong>todas las monedas</strong>.
-                        </small>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -461,10 +481,10 @@
                         <label class="form-label">Tipo de Usuario</label>
                         <select name="tipo_usuario" id="editTipoUsuario" class="form-select">
                             <option value="">Mantener tipo actual</option>
-                            <option value="gestor">Gestor</option>
                             <option value="admin">Administrador</option>
                             <option value="contable">Contable</option>
                             <option value="domicilio">Domicilio</option>
+                            <option value="gestor">Gestor</option>
                         </select>
                         <small class="text-muted">Tipo actual: <span id="currentTipoUsuario"></span></small>
                     </div>
@@ -484,9 +504,33 @@
                     
                     <div class="mb-3" id="monedasAsignadasEditContainer" style="display: none;">
                         <label class="form-label">Monedas Asignadas <span class="text-warning">(Opcional)</span></label>
-                        <button type="button" class="btn btn-outline-primary w-100" onclick="abrirModalMonedasEdit()">
-                            <i class="fas fa-coins me-2"></i>Seleccionar Monedas
-                        </button>
+                        <div class="alert alert-info mb-2">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Sin selección:</strong> el usuario tendrá acceso a <strong>todas las monedas</strong>.
+                        </div>
+                        <div class="border border-secondary rounded p-2" style="max-height: 260px; overflow-y: auto;">
+                            <div id="checkboxMonedasEditContainer" class="row g-2">
+                                {% for moneda in monedas_disponibles %}
+                                <div class="col-12 col-md-6">
+                                    <div class="form-check p-3 bg-secondary bg-opacity-10 rounded hover-highlight">
+                                        <input class="form-check-input" type="checkbox" value="{{ moneda.id }}" id="monedaEdit{{ moneda.id }}">
+                                        <label class="form-check-label w-100 cursor-pointer" for="monedaEdit{{ moneda.id }}">
+                                            <strong class="text-warning">{{ moneda.codigo }}</strong> <span class="text-muted">-</span> {{ moneda.nombre }}
+                                        </label>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="limpiarMonedasEdit()">
+                                <i class="fas fa-times me-1"></i>Limpiar
+                            </button>
+                            <small class="text-muted">
+                                <i class="fas fa-mouse-pointer me-1"></i>
+                                Marca/desmarca monedas
+                            </small>
+                        </div>
                         <div id="monedasSeleccionadasEditDisplay" class="mt-2" style="display: none;">
                             <small class="text-muted d-block mb-2">Monedas seleccionadas:</small>
                             <div id="monedasSeleccionadasEditList" class="d-flex flex-wrap gap-2"></div>
@@ -494,10 +538,6 @@
                         <div class="mt-2">
                             <small class="text-info"><i class="fas fa-info-circle me-1"></i>Monedas actuales: <span id="currentMonedasAsignadas"></span></small>
                         </div>
-                        <small class="text-muted d-block mt-2">
-                            <i class="fas fa-info-circle me-1"></i>
-                            <strong>Sin selección:</strong> Acceso a <strong>todas las monedas</strong>.
-                        </small>
                     </div>
                     
                     <div class="mb-3">
@@ -543,81 +583,6 @@
     </div>
 </div>
 
-<!-- Modal Seleccionar Monedas - Crear Usuario -->
-<div class="modal fade" id="modalMonedasCreate" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content bg-dark text-white">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title"><i class="fas fa-coins me-2 text-warning"></i>Seleccionar Monedas</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-            </div>
-            <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
-                <div class="alert alert-info mb-3">
-                    <i class="fas fa-info-circle me-2"></i>
-                    <strong>Sin selección:</strong> El usuario tendrá acceso a todas las monedas.
-                </div>
-                <div id="checkboxMonedasCreateContainer" class="row g-2">
-                    {% for moneda in monedas_disponibles %}
-                    <div class="col-12 col-md-6">
-                        <div class="form-check p-3 bg-secondary bg-opacity-10 rounded hover-highlight">
-                            <input class="form-check-input" type="checkbox" value="{{ moneda.id }}" id="monedaCreate{{ moneda.id }}">
-                            <label class="form-check-label w-100 cursor-pointer" for="monedaCreate{{ moneda.id }}">
-                                <strong class="text-warning">{{ moneda.codigo }}</strong> <span class="text-muted">-</span> {{ moneda.nombre }}
-                            </label>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-            <div class="modal-footer border-secondary d-flex justify-content-between">
-                <button type="button" class="btn btn-outline-secondary" onclick="limpiarMonedasCreate()">
-                    <i class="fas fa-times me-1"></i>Limpiar
-                </button>
-                <button type="button" class="btn btn-primary" onclick="guardarMonedasCreate()">
-                    <i class="fas fa-check me-1"></i>Confirmar Selección
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Modal Seleccionar Monedas - Editar Usuario -->
-<div class="modal fade" id="modalMonedasEdit" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content bg-dark text-white">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title"><i class="fas fa-coins me-2 text-warning"></i>Seleccionar Monedas</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-            </div>
-            <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
-                <div class="alert alert-info mb-3">
-                    <i class="fas fa-info-circle me-2"></i>
-                    <strong>Sin selección:</strong> El usuario tendrá acceso a todas las monedas.
-                </div>
-                <div id="checkboxMonedasEditContainer" class="row g-2">
-                    {% for moneda in monedas_disponibles %}
-                    <div class="col-12 col-md-6">
-                        <div class="form-check p-3 bg-secondary bg-opacity-10 rounded hover-highlight">
-                            <input class="form-check-input" type="checkbox" value="{{ moneda.id }}" id="monedaEdit{{ moneda.id }}">
-                            <label class="form-check-label w-100 cursor-pointer" for="monedaEdit{{ moneda.id }}">
-                                <strong class="text-warning">{{ moneda.codigo }}</strong> <span class="text-muted">-</span> {{ moneda.nombre }}
-                            </label>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-            <div class="modal-footer border-secondary d-flex justify-content-between">
-                <button type="button" class="btn btn-outline-secondary" onclick="limpiarMonedasEdit()">
-                    <i class="fas fa-times me-1"></i>Limpiar
-                </button>
-                <button type="button" class="btn btn-primary" onclick="guardarMonedasEdit()">
-                    <i class="fas fa-check me-1"></i>Confirmar Selección
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
 
 <style>
 .table {
@@ -1041,6 +1006,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Configurar eventos manuales para el modal de editar
     configurarEventosModal();
+
+    // Monedas: usar selección inline (sin modales separados)
+    wireCurrencyCheckboxes();
     
     // Agregar event listener para el formulario de editar usuario
     const formEditarUsuario = document.getElementById('formEditarUsuario');
@@ -1418,6 +1386,7 @@ function abrirModalEditar(userId, username) {
             if (usuario.monedas_asignadas && usuario.monedas_asignadas.length > 0) {
                 monedasSeleccionadasEdit = usuario.monedas_asignadas.map(id => String(id));
             }
+            syncCheckboxesFromSelection('#checkboxMonedasEditContainer', monedasSeleccionadasEdit);
             actualizarDisplayMonedasEdit();
             
             // Mostrar/ocultar campo de monedas según tipo de usuario
@@ -1521,35 +1490,45 @@ function abrirModalEditar(userId, username) {
 let monedasSeleccionadasCreate = [];
 let monedasSeleccionadasEdit = [];
 
-// Abrir modal de monedas para crear
-function abrirModalMonedasCreate() {
-    // Marcar los checkboxes según selección actual
-    document.querySelectorAll('#checkboxMonedasCreateContainer input[type="checkbox"]').forEach(checkbox => {
-        checkbox.checked = monedasSeleccionadasCreate.includes(checkbox.value);
-    });
-    
-    const modal = new bootstrap.Modal(document.getElementById('modalMonedasCreate'));
-    modal.show();
+function readSelectionFromCheckboxes(containerSelector) {
+    const container = document.querySelector(containerSelector);
+    if (!container) return [];
+
+    return Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+        .map(checkbox => String(checkbox.value));
 }
 
-// Guardar monedas seleccionadas para crear
-function guardarMonedasCreate() {
-    monedasSeleccionadasCreate = [];
-    const checkboxes = document.querySelectorAll('#checkboxMonedasCreateContainer input[type="checkbox"]:checked');
-    
-    checkboxes.forEach(checkbox => {
-        monedasSeleccionadasCreate.push(checkbox.value);
+function syncCheckboxesFromSelection(containerSelector, selectedIds) {
+    const container = document.querySelector(containerSelector);
+    if (!container) return;
+
+    container.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+        checkbox.checked = selectedIds.includes(String(checkbox.value));
     });
-    
-    actualizarDisplayMonedasCreate();
-    
-    // Cerrar modal
-    const modalElement = document.getElementById('modalMonedasCreate');
-    let modal = bootstrap.Modal.getInstance(modalElement);
-    if (!modal) {
-        modal = new bootstrap.Modal(modalElement);
+}
+
+function wireCurrencyCheckboxes() {
+    const createContainer = document.getElementById('checkboxMonedasCreateContainer');
+    if (createContainer && !createContainer.dataset.wired) {
+        createContainer.dataset.wired = '1';
+        createContainer.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                monedasSeleccionadasCreate = readSelectionFromCheckboxes('#checkboxMonedasCreateContainer');
+                actualizarDisplayMonedasCreate();
+            });
+        });
     }
-    modal.hide();
+
+    const editContainer = document.getElementById('checkboxMonedasEditContainer');
+    if (editContainer && !editContainer.dataset.wired) {
+        editContainer.dataset.wired = '1';
+        editContainer.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                monedasSeleccionadasEdit = readSelectionFromCheckboxes('#checkboxMonedasEditContainer');
+                actualizarDisplayMonedasEdit();
+            });
+        });
+    }
 }
 
 // Limpiar selección de monedas para crear
@@ -1592,38 +1571,9 @@ function actualizarDisplayMonedasCreate() {
 // Remover una moneda de la selección para crear
 function removerMonedaCreate(monedaId) {
     monedasSeleccionadasCreate = monedasSeleccionadasCreate.filter(id => id !== monedaId);
+    const checkbox = document.querySelector(`#monedaCreate${monedaId}`);
+    if (checkbox) checkbox.checked = false;
     actualizarDisplayMonedasCreate();
-}
-
-// Abrir modal de monedas para editar
-function abrirModalMonedasEdit() {
-    // Marcar los checkboxes según selección actual
-    document.querySelectorAll('#checkboxMonedasEditContainer input[type="checkbox"]').forEach(checkbox => {
-        checkbox.checked = monedasSeleccionadasEdit.includes(checkbox.value);
-    });
-    
-    const modal = new bootstrap.Modal(document.getElementById('modalMonedasEdit'));
-    modal.show();
-}
-
-// Guardar monedas seleccionadas para editar
-function guardarMonedasEdit() {
-    monedasSeleccionadasEdit = [];
-    const checkboxes = document.querySelectorAll('#checkboxMonedasEditContainer input[type="checkbox"]:checked');
-    
-    checkboxes.forEach(checkbox => {
-        monedasSeleccionadasEdit.push(checkbox.value);
-    });
-    
-    actualizarDisplayMonedasEdit();
-    
-    // Cerrar modal
-    const modalElement = document.getElementById('modalMonedasEdit');
-    let modal = bootstrap.Modal.getInstance(modalElement);
-    if (!modal) {
-        modal = new bootstrap.Modal(modalElement);
-    }
-    modal.hide();
 }
 
 // Limpiar selección de monedas para editar
@@ -1666,6 +1616,8 @@ function actualizarDisplayMonedasEdit() {
 // Remover una moneda de la selección para editar
 function removerMonedaEdit(monedaId) {
     monedasSeleccionadasEdit = monedasSeleccionadasEdit.filter(id => id !== monedaId);
+    const checkbox = document.querySelector(`#monedaEdit${monedaId}`);
+    if (checkbox) checkbox.checked = false;
     actualizarDisplayMonedasEdit();
 }
 
@@ -1685,8 +1637,7 @@ document.getElementById('tipoUsuarioCreate').addEventListener('change', function
         // Ocultar para admin y contable (siempre tienen acceso a todas)
         monedasContainer.style.display = 'none';
         // Limpiar selección cuando se cambia a admin o contable
-        monedasSeleccionadasCreate = [];
-        actualizarDisplayMonedasCreate();
+        limpiarMonedasCreate();
     }
 });
 
@@ -1702,6 +1653,8 @@ document.getElementById('editTipoUsuario').addEventListener('change', function()
     } else if (tipoUsuario === 'admin' || tipoUsuario === 'contable') {
         // Ocultar para admin y contable (siempre todas las monedas)
         monedasContainer.style.display = 'none';
+        // Limpiar selección para que sea "todas las monedas"
+        limpiarMonedasEdit();
     }
     // Si está vacío (mantener actual), no cambiar el estado actual del display
 });

@@ -70,8 +70,13 @@ def registro_transacciones(request):
     total_pagos = sum(pago.calcular_monto_en_usd() for pago in pagos_confirmados)
     total_pagos += sum(pago.calcular_monto_en_usd() for pago in pagos_remesa_confirmados)
     
-    # Obtener monedas para filtros
-    monedas = models.Moneda.objects.filter(activa=True)
+    # Obtener monedas para filtros (según permisos del usuario)
+    if request.user.is_superuser:
+        monedas = models.Moneda.objects.filter(activa=True)
+    elif hasattr(request.user, 'perfil'):
+        monedas = request.user.perfil.get_monedas_disponibles().filter(activa=True)
+    else:
+        monedas = models.Moneda.objects.filter(activa=True)
 
     context = {
         'remesas': remesas_con_pagos,
@@ -206,6 +211,13 @@ def remesas(request):
                         print(f"Moneda encontrada: {moneda}")
                     except models.Moneda.DoesNotExist:
                         return JsonResponse({'success': False, 'message': 'La moneda seleccionada no existe'})
+
+                    # Validar permisos de moneda (gestor/domicilio restringidos)
+                    if hasattr(request.user, 'perfil') and not request.user.perfil.puede_usar_moneda(moneda):
+                        return JsonResponse({
+                            'success': False,
+                            'message': 'No tienes permisos para operar con la moneda seleccionada'
+                        }, status=403)
                     
                     # Crear remesa con el modelo simplificado
                     print(f"\n=== CREANDO REMESA ===")
@@ -290,7 +302,12 @@ def remesas(request):
     import json
     
     # Obtener monedas para cálculos con valores específicos del usuario
-    monedas = models.Moneda.objects.filter(activa=True)
+    if request.user.is_superuser:
+        monedas = models.Moneda.objects.filter(activa=True)
+    elif hasattr(request.user, 'perfil'):
+        monedas = request.user.perfil.get_monedas_disponibles().filter(activa=True)
+    else:
+        monedas = models.Moneda.objects.filter(activa=True)
     monedas_data = []
     for moneda in monedas:
         valor_usuario = moneda.get_valor_para_usuario(request.user)
@@ -337,8 +354,13 @@ def remesas(request):
 def api_monedas(request):
     tipo_moneda = request.GET.get('tipo_moneda', None)
     
-    # Filtrar monedas activas
-    monedas_query = models.Moneda.objects.filter(activa=True)
+    # Filtrar monedas activas según permisos del usuario
+    if request.user.is_superuser:
+        monedas_query = models.Moneda.objects.filter(activa=True)
+    elif hasattr(request.user, 'perfil'):
+        monedas_query = request.user.perfil.get_monedas_disponibles().filter(activa=True)
+    else:
+        monedas_query = models.Moneda.objects.filter(activa=True)
     
     # Si se especifica un tipo de moneda, filtrar por él
     if tipo_moneda and tipo_moneda in ['efectivo', 'transferencia']:
@@ -815,12 +837,19 @@ def detalle_remesa(request, remesa_id):
             request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
         )
         
-        # Crear formulario para pagos de remesa
-        form_pago_remesa = PagoRemesaForm()
+        # Crear formulario para pagos de remesa (monedas filtradas por usuario)
+        form_pago_remesa = PagoRemesaForm(user=request.user)
         
         # Obtener datos de monedas para JavaScript con valores específicos del usuario
         monedas_data = {}
-        for moneda in models.Moneda.objects.filter(activa=True):
+        if request.user.is_superuser:
+            monedas_permitidas = models.Moneda.objects.filter(activa=True)
+        elif hasattr(request.user, 'perfil'):
+            monedas_permitidas = request.user.perfil.get_monedas_disponibles().filter(activa=True)
+        else:
+            monedas_permitidas = models.Moneda.objects.filter(activa=True)
+
+        for moneda in monedas_permitidas:
             valor_usuario = moneda.get_valor_para_usuario(request.user)
             monedas_data[moneda.id] = {
                 'codigo': moneda.codigo,
@@ -1270,7 +1299,7 @@ def crear_pago(request):
             if 'carnet_identidad_efectivo' in form_data:
                 form_data['carnet_identidad'] = form_data['carnet_identidad_efectivo']
         
-        form = PagoForm(form_data, request.FILES)
+        form = PagoForm(form_data, request.FILES, user=request.user)
         if form.is_valid():
             pago = form.save(commit=False)
             pago.usuario = request.user  # Asignar el usuario actual
@@ -1297,7 +1326,7 @@ def crear_pago(request):
         else:
             messages.error(request, 'Por favor corrige los errores en el formulario.')
     else:
-        form = PagoForm()
+        form = PagoForm(user=request.user)
     
     # Obtener datos de monedas para JavaScript con valores específicos del usuario
     monedas_data = {}
@@ -2011,8 +2040,8 @@ def crear_pago_remesa(request, remesa_id):
                 'message': 'No tiene permisos para agregar pagos a esta remesa'
             })
         
-        # Crear el formulario con los datos POST y FILES
-        form = PagoRemesaForm(request.POST, request.FILES)
+        # Crear el formulario con los datos POST y FILES (monedas filtradas por usuario)
+        form = PagoRemesaForm(request.POST, request.FILES, user=request.user)
         
         if form.is_valid():
             # Crear el pago pero no guardarlo todavía
@@ -2069,7 +2098,7 @@ def editar_pago_remesa(request, pago_id):
         return redirect('remesas:detalle_remesa', remesa_id=remesa.id)
     
     if request.method == 'POST':
-        form = PagoRemesaForm(request.POST, request.FILES, instance=pago)
+        form = PagoRemesaForm(request.POST, request.FILES, instance=pago, user=request.user)
         
         if form.is_valid():
             # Marcar como editado
@@ -2082,7 +2111,7 @@ def editar_pago_remesa(request, pago_id):
             messages.success(request, f'Pago {pago.pago_id} editado exitosamente')
             return redirect('remesas:detalle_remesa', remesa_id=remesa.id)
     else:
-        form = PagoRemesaForm(instance=pago)
+        form = PagoRemesaForm(instance=pago, user=request.user)
     
     context = {
         'form': form,

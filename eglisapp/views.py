@@ -18,8 +18,13 @@ def admin_usuarios_redirect(request):
 def home(request):
     from remesas.models import Moneda
     
-    # Obtener monedas activas
-    monedas = Moneda.objects.filter(activa=True)
+    # Obtener monedas según permisos del usuario
+    if request.user.is_superuser:
+        monedas = Moneda.objects.filter(activa=True)
+    elif hasattr(request.user, 'perfil'):
+        monedas = request.user.perfil.get_monedas_disponibles().filter(activa=True)
+    else:
+        monedas = Moneda.objects.filter(activa=True)
     
     # Preparar monedas con sus valores específicos para el usuario logueado
     monedas_con_valores = []

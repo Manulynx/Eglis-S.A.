@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 
 
@@ -66,6 +68,12 @@ class ConfiguracionNotificacion(models.Model):
         default=True,
         help_text="Enviar notificaciones para cambios de estado"
     )
+
+    # Notificaciones de edición (históricamente soportadas)
+    notificar_ediciones = models.BooleanField(
+        default=True,
+        help_text='Enviar notificaciones cuando se editen remesas o pagos',
+    )
     
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
@@ -115,6 +123,11 @@ class DestinatarioNotificacion(models.Model):
         default=True,
         help_text="Recibir notificaciones de cambios de estado"
     )
+
+    recibir_ediciones = models.BooleanField(
+        default=True,
+        help_text='Recibir notificaciones de ediciones',
+    )
     
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
@@ -135,9 +148,11 @@ class LogNotificacion(models.Model):
         ('remesa_nueva', 'Nueva Remesa'),
         ('remesa_estado', 'Cambio Estado Remesa'),
         ('remesa_eliminada', 'Remesa Eliminada'),
+        ('remesa_editada', 'Remesa Editada'),
         ('pago_nuevo', 'Nuevo Pago'),
         ('pago_estado', 'Cambio Estado Pago'),
         ('pago_eliminado', 'Pago Eliminado'),
+        ('pago_editado', 'Pago Editado'),
         ('TEST', 'Mensaje de Prueba'),
     ]
     
@@ -192,3 +207,62 @@ class LogNotificacion(models.Model):
     
     def __str__(self):
         return f"{self.get_tipo_display()} - {self.destinatario.nombre} - {self.estado}"
+
+
+class NotificacionInterna(models.Model):
+    """Notificación interna (campanita) por usuario."""
+
+    LEVEL_CHOICES = [
+        ('info', 'Info'),
+        ('success', 'Éxito'),
+        ('warning', 'Advertencia'),
+        ('danger', 'Error'),
+    ]
+
+    recipient = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='notificaciones_internas',
+        help_text='Usuario que recibe la notificación',
+    )
+    actor = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='notificaciones_internas_generadas',
+        help_text='Usuario que originó la acción (si aplica)',
+    )
+    verb = models.CharField(max_length=50, blank=True, default='')
+    message = models.CharField(max_length=255)
+    link = models.CharField(max_length=255, blank=True, default='')
+    level = models.CharField(max_length=10, choices=LEVEL_CHOICES, default='info')
+
+    # Relación genérica opcional al objeto relacionado (pago, remesa, etc.)
+    content_type = models.ForeignKey(ContentType, on_delete=models.SET_NULL, null=True, blank=True)
+    object_id = models.CharField(max_length=64, null=True, blank=True)
+    content_object = GenericForeignKey('content_type', 'object_id')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Notificación Interna'
+        verbose_name_plural = 'Notificaciones Internas'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['recipient', 'read_at'], name='noti_int_rec_read_idx'),
+            models.Index(fields=['recipient', 'created_at'], name='noti_int_rec_created_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.recipient.username}: {self.message}"
+
+    @property
+    def is_read(self) -> bool:
+        return self.read_at is not None
+
+    def mark_read(self, when=None):
+        if self.read_at is None:
+            self.read_at = when or timezone.now()
+            self.save(update_fields=['read_at'])

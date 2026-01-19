@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import ConfiguracionNotificacion, DestinatarioNotificacion, LogNotificacion
+from .models import ConfiguracionNotificacion, DestinatarioNotificacion, LogNotificacion, NotificacionInterna
 
 
 @admin.register(ConfiguracionNotificacion)
@@ -76,3 +76,11 @@ class LogNotificacionAdmin(admin.ModelAdmin):
     
     def has_add_permission(self, request):
         return False  # No permitir crear logs manualmente
+
+
+@admin.register(NotificacionInterna)
+class NotificacionInternaAdmin(admin.ModelAdmin):
+    list_display = ['recipient', 'message', 'level', 'created_at', 'read_at']
+    list_filter = ['level', 'created_at', 'read_at']
+    search_fields = ['recipient__username', 'message', 'verb', 'link']
+    readonly_fields = ['created_at']

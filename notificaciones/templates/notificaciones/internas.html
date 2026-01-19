@@ -1,0 +1,135 @@
+{% extends 'eglisapp/base.html' %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h3 class="mb-0"><i class="fas fa-bell me-2"></i>Notificaciones</h3>
+    <button class="btn btn-sm btn-outline-light" id="btn-mark-all">
+      Marcar todas como leídas
+    </button>
+  </div>
+
+  <div class="card bg-dark text-white border-0" style="background: rgba(0,0,0,0.25) !important;">
+    <div class="card-body" id="notifications-list">
+      <div class="text-center text-muted">Cargando…</div>
+    </div>
+  </div>
+
+  <div class="mt-3 d-flex justify-content-center">
+    <button class="btn btn-sm btn-outline-info" id="btn-load-more">Cargar más</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  const listEl = document.getElementById('notifications-list');
+  const btnLoadMore = document.getElementById('btn-load-more');
+  const btnMarkAll = document.getElementById('btn-mark-all');
+  let offset = 0;
+  const limit = 20;
+
+  function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+  }
+
+  async function fetchList(append) {
+    const url = `{% url 'notificaciones:internas_api_list' %}?limit=${limit}&offset=${offset}`;
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    const data = await res.json();
+
+    if (!append) listEl.innerHTML = '';
+
+    if (!data.notifications || data.notifications.length === 0) {
+      if (!append) listEl.innerHTML = '<div class="text-center text-muted">No hay notificaciones.</div>';
+      btnLoadMore.disabled = true;
+      return;
+    }
+
+    for (const n of data.notifications) {
+      const item = document.createElement('div');
+      item.className = 'd-flex align-items-start gap-2 py-2 border-bottom border-secondary';
+      item.style.opacity = n.is_read ? '0.7' : '1';
+
+      const dot = document.createElement('span');
+      dot.className = 'mt-1 rounded-circle';
+      dot.style.width = '10px';
+      dot.style.height = '10px';
+      dot.style.background = n.is_read ? 'rgba(255,255,255,0.35)' : '#0dcaf0';
+
+      const body = document.createElement('div');
+      body.className = 'flex-grow-1';
+      body.innerHTML = `
+        <div class="fw-semibold">${n.message}</div>
+        <div class="small text-muted">${n.created_at_human}</div>
+      `;
+
+      const actions = document.createElement('div');
+      actions.className = 'd-flex gap-2';
+
+      if (n.link) {
+        const a = document.createElement('a');
+        a.className = 'btn btn-sm btn-outline-info';
+        a.href = n.link;
+        a.textContent = 'Ver';
+        actions.appendChild(a);
+      }
+
+      if (!n.is_read) {
+        const b = document.createElement('button');
+        b.className = 'btn btn-sm btn-outline-light';
+        b.textContent = 'Leída';
+        b.addEventListener('click', async () => {
+          const res2 = await fetch(n.mark_read_url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': getCookie('csrftoken'),
+              'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({})
+          });
+          const d2 = await res2.json();
+          if (d2.success) {
+            offset = 0;
+            btnLoadMore.disabled = false;
+            await fetchList(false);
+          }
+        });
+        actions.appendChild(b);
+      }
+
+      item.appendChild(dot);
+      item.appendChild(body);
+      item.appendChild(actions);
+      listEl.appendChild(item);
+    }
+
+    offset += data.notifications.length;
+  }
+
+  btnLoadMore.addEventListener('click', () => fetchList(true));
+  btnMarkAll.addEventListener('click', async () => {
+    const res = await fetch(`{% url 'notificaciones:internas_api_mark_all_read' %}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCookie('csrftoken'),
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify({})
+    });
+    const data = await res.json();
+    if (data.success) {
+      offset = 0;
+      btnLoadMore.disabled = false;
+      await fetchList(false);
+    }
+  });
+
+  fetchList(false);
+})();
+</script>
+{% endblock %}

@@ -81,9 +81,13 @@ class PagoForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
-        # Filtrar solo monedas activas
-        self.fields['tipo_moneda'].queryset = Moneda.objects.filter(activa=True)
+        # Filtrar monedas según permisos del usuario
+        if user is not None and hasattr(user, 'perfil'):
+            self.fields['tipo_moneda'].queryset = user.perfil.get_monedas_disponibles().filter(activa=True)
+        else:
+            self.fields['tipo_moneda'].queryset = Moneda.objects.filter(activa=True)
         self.fields['tipo_moneda'].empty_label = "Seleccione una moneda"
         
         # Solo hacer obligatorio el tipo de pago inicialmente
@@ -242,9 +246,13 @@ class PagoRemesaForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
-        # Filtrar solo monedas activas
-        self.fields['tipo_moneda'].queryset = Moneda.objects.filter(activa=True)
+        # Filtrar monedas según permisos del usuario
+        if user is not None and hasattr(user, 'perfil'):
+            self.fields['tipo_moneda'].queryset = user.perfil.get_monedas_disponibles().filter(activa=True)
+        else:
+            self.fields['tipo_moneda'].queryset = Moneda.objects.filter(activa=True)
         self.fields['tipo_moneda'].empty_label = "Seleccione una moneda"
         
         # Solo hacer obligatorio el tipo de pago inicialmente

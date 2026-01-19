@@ -501,14 +501,53 @@
           </li>
           {% endif %}
 
-          <!-- Icono de notificaciones que lleva a destinatarios -->
-          {% if user.is_authenticated and user_tipo == 'admin' %}
-          <li class="nav-item {% if request.resolver_match.url_name == 'destinatarios' %}active{% endif %}">
-            <a class="nav-link d-flex align-items-center gap-2" href="{% url 'notificaciones:destinatarios' %}"
-               title="Gestión de Destinatarios" data-bs-toggle="tooltip">
-              <i class="fas fa-bell"></i>
-              <span class="d-lg-none">Destinatarios</span>
+          <!-- Campanita de notificaciones internas -->
+          {% if user.is_authenticated %}
+          <li class="nav-item dropdown">
+            <a class="nav-link d-flex align-items-center gap-2 dropdown-toggle" href="#" id="internalNotificationsDropdown"
+               role="button" data-bs-toggle="dropdown" aria-expanded="false" title="Notificaciones">
+              <span class="position-relative">
+                <i class="fas fa-bell"></i>
+                <span id="internal-notif-badge"
+                      class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                      style="font-size: 0.65rem; display: {% if internal_unread_count %}inline-block{% else %}none{% endif %};">
+                  {{ internal_unread_count|default:0 }}
+                </span>
+              </span>
+              <span class="d-lg-none">Notificaciones</span>
             </a>
+            <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark" aria-labelledby="internalNotificationsDropdown" style="min-width: 340px;">
+              <li class="dropdown-header text-white-50">Notificaciones</li>
+              <li>
+                <div id="internal-notif-items" class="px-2" style="max-height: 320px; overflow:auto;">
+                  <div class="text-center text-white-50 py-2">Cargando…</div>
+                </div>
+              </li>
+              <li><hr class="dropdown-divider"></li>
+              <li>
+                <button class="dropdown-item" type="button" id="internal-notif-mark-all">
+                  <i class="fas fa-check-double me-2"></i>Marcar todas como leídas
+                </button>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{% url 'notificaciones:internas' %}">
+                  <i class="fas fa-list me-2"></i>Ver todas
+                </a>
+              </li>
+              {% if user_tipo == 'admin' %}
+              <li><hr class="dropdown-divider"></li>
+              <li>
+                <a class="dropdown-item" href="{% url 'notificaciones:destinatarios' %}">
+                  <i class="fas fa-user-group me-2"></i>Destinatarios WhatsApp
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{% url 'notificaciones:logs' %}">
+                  <i class="fas fa-file-lines me-2"></i>Logs WhatsApp
+                </a>
+              </li>
+              {% endif %}
+            </ul>
           </li>
           {% endif %}
 
@@ -899,6 +938,154 @@
         navbarDropdowns.forEach((toggle, index) => {
           console.log(`Dropdown ${index + 1} en navbar:`, toggle.id || toggle.textContent.trim());
         });
+      });
+    </script>
+
+    <!-- Notificaciones internas (campanita) -->
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        const dropdownToggle = document.getElementById('internalNotificationsDropdown');
+        const badge = document.getElementById('internal-notif-badge');
+        const itemsEl = document.getElementById('internal-notif-items');
+        const markAllBtn = document.getElementById('internal-notif-mark-all');
+
+        if (!dropdownToggle || !badge || !itemsEl) return;
+
+        function getCookie(name) {
+          const value = `; ${document.cookie}`;
+          const parts = value.split(`; ${name}=`);
+          if (parts.length === 2) return parts.pop().split(';').shift();
+          return null;
+        }
+
+        function setBadge(count) {
+          const c = Number(count || 0);
+          if (c > 0) {
+            badge.textContent = c > 99 ? '99+' : String(c);
+            badge.style.display = 'inline-block';
+          } else {
+            badge.style.display = 'none';
+          }
+        }
+
+        function renderItems(notifications) {
+          if (!notifications || notifications.length === 0) {
+            itemsEl.innerHTML = '<div class="text-center text-white-50 py-2">No hay notificaciones.</div>';
+            return;
+          }
+
+          itemsEl.innerHTML = '';
+          notifications.forEach(n => {
+            const row = document.createElement('div');
+            row.className = 'd-flex align-items-start gap-2 py-2 border-bottom border-secondary';
+            row.style.opacity = n.is_read ? '0.7' : '1';
+
+            const dot = document.createElement('span');
+            dot.className = 'mt-1 rounded-circle';
+            dot.style.width = '10px';
+            dot.style.height = '10px';
+            dot.style.background = n.is_read ? 'rgba(255,255,255,0.35)' : '#0dcaf0';
+
+            const body = document.createElement('div');
+            body.className = 'flex-grow-1';
+            body.innerHTML = `
+              <div class="fw-semibold">${n.message}</div>
+              <div class="small text-white-50">${n.created_at_human}</div>
+            `;
+
+            const actions = document.createElement('div');
+            actions.className = 'd-flex gap-2';
+
+            if (n.link) {
+              const a = document.createElement('a');
+              a.className = 'btn btn-sm btn-outline-info';
+              a.href = n.link;
+              a.textContent = 'Ver';
+              a.addEventListener('click', () => {
+                if (!n.is_read && n.mark_read_url) {
+                  fetch(n.mark_read_url, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'X-CSRFToken': getCookie('csrftoken'),
+                      'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({})
+                  }).catch(() => {});
+                }
+              });
+              actions.appendChild(a);
+            }
+
+            if (!n.is_read && n.mark_read_url) {
+              const b = document.createElement('button');
+              b.className = 'btn btn-sm btn-outline-light';
+              b.type = 'button';
+              b.textContent = 'Leída';
+              b.addEventListener('click', async () => {
+                try {
+                  const res = await fetch(n.mark_read_url, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'X-CSRFToken': getCookie('csrftoken'),
+                      'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({})
+                  });
+                  const data = await res.json();
+                  if (data && data.success) {
+                    await refreshList();
+                  }
+                } catch (e) {}
+              });
+              actions.appendChild(b);
+            }
+
+            row.appendChild(dot);
+            row.appendChild(body);
+            row.appendChild(actions);
+            itemsEl.appendChild(row);
+          });
+        }
+
+        async function refreshList() {
+          try {
+            const url = `{% url 'notificaciones:internas_api_list' %}?limit=8&offset=0`;
+            const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+            const data = await res.json();
+            setBadge(data.unread_count);
+            renderItems(data.notifications);
+          } catch (e) {
+            itemsEl.innerHTML = '<div class="text-center text-white-50 py-2">Error cargando notificaciones.</div>';
+          }
+        }
+
+        if (markAllBtn) {
+          markAllBtn.addEventListener('click', async () => {
+            try {
+              const res = await fetch(`{% url 'notificaciones:internas_api_mark_all_read' %}`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-CSRFToken': getCookie('csrftoken'),
+                  'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({})
+              });
+              const data = await res.json();
+              if (data && data.success) {
+                setBadge(0);
+                await refreshList();
+              }
+            } catch (e) {}
+          });
+        }
+
+        // Refrescar al abrir el dropdown y cada 30s
+        dropdownToggle.addEventListener('show.bs.dropdown', refreshList);
+        refreshList();
+        setInterval(refreshList, 30000);
       });
     </script>
 
