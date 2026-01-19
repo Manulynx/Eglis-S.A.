@@ -2,6 +2,59 @@
 {% load static %}
 
 {% block content %}
+<style>
+/* Estilos (igual estilo que Administrar Usuarios) para selección de monedas */
+.moneda-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.moneda-badge .remove-moneda {
+    cursor: pointer;
+    margin-left: 0.25rem;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+.moneda-badge .remove-moneda:hover {
+    opacity: 1;
+}
+
+.hover-highlight:hover {
+    background-color: rgba(108, 117, 125, 0.3) !important;
+    transform: translateX(5px);
+}
+
+.cursor-pointer {
+    cursor: pointer;
+}
+
+.form-check-input {
+    width: 1.25em;
+    height: 1.25em;
+    margin-top: 0.15em;
+    cursor: pointer;
+}
+
+.form-check-input:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.form-check-label {
+    cursor: pointer;
+    user-select: none;
+    margin-left: 0.5rem;
+}
+</style>
 <div class="container mt-5">
     <div class="row">
         <div class="col-12">
@@ -131,13 +184,6 @@
                                                     <button type="button" 
                                                             class="btn btn-primary editar-destinatario-btn" 
                                                             data-destinatario-id="{{ destinatario.pk }}"
-                                                            data-nombre="{{ destinatario.nombre }}"
-                                                            data-telefono="{{ destinatario.telefono }}"
-                                                            data-callmebot-api-key="{{ destinatario.callmebot_api_key|default:'' }}"
-                                                            data-activo="{% if destinatario.activo %}true{% else %}false{% endif %}"
-                                                            data-recibir-remesas="{% if destinatario.recibir_remesas %}true{% else %}false{% endif %}"
-                                                            data-recibir-pagos="{% if destinatario.recibir_pagos %}true{% else %}false{% endif %}"
-                                                            data-recibir-cambios-estado="{% if destinatario.recibir_cambios_estado %}true{% else %}false{% endif %}"
                                                             title="Editar">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
@@ -221,13 +267,7 @@
                                         <button type="button" 
                                                 class="btn btn-primary btn-sm flex-grow-1 editar-destinatario-btn"
                                                 data-destinatario-id="{{ destinatario.pk }}"
-                                                data-nombre="{{ destinatario.nombre }}"
-                                                data-telefono="{{ destinatario.telefono }}"
-                                                data-callmebot-api-key="{{ destinatario.callmebot_api_key|default:'' }}"
-                                                data-activo="{% if destinatario.activo %}true{% else %}false{% endif %}"
-                                                data-recibir-remesas="{% if destinatario.recibir_remesas %}true{% else %}false{% endif %}"
-                                                data-recibir-pagos="{% if destinatario.recibir_pagos %}true{% else %}false{% endif %}"
-                                                data-recibir-cambios-estado="{% if destinatario.recibir_cambios_estado %}true{% else %}false{% endif %}">
+                                                title="Editar">
                                             <i class="fas fa-edit me-1"></i>Editar
                                         </button>
                                         <button type="button" 
@@ -316,29 +356,105 @@
                                 </label>
                             </div>
                         </div>
-                        <div class="col-md-3 mb-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="recibir_remesas" id="recibir_remesas" checked>
-                                <label class="form-check-label text-white">
-                                    Notificar Remesas
-                                </label>
+                        <div class="col-12 mb-2">
+                            <div class="row g-2">
+                                <div class="col-12">
+                                    <div class="alert alert-secondary py-2 mb-0">
+                                        <strong>Remesas</strong>
+                                        <div class="d-flex flex-wrap gap-3 mt-2">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="recibir_remesa_nueva" id="recibir_remesa_nueva" checked>
+                                                <label class="form-check-label text-white" for="recibir_remesa_nueva">Nueva</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="recibir_remesa_confirmada" id="recibir_remesa_confirmada" checked>
+                                                <label class="form-check-label text-white" for="recibir_remesa_confirmada">Confirmada</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="recibir_remesa_completada" id="recibir_remesa_completada" checked>
+                                                <label class="form-check-label text-white" for="recibir_remesa_completada">Completada</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="recibir_remesa_cancelada" id="recibir_remesa_cancelada" checked>
+                                                <label class="form-check-label text-white" for="recibir_remesa_cancelada">Cancelada</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="recibir_remesa_editada" id="recibir_remesa_editada" checked>
+                                                <label class="form-check-label text-white" for="recibir_remesa_editada">Editada</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="recibir_remesa_eliminada" id="recibir_remesa_eliminada" checked>
+                                                <label class="form-check-label text-white" for="recibir_remesa_eliminada">Eliminada</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="alert alert-secondary py-2 mb-0">
+                                        <strong>Pagos</strong>
+                                        <div class="d-flex flex-wrap gap-3 mt-2">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="recibir_pago_nuevo" id="recibir_pago_nuevo" checked>
+                                                <label class="form-check-label text-white" for="recibir_pago_nuevo">Nuevo</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="recibir_pago_confirmado" id="recibir_pago_confirmado" checked>
+                                                <label class="form-check-label text-white" for="recibir_pago_confirmado">Confirmado</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="recibir_pago_cancelado" id="recibir_pago_cancelado" checked>
+                                                <label class="form-check-label text-white" for="recibir_pago_cancelado">Cancelado</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="recibir_pago_editado" id="recibir_pago_editado" checked>
+                                                <label class="form-check-label text-white" for="recibir_pago_editado">Editado</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="recibir_pago_eliminado" id="recibir_pago_eliminado" checked>
+                                                <label class="form-check-label text-white" for="recibir_pago_eliminado">Eliminado</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div class="col-md-3 mb-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="recibir_pagos" id="recibir_pagos" checked>
-                                <label class="form-check-label text-white">
-                                    Notificar Pagos
-                                </label>
+                    </div>
+
+                    <div class="row mt-2">
+                        <div class="col-12 mb-3">
+                            <label class="form-label text-white">Monedas Asignadas <span class="text-warning">(Opcional)</span></label>
+                            <div class="alert alert-info mb-2">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>Sin selección:</strong> recibirá notificaciones para <strong>todas las monedas</strong>.
                             </div>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="recibir_cambios_estado" id="recibir_cambios_estado" checked>
-                                <label class="form-check-label text-white">
-                                    Cambios de Estado
-                                </label>
+                            <div class="border border-secondary rounded p-2" style="max-height: 260px; overflow-y: auto;">
+                                <div id="checkboxMonedasDestinatarioContainer" class="row g-2">
+                                    {% for m in monedas %}
+                                    <div class="col-12 col-md-6">
+                                        <div class="form-check p-3 bg-secondary bg-opacity-10 rounded hover-highlight">
+                                            <input class="form-check-input" type="checkbox" name="monedas" value="{{ m.id }}" id="monedaDest{{ m.id }}">
+                                            <label class="form-check-label w-100 cursor-pointer" for="monedaDest{{ m.id }}">
+                                                <strong class="text-warning">{{ m.codigo }}</strong> <span class="text-muted">-</span> {{ m.nombre }}
+                                            </label>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
                             </div>
+                            <div class="d-flex justify-content-between align-items-center mt-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="limpiarMonedasDestinatario()">
+                                    <i class="fas fa-times me-1"></i>Limpiar
+                                </button>
+                                <small class="text-muted">
+                                    <i class="fas fa-mouse-pointer me-1"></i>
+                                    Marca/desmarca monedas
+                                </small>
+                            </div>
+                            <div id="monedasSeleccionadasDestinatarioDisplay" class="mt-2" style="display: none;">
+                                <small class="text-muted d-block mb-2">Monedas seleccionadas:</small>
+                                <div id="monedasSeleccionadasDestinatarioList" class="d-flex flex-wrap gap-2"></div>
+                            </div>
+                            <small class="form-text text-muted">Si seleccionas monedas, solo recibirá notificaciones cuando la operación use una de esas monedas.</small>
                         </div>
                     </div>
                 </form>
@@ -385,9 +501,21 @@ document.getElementById('guardarDestinatario').addEventListener('click', functio
     
     // Convertir checkboxes a valores
     formData.set('activo', document.getElementById('activo').checked);
-    formData.set('recibir_remesas', document.getElementById('recibir_remesas').checked);
-    formData.set('recibir_pagos', document.getElementById('recibir_pagos').checked);
-    formData.set('recibir_cambios_estado', document.getElementById('recibir_cambios_estado').checked);
+
+    // Remesas
+    formData.set('recibir_remesa_nueva', document.getElementById('recibir_remesa_nueva').checked);
+    formData.set('recibir_remesa_confirmada', document.getElementById('recibir_remesa_confirmada').checked);
+    formData.set('recibir_remesa_completada', document.getElementById('recibir_remesa_completada').checked);
+    formData.set('recibir_remesa_cancelada', document.getElementById('recibir_remesa_cancelada').checked);
+    formData.set('recibir_remesa_editada', document.getElementById('recibir_remesa_editada').checked);
+    formData.set('recibir_remesa_eliminada', document.getElementById('recibir_remesa_eliminada').checked);
+
+    // Pagos
+    formData.set('recibir_pago_nuevo', document.getElementById('recibir_pago_nuevo').checked);
+    formData.set('recibir_pago_confirmado', document.getElementById('recibir_pago_confirmado').checked);
+    formData.set('recibir_pago_cancelado', document.getElementById('recibir_pago_cancelado').checked);
+    formData.set('recibir_pago_editado', document.getElementById('recibir_pago_editado').checked);
+    formData.set('recibir_pago_eliminado', document.getElementById('recibir_pago_eliminado').checked);
     
     const url = destinatarioId ? 
         `/notificaciones/destinatarios/${destinatarioId}/editar/` : 
@@ -466,45 +594,71 @@ document.addEventListener('DOMContentLoaded', function() {
 // Función para cerrar modal manualmente (fallback)
 
 // Función para editar destinatario
-function editarDestinatario(id, nombre, telefono, callmebotApiKey, activo, recibir_remesas, recibir_pagos, recibir_cambios_estado) {
+function editarDestinatario(id) {
     // Cambiar título del modal
     document.getElementById('destinatarioModalTitle').innerHTML = '<i class="fas fa-edit me-2"></i>Editar Destinatario';
-    
-    // Llenar formulario
-    document.getElementById('destinatario_id').value = id;
-    document.getElementById('nombre').value = nombre;
-    document.getElementById('telefono').value = telefono;
-    document.getElementById('callmebot_api_key').value = callmebotApiKey || '';
-    document.getElementById('activo').checked = activo;
-    document.getElementById('recibir_remesas').checked = recibir_remesas;
-    document.getElementById('recibir_pagos').checked = recibir_pagos;
-    document.getElementById('recibir_cambios_estado').checked = recibir_cambios_estado;
-    
-    // Mostrar modal
-    const modalElement = document.getElementById('addDestinatarioModal');
-    if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-        if (!destinatarioModalInstance) {
-            destinatarioModalInstance = new bootstrap.Modal(modalElement);
+
+    fetch(`/notificaciones/destinatarios/${id}/json/`, {
+        headers: { 'X-CSRFToken': getCookie('csrftoken') }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(data.message || 'No se pudo cargar el destinatario');
         }
-        destinatarioModalInstance.show();
-    } else {
-        // Fallback: mostrar modal manualmente
-        modalElement.style.display = 'block';
-        modalElement.classList.add('show');
-        document.body.classList.add('modal-open');
-        
-        // Agregar backdrop si no existe
-        if (!document.querySelector('.modal-backdrop')) {
-            const backdrop = document.createElement('div');
-            backdrop.className = 'modal-backdrop show';
-            document.body.appendChild(backdrop);
-            
-            // Cerrar modal al hacer clic en backdrop
-            backdrop.addEventListener('click', function() {
-                cerrarModalFallback();
-            });
+
+        const d = data.destinatario;
+        document.getElementById('destinatario_id').value = d.id;
+        document.getElementById('nombre').value = d.nombre;
+        document.getElementById('telefono').value = d.telefono;
+        document.getElementById('callmebot_api_key').value = d.callmebot_api_key || '';
+        document.getElementById('activo').checked = !!d.activo;
+
+        // Remesas
+        document.getElementById('recibir_remesa_nueva').checked = !!d.recibir_remesa_nueva;
+        document.getElementById('recibir_remesa_confirmada').checked = !!d.recibir_remesa_confirmada;
+        document.getElementById('recibir_remesa_completada').checked = !!d.recibir_remesa_completada;
+        document.getElementById('recibir_remesa_cancelada').checked = !!d.recibir_remesa_cancelada;
+        document.getElementById('recibir_remesa_editada').checked = !!d.recibir_remesa_editada;
+        document.getElementById('recibir_remesa_eliminada').checked = !!d.recibir_remesa_eliminada;
+
+        // Pagos
+        document.getElementById('recibir_pago_nuevo').checked = !!d.recibir_pago_nuevo;
+        document.getElementById('recibir_pago_confirmado').checked = !!d.recibir_pago_confirmado;
+        document.getElementById('recibir_pago_cancelado').checked = !!d.recibir_pago_cancelado;
+        document.getElementById('recibir_pago_editado').checked = !!d.recibir_pago_editado;
+        document.getElementById('recibir_pago_eliminado').checked = !!d.recibir_pago_eliminado;
+
+        // Monedas
+        const selected = new Set((d.moneda_ids || []).map(Number));
+        document.querySelectorAll('#checkboxMonedasDestinatarioContainer input[name="monedas"]').forEach(cb => {
+            cb.checked = selected.has(Number(cb.value));
+        });
+        actualizarDisplayMonedasDestinatario();
+
+        // Mostrar modal
+        const modalElement = document.getElementById('addDestinatarioModal');
+        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            if (!destinatarioModalInstance) {
+                destinatarioModalInstance = new bootstrap.Modal(modalElement);
+            }
+            destinatarioModalInstance.show();
+        } else {
+            modalElement.style.display = 'block';
+            modalElement.classList.add('show');
+            document.body.classList.add('modal-open');
         }
-    }
+    })
+    .catch(err => {
+        console.error(err);
+        Swal.fire({
+            title: 'Error',
+            text: 'No se pudo cargar la configuración del destinatario',
+            icon: 'error',
+            background: '#212529',
+            color: '#fff'
+        });
+    });
 }
 
 // Función para toggle estado del destinatario
@@ -779,15 +933,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.editar-destinatario-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const destinatarioId = this.dataset.destinatarioId;
-            const nombre = this.dataset.nombre;
-            const telefono = this.dataset.telefono;
-            const callmebotApiKey = this.dataset.callmebotApiKey;
-            const activo = this.dataset.activo === 'true';
-            const recibirRemesas = this.dataset.recibirRemesas === 'true';
-            const recibirPagos = this.dataset.recibirPagos === 'true';
-            const recibirCambiosEstado = this.dataset.recibirCambiosEstado === 'true';
-            
-            editarDestinatario(destinatarioId, nombre, telefono, callmebotApiKey, activo, recibirRemesas, recibirPagos, recibirCambiosEstado);
+            editarDestinatario(destinatarioId);
         });
     });
 
@@ -808,6 +954,9 @@ document.addEventListener('DOMContentLoaded', function() {
             eliminarDestinatario(destinatarioId, nombre);
         });
     });
+
+    // Wire de checkboxes de monedas (crear/editar)
+    wireCurrencyCheckboxesDestinatario();
 });
 
 // Variable para instancia de modal
@@ -826,9 +975,20 @@ function abrirModalAgregar() {
     
     // Marcar checkboxes por defecto
     document.getElementById('activo').checked = true;
-    document.getElementById('recibir_remesas').checked = true;
-    document.getElementById('recibir_pagos').checked = true;
-    document.getElementById('recibir_cambios_estado').checked = true;
+    document.getElementById('recibir_remesa_nueva').checked = true;
+    document.getElementById('recibir_remesa_confirmada').checked = true;
+    document.getElementById('recibir_remesa_completada').checked = true;
+    document.getElementById('recibir_remesa_cancelada').checked = true;
+    document.getElementById('recibir_remesa_editada').checked = true;
+    document.getElementById('recibir_remesa_eliminada').checked = true;
+    document.getElementById('recibir_pago_nuevo').checked = true;
+    document.getElementById('recibir_pago_confirmado').checked = true;
+    document.getElementById('recibir_pago_cancelado').checked = true;
+    document.getElementById('recibir_pago_editado').checked = true;
+    document.getElementById('recibir_pago_eliminado').checked = true;
+
+    // Limpiar selección de monedas
+    limpiarMonedasDestinatario();
     
     // Limpiar campo API Key
     document.getElementById('callmebot_api_key').value = '';
@@ -858,6 +1018,69 @@ function abrirModalAgregar() {
             });
         }
     }
+}
+
+// ===== MONEDAS (checkboxes estilo Administrar Usuarios) =====
+
+function readSelectionFromCheckboxes(containerSelector) {
+    const container = document.querySelector(containerSelector);
+    if (!container) return [];
+
+    return Array.from(container.querySelectorAll('input[type="checkbox"][name="monedas"]:checked'))
+        .map(checkbox => String(checkbox.value));
+}
+
+function actualizarDisplayMonedasDestinatario() {
+    const selectedIds = readSelectionFromCheckboxes('#checkboxMonedasDestinatarioContainer');
+    const displayContainer = document.getElementById('monedasSeleccionadasDestinatarioDisplay');
+    const listContainer = document.getElementById('monedasSeleccionadasDestinatarioList');
+
+    if (!displayContainer || !listContainer) return;
+
+    if (selectedIds.length === 0) {
+        displayContainer.style.display = 'none';
+        listContainer.innerHTML = '';
+        return;
+    }
+
+    displayContainer.style.display = 'block';
+    listContainer.innerHTML = '';
+
+    selectedIds.forEach(monedaId => {
+        const checkbox = document.getElementById(`monedaDest${monedaId}`);
+        if (!checkbox) return;
+
+        const label = checkbox.nextElementSibling ? checkbox.nextElementSibling.textContent.trim() : `Moneda ${monedaId}`;
+        const badge = document.createElement('span');
+        badge.className = 'moneda-badge';
+        badge.innerHTML = `${label} <i class="fas fa-times-circle remove-moneda" title="Quitar" onclick="removerMonedaDestinatario('${monedaId}')"></i>`;
+        listContainer.appendChild(badge);
+    });
+}
+
+function wireCurrencyCheckboxesDestinatario() {
+    const container = document.getElementById('checkboxMonedasDestinatarioContainer');
+    if (!container || container.dataset.wired) return;
+    container.dataset.wired = '1';
+
+    container.querySelectorAll('input[type="checkbox"][name="monedas"]').forEach(checkbox => {
+        checkbox.addEventListener('change', actualizarDisplayMonedasDestinatario);
+    });
+
+    actualizarDisplayMonedasDestinatario();
+}
+
+function limpiarMonedasDestinatario() {
+    document.querySelectorAll('#checkboxMonedasDestinatarioContainer input[type="checkbox"][name="monedas"]').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    actualizarDisplayMonedasDestinatario();
+}
+
+function removerMonedaDestinatario(monedaId) {
+    const checkbox = document.getElementById(`monedaDest${monedaId}`);
+    if (checkbox) checkbox.checked = false;
+    actualizarDisplayMonedasDestinatario();
 }
 
 // Función para cerrar modal manualmente (fallback)

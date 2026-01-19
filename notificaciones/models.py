@@ -128,6 +128,29 @@ class DestinatarioNotificacion(models.Model):
         default=True,
         help_text='Recibir notificaciones de ediciones',
     )
+
+    # Configuración granular (bot)
+    recibir_remesa_nueva = models.BooleanField(default=True, help_text='Recibir notificación de remesa nueva')
+    recibir_remesa_confirmada = models.BooleanField(default=True, help_text='Recibir notificación de remesa confirmada')
+    recibir_remesa_completada = models.BooleanField(default=True, help_text='Recibir notificación de remesa completada')
+    recibir_remesa_cancelada = models.BooleanField(default=True, help_text='Recibir notificación de remesa cancelada')
+    recibir_remesa_editada = models.BooleanField(default=True, help_text='Recibir notificación de remesa editada')
+    recibir_remesa_eliminada = models.BooleanField(default=True, help_text='Recibir notificación de remesa eliminada')
+
+    recibir_pago_nuevo = models.BooleanField(default=True, help_text='Recibir notificación de pago nuevo')
+    recibir_pago_confirmado = models.BooleanField(default=True, help_text='Recibir notificación de pago confirmado')
+    recibir_pago_cancelado = models.BooleanField(default=True, help_text='Recibir notificación de pago cancelado')
+    recibir_pago_editado = models.BooleanField(default=True, help_text='Recibir notificación de pago editado')
+    recibir_pago_eliminado = models.BooleanField(default=True, help_text='Recibir notificación de pago eliminado')
+
+    monedas = models.ManyToManyField(
+        'remesas.Moneda',
+        blank=True,
+        related_name='destinatarios_notificacion',
+        help_text=(
+            'Si seleccionas monedas, este destinatario solo recibirá notificaciones cuando la operación use una de esas monedas.'
+        ),
+    )
     
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
@@ -147,10 +170,15 @@ class LogNotificacion(models.Model):
     TIPO_CHOICES = [
         ('remesa_nueva', 'Nueva Remesa'),
         ('remesa_estado', 'Cambio Estado Remesa'),
+        ('remesa_confirmada', 'Remesa Confirmada'),
+        ('remesa_completada', 'Remesa Completada'),
+        ('remesa_cancelada', 'Remesa Cancelada'),
         ('remesa_eliminada', 'Remesa Eliminada'),
         ('remesa_editada', 'Remesa Editada'),
         ('pago_nuevo', 'Nuevo Pago'),
         ('pago_estado', 'Cambio Estado Pago'),
+        ('pago_confirmado', 'Pago Confirmado'),
+        ('pago_cancelado', 'Pago Cancelado'),
         ('pago_eliminado', 'Pago Eliminado'),
         ('pago_editado', 'Pago Editado'),
         ('TEST', 'Mensaje de Prueba'),

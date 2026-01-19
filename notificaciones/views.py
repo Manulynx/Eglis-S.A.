@@ -9,6 +9,11 @@ from django.utils import timezone
 from .models import ConfiguracionNotificacion, DestinatarioNotificacion, LogNotificacion, NotificacionInterna
 from .services import WhatsAppService
 from .forms import ConfiguracionForm, DestinatarioForm
+from remesas.models import Moneda
+
+
+def _is_true(value):
+    return str(value).lower() == 'true'
 
 
 @staff_member_required
@@ -35,16 +40,32 @@ def configuracion_notificaciones(request):
 def destinatarios_notificaciones(request):
     """Vista para gestionar destinatarios de notificaciones"""
     destinatarios = DestinatarioNotificacion.objects.all().order_by('nombre')
+    monedas = Moneda.objects.filter(activa=True).order_by('codigo')
     
     if request.method == 'POST':
         try:
             nombre = request.POST.get('nombre')
             telefono = request.POST.get('telefono')
             callmebot_api_key = request.POST.get('callmebot_api_key', '')
-            activo = request.POST.get('activo') == 'true'
-            recibir_remesas = request.POST.get('recibir_remesas') == 'true'
-            recibir_pagos = request.POST.get('recibir_pagos') == 'true'
-            recibir_cambios_estado = request.POST.get('recibir_cambios_estado') == 'true'
+            activo = _is_true(request.POST.get('activo'))
+
+            # Flags granulares
+            flags = {
+                'recibir_remesa_nueva': _is_true(request.POST.get('recibir_remesa_nueva')),
+                'recibir_remesa_confirmada': _is_true(request.POST.get('recibir_remesa_confirmada')),
+                'recibir_remesa_completada': _is_true(request.POST.get('recibir_remesa_completada')),
+                'recibir_remesa_cancelada': _is_true(request.POST.get('recibir_remesa_cancelada')),
+                'recibir_remesa_editada': _is_true(request.POST.get('recibir_remesa_editada')),
+                'recibir_remesa_eliminada': _is_true(request.POST.get('recibir_remesa_eliminada')),
+
+                'recibir_pago_nuevo': _is_true(request.POST.get('recibir_pago_nuevo')),
+                'recibir_pago_confirmado': _is_true(request.POST.get('recibir_pago_confirmado')),
+                'recibir_pago_cancelado': _is_true(request.POST.get('recibir_pago_cancelado')),
+                'recibir_pago_editado': _is_true(request.POST.get('recibir_pago_editado')),
+                'recibir_pago_eliminado': _is_true(request.POST.get('recibir_pago_eliminado')),
+            }
+
+            moneda_ids = request.POST.getlist('monedas')
             
             if not nombre or not telefono:
                 return JsonResponse({
@@ -64,10 +85,30 @@ def destinatarios_notificaciones(request):
                 telefono=telefono,
                 callmebot_api_key=callmebot_api_key if callmebot_api_key else None,
                 activo=activo,
-                recibir_remesas=recibir_remesas,
-                recibir_pagos=recibir_pagos,
-                recibir_cambios_estado=recibir_cambios_estado
+                **flags,
+
+                # Campos legacy (se mantienen por compatibilidad)
+                recibir_remesas=any([
+                    flags['recibir_remesa_nueva'], flags['recibir_remesa_confirmada'], flags['recibir_remesa_completada'],
+                    flags['recibir_remesa_cancelada'], flags['recibir_remesa_editada'], flags['recibir_remesa_eliminada'],
+                ]),
+                recibir_pagos=any([
+                    flags['recibir_pago_nuevo'], flags['recibir_pago_confirmado'], flags['recibir_pago_cancelado'],
+                    flags['recibir_pago_editado'], flags['recibir_pago_eliminado'],
+                ]),
+                recibir_cambios_estado=any([
+                    flags['recibir_remesa_confirmada'], flags['recibir_remesa_completada'], flags['recibir_remesa_cancelada'],
+                    flags['recibir_pago_confirmado'], flags['recibir_pago_cancelado'],
+                ]),
+                recibir_ediciones=any([
+                    flags['recibir_remesa_editada'], flags['recibir_pago_editado'],
+                ]),
             )
+
+            if moneda_ids:
+                destinatario.monedas.set(moneda_ids)
+            else:
+                destinatario.monedas.clear()
             
             return JsonResponse({
                 'success': True,
@@ -84,7 +125,8 @@ def destinatarios_notificaciones(request):
     
     return render(request, 'notificaciones/destinatarios.html', {
         'destinatarios': destinatarios,
-        'form': form
+        'form': form,
+        'monedas': monedas,
     })
 
 
@@ -99,10 +141,45 @@ def editar_destinatario(request, destinatario_id):
             destinatario.telefono = request.POST.get('telefono')
             callmebot_api_key = request.POST.get('callmebot_api_key', '')
             destinatario.callmebot_api_key = callmebot_api_key if callmebot_api_key else None
-            destinatario.activo = request.POST.get('activo') == 'true'
-            destinatario.recibir_remesas = request.POST.get('recibir_remesas') == 'true'
-            destinatario.recibir_pagos = request.POST.get('recibir_pagos') == 'true'
-            destinatario.recibir_cambios_estado = request.POST.get('recibir_cambios_estado') == 'true'
+            destinatario.activo = _is_true(request.POST.get('activo'))
+
+            # Flags granulares
+            flags = {
+                'recibir_remesa_nueva': _is_true(request.POST.get('recibir_remesa_nueva')),
+                'recibir_remesa_confirmada': _is_true(request.POST.get('recibir_remesa_confirmada')),
+                'recibir_remesa_completada': _is_true(request.POST.get('recibir_remesa_completada')),
+                'recibir_remesa_cancelada': _is_true(request.POST.get('recibir_remesa_cancelada')),
+                'recibir_remesa_editada': _is_true(request.POST.get('recibir_remesa_editada')),
+                'recibir_remesa_eliminada': _is_true(request.POST.get('recibir_remesa_eliminada')),
+
+                'recibir_pago_nuevo': _is_true(request.POST.get('recibir_pago_nuevo')),
+                'recibir_pago_confirmado': _is_true(request.POST.get('recibir_pago_confirmado')),
+                'recibir_pago_cancelado': _is_true(request.POST.get('recibir_pago_cancelado')),
+                'recibir_pago_editado': _is_true(request.POST.get('recibir_pago_editado')),
+                'recibir_pago_eliminado': _is_true(request.POST.get('recibir_pago_eliminado')),
+            }
+
+            for key, value in flags.items():
+                setattr(destinatario, key, value)
+
+            # Campos legacy (se mantienen por compatibilidad)
+            destinatario.recibir_remesas = any([
+                flags['recibir_remesa_nueva'], flags['recibir_remesa_confirmada'], flags['recibir_remesa_completada'],
+                flags['recibir_remesa_cancelada'], flags['recibir_remesa_editada'], flags['recibir_remesa_eliminada'],
+            ])
+            destinatario.recibir_pagos = any([
+                flags['recibir_pago_nuevo'], flags['recibir_pago_confirmado'], flags['recibir_pago_cancelado'],
+                flags['recibir_pago_editado'], flags['recibir_pago_eliminado'],
+            ])
+            destinatario.recibir_cambios_estado = any([
+                flags['recibir_remesa_confirmada'], flags['recibir_remesa_completada'], flags['recibir_remesa_cancelada'],
+                flags['recibir_pago_confirmado'], flags['recibir_pago_cancelado'],
+            ])
+            destinatario.recibir_ediciones = any([
+                flags['recibir_remesa_editada'], flags['recibir_pago_editado'],
+            ])
+
+            moneda_ids = request.POST.getlist('monedas')
             
             if not destinatario.nombre or not destinatario.telefono:
                 return JsonResponse({
@@ -120,6 +197,11 @@ def editar_destinatario(request, destinatario_id):
                 })
             
             destinatario.save()
+
+            if moneda_ids:
+                destinatario.monedas.set(moneda_ids)
+            else:
+                destinatario.monedas.clear()
             
             return JsonResponse({
                 'success': True,
@@ -133,6 +215,39 @@ def editar_destinatario(request, destinatario_id):
             })
     
     return JsonResponse({'success': False, 'message': 'Método no permitido'})
+
+
+@staff_member_required
+@require_GET
+def destinatario_json(request, destinatario_id):
+    """Devuelve la configuración completa del destinatario para poblar el modal de edición."""
+    destinatario = get_object_or_404(DestinatarioNotificacion, id=destinatario_id)
+
+    return JsonResponse({
+        'success': True,
+        'destinatario': {
+            'id': destinatario.id,
+            'nombre': destinatario.nombre,
+            'telefono': destinatario.telefono,
+            'callmebot_api_key': destinatario.callmebot_api_key or '',
+            'activo': bool(destinatario.activo),
+
+            'recibir_remesa_nueva': bool(destinatario.recibir_remesa_nueva),
+            'recibir_remesa_confirmada': bool(destinatario.recibir_remesa_confirmada),
+            'recibir_remesa_completada': bool(destinatario.recibir_remesa_completada),
+            'recibir_remesa_cancelada': bool(destinatario.recibir_remesa_cancelada),
+            'recibir_remesa_editada': bool(destinatario.recibir_remesa_editada),
+            'recibir_remesa_eliminada': bool(destinatario.recibir_remesa_eliminada),
+
+            'recibir_pago_nuevo': bool(destinatario.recibir_pago_nuevo),
+            'recibir_pago_confirmado': bool(destinatario.recibir_pago_confirmado),
+            'recibir_pago_cancelado': bool(destinatario.recibir_pago_cancelado),
+            'recibir_pago_editado': bool(destinatario.recibir_pago_editado),
+            'recibir_pago_eliminado': bool(destinatario.recibir_pago_eliminado),
+
+            'moneda_ids': list(destinatario.monedas.values_list('id', flat=True)),
+        }
+    })
 
 
 @staff_member_required
