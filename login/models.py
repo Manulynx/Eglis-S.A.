@@ -98,7 +98,7 @@ class PerfilUsuario(models.Model):
         Calcula el balance real del usuario basándose en remesas y pagos confirmados
         usando valores históricos guardados para mantener consistencia
         """
-        from remesas.models import Remesa, Pago
+        from remesas.models import Remesa, Pago, PagoRemesa
         from decimal import Decimal
         import logging
         
@@ -132,6 +132,12 @@ class PerfilUsuario(models.Model):
             estado='confirmado',
             cantidad__isnull=False
         ).select_related('tipo_moneda')
+
+        pagos_remesa_confirmados = PagoRemesa.objects.filter(
+            usuario=self.user,
+            estado='confirmado',
+            cantidad__isnull=False
+        ).select_related('tipo_moneda')
         
         total_pagos = Decimal('0.00')
         for pago in pagos_confirmados:
@@ -142,6 +148,15 @@ class PerfilUsuario(models.Model):
                     total_pagos += Decimal(str(monto_usd))
             except Exception as e:
                 logger.error(f"Error calculando monto USD para pago {pago.pago_id}: {e}")
+                continue
+
+        for pago in pagos_remesa_confirmados:
+            try:
+                monto_usd = pago.calcular_monto_en_usd()
+                if monto_usd is not None:
+                    total_pagos += Decimal(str(monto_usd))
+            except Exception as e:
+                logger.error(f"Error calculando monto USD para pago remesa {pago.pago_id}: {e}")
                 continue
         
         balance_calculado -= total_pagos

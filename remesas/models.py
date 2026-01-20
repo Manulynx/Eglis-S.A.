@@ -371,6 +371,32 @@ class Pago(models.Model):
     fecha_creacion = models.DateTimeField(default=timezone.now, help_text="Fecha de creación del pago con zona horaria de Cuba")
     usuario = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, help_text="Usuario que realizó el pago")
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='pendiente', help_text="Estado del pago")
+
+    # Control de notificaciones programadas
+    notificado_pendiente_23h_en = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Fecha/hora en que se notificó a admins que el pago lleva 23h pendiente"
+    )
+
+    # Cancelación automática por tiempo
+    cancelado_por_tiempo = models.BooleanField(
+        default=False,
+        help_text="Indica si el pago fue cancelado automáticamente por tiempo"
+    )
+    cancelado_por_tiempo_en = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Fecha/hora en que el pago fue cancelado automáticamente por tiempo"
+    )
+    reactivado_desde = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reactivaciones',
+        help_text="Pago original del cual se reactivó este registro"
+    )
     
     # Campos específicos para transferencia
     tarjeta = models.CharField(max_length=19, blank=True, null=True, help_text="Número de tarjeta (para transferencias)")
@@ -626,6 +652,32 @@ class PagoRemesa(models.Model):
     fecha_creacion = models.DateTimeField(default=timezone.now, help_text="Fecha de creación del pago con zona horaria de Cuba")
     usuario = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, help_text="Usuario que realizó el pago")
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='pendiente', help_text="Estado del pago")
+
+    # Control de notificaciones programadas
+    notificado_pendiente_23h_en = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Fecha/hora en que se notificó a admins que el pago de remesa lleva 23h pendiente"
+    )
+
+    # Cancelación automática por tiempo
+    cancelado_por_tiempo = models.BooleanField(
+        default=False,
+        help_text="Indica si el pago de remesa fue cancelado automáticamente por tiempo"
+    )
+    cancelado_por_tiempo_en = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Fecha/hora en que el pago de remesa fue cancelado automáticamente por tiempo"
+    )
+    reactivado_desde = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reactivaciones',
+        help_text="Pago de remesa original del cual se reactivó este registro"
+    )
     
     # Campos específicos para transferencia
     tarjeta = models.CharField(max_length=19, blank=True, null=True, help_text="Número de tarjeta (para transferencias)")
@@ -847,6 +899,32 @@ class Remesa(models.Model):
         ('completada', 'Completada'),
         ('cancelada', 'Cancelada'),
     ], default='pendiente')
+
+    # Control de notificaciones programadas
+    notificado_pendiente_23h_en = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Fecha/hora en que se notificó a admins que la remesa lleva 23h pendiente"
+    )
+
+    # Cancelación automática por tiempo
+    cancelado_por_tiempo = models.BooleanField(
+        default=False,
+        help_text="Indica si la remesa fue cancelada automáticamente por tiempo"
+    )
+    cancelado_por_tiempo_en = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Fecha/hora en que la remesa fue cancelada automáticamente por tiempo"
+    )
+    reactivado_desde = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reactivaciones',
+        help_text="Remesa original de la cual se reactivó este registro"
+    )
 
     def save(self, *args, **kwargs):
         from decimal import Decimal

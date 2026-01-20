@@ -109,8 +109,36 @@ def administrar_usuarios(request):
     estado_filter = request.GET.get('estado', '')
     tipo_usuario_filter = request.GET.get('tipo_usuario', '')
     balance_filter = request.GET.get('balance', '')
-    fecha_desde = request.GET.get('fecha_desde', '')
-    fecha_hasta = request.GET.get('fecha_hasta', '')
+    filtro_fecha = request.GET.get('filtro_fecha', 'hoy')
+
+    # Rango de fechas basado en actividad (remesas/pagos), igual que Registro
+    from datetime import timedelta
+    from django.conf import settings
+    from zoneinfo import ZoneInfo
+
+    tz_local = ZoneInfo(settings.TIME_ZONE)
+    today = timezone.now().astimezone(tz_local).date()
+
+    fecha_desde_obj = None
+    fecha_hasta_obj = None
+    if filtro_fecha != 'todas':
+        if filtro_fecha == 'hoy':
+            fecha_desde_obj = today
+            fecha_hasta_obj = today
+        elif filtro_fecha == 'ayer':
+            fecha_desde_obj = today - timedelta(days=1)
+            fecha_hasta_obj = fecha_desde_obj
+        elif filtro_fecha == 'semana':
+            fecha_desde_obj = today - timedelta(weeks=1)
+            fecha_hasta_obj = today
+        elif filtro_fecha == 'mes':
+            fecha_desde_obj = today - timedelta(days=30)
+            fecha_hasta_obj = today
+        else:
+            # Si llega un valor inválido, por seguridad tratamos como 'hoy'
+            filtro_fecha = 'hoy'
+            fecha_desde_obj = today
+            fecha_hasta_obj = today
     
     # Obtener usuarios (excluir usuario programador)
     usuarios = User.objects.select_related('perfil').exclude(username='cdtwilight')
@@ -140,23 +168,8 @@ def administrar_usuarios(request):
         elif tipo_usuario_filter == 'contable':
             usuarios = usuarios.filter(perfil__tipo_usuario='contable')
     
-    # Aplicar filtro de fechas
-    if fecha_desde:
-        try:
-            fecha_desde_obj = timezone.datetime.strptime(fecha_desde, '%Y-%m-%d').date()
-            usuarios = usuarios.filter(date_joined__date__gte=fecha_desde_obj)
-        except ValueError:
-            pass
-    
-    if fecha_hasta:
-        try:
-            fecha_hasta_obj = timezone.datetime.strptime(fecha_hasta, '%Y-%m-%d').date()
-            usuarios = usuarios.filter(date_joined__date__lte=fecha_hasta_obj)
-        except ValueError:
-            pass
-    
     # Importar modelos necesarios
-    from remesas.models import Remesa, Pago
+    from remesas.models import Remesa, Pago, PagoRemesa
     from decimal import Decimal
     
     # Agregar estadísticas de remesas y pagos a cada usuario
@@ -166,32 +179,49 @@ def administrar_usuarios(request):
     total_pagos_count = 0
     
     for usuario in usuarios:
-        # Calcular balance real del usuario basándose en remesas y pagos
-        try:
-            balance_real = usuario.perfil.calcular_balance_real()
-            # Actualizar el balance en la base de datos si es diferente
-            if usuario.perfil.balance != balance_real:
-                usuario.perfil.balance = balance_real
-                usuario.perfil.save()
-            balance = balance_real
-            suma_todos_balances += balance
-        except:
-            balance = Decimal('0.00')
-        
-        # Contar remesas gestionadas por el usuario - Solo confirmadas y completadas
-        remesas_count = Remesa.objects.filter(gestor=usuario, estado__in=['confirmada', 'completada']).count()
-        total_remesas_count += remesas_count
-        
-        # Contar pagos realizados por el usuario - Solo confirmados
-        pagos_count = Pago.objects.filter(usuario=usuario, estado='confirmado').count()
-        total_pagos_count += pagos_count
-        
-        # Calcular total en USD de remesas del usuario - Solo confirmadas y completadas usando valores históricos
-        total_remesas_usd = Decimal('0.00')
-        remesas_usuario = Remesa.objects.filter(
-            gestor=usuario, 
+        # Querysets base (all-time) de actividad del usuario
+        remesas_usuario_all = Remesa.objects.filter(
+            gestor=usuario,
             estado__in=['confirmada', 'completada']
         ).select_related('moneda')
+
+        pagos_usuario_all = Pago.objects.filter(
+            usuario=usuario,
+            estado='confirmado'
+        ).select_related('tipo_moneda')
+
+        pagos_remesa_usuario_all = PagoRemesa.objects.filter(
+            usuario=usuario,
+            estado='confirmado'
+        ).select_related('tipo_moneda')
+
+        # Querysets para mostrar (filtrados por periodo si aplica)
+        remesas_usuario = remesas_usuario_all
+        pagos_usuario = pagos_usuario_all
+        pagos_remesa_usuario = pagos_remesa_usuario_all
+
+        if fecha_desde_obj and fecha_hasta_obj:
+            remesas_usuario = remesas_usuario.filter(
+                fecha__date__gte=fecha_desde_obj,
+                fecha__date__lte=fecha_hasta_obj
+            )
+            pagos_usuario = pagos_usuario.filter(
+                fecha_creacion__date__gte=fecha_desde_obj,
+                fecha_creacion__date__lte=fecha_hasta_obj
+            )
+            pagos_remesa_usuario = pagos_remesa_usuario.filter(
+                fecha_creacion__date__gte=fecha_desde_obj,
+                fecha_creacion__date__lte=fecha_hasta_obj
+            )
+
+        # Contadores
+        remesas_count = remesas_usuario.count()
+        pagos_count = pagos_usuario.count() + pagos_remesa_usuario.count()
+        total_remesas_count += remesas_count
+        total_pagos_count += pagos_count
+
+        # Totales USD (periodo o all-time según filtro)
+        total_remesas_usd = Decimal('0.00')
         
         for remesa in remesas_usuario:
             try:
@@ -203,13 +233,7 @@ def administrar_usuarios(request):
                 print(f"Error calculando monto USD para remesa {remesa.remesa_id}: {e}")
                 continue
         
-        # Calcular total en USD de pagos del usuario - Solo confirmados usando valores históricos
         total_pagos_usd = Decimal('0.00')
-        pagos_usuario = Pago.objects.filter(
-            usuario=usuario, 
-            estado='confirmado'
-        ).select_related('tipo_moneda')
-        
         for pago in pagos_usuario:
             try:
                 # Usar el método que prioriza valores históricos guardados
@@ -219,6 +243,30 @@ def administrar_usuarios(request):
             except Exception as e:
                 print(f"Error calculando monto USD para pago {pago.pago_id}: {e}")
                 continue
+
+        for pago in pagos_remesa_usuario:
+            try:
+                monto_usd = pago.calcular_monto_en_usd()
+                if monto_usd is not None:
+                    total_pagos_usd += Decimal(str(monto_usd))
+            except Exception as e:
+                print(f"Error calculando monto USD para pago remesa {pago.pago_id}: {e}")
+                continue
+
+        # Balance unificado: siempre RemesasUSD - PagosUSD (para el periodo seleccionado)
+        balance = total_remesas_usd - total_pagos_usd
+
+        # Mantener perfil.balance sincronizado solo cuando se está viendo 'todas'
+        if filtro_fecha == 'todas':
+            try:
+                balance_all_time = balance
+                if usuario.perfil.balance != balance_all_time:
+                    usuario.perfil.balance = balance_all_time
+                    usuario.perfil.save()
+            except Exception:
+                pass
+
+        suma_todos_balances += balance
         
         # Agregar datos calculados al usuario
         usuario.balance_display = balance  # Para mostrar en la template
@@ -227,6 +275,7 @@ def administrar_usuarios(request):
         usuario.total_remesas_usd = total_remesas_usd
         usuario.total_pagos_usd = total_pagos_usd
         
+        # Mostrar siempre todos los usuarios (los que no tengan actividad en el periodo quedan en 0)
         usuarios_con_datos.append(usuario)
     
     # Aplicar filtro de balance (después de calcular los balances)
@@ -254,6 +303,12 @@ def administrar_usuarios(request):
     paginator = Paginator(usuarios_con_datos, 10)
     page_number = request.GET.get('page')
     usuarios_page = paginator.get_page(page_number)
+
+    # Querystring para paginación (preservar filtros)
+    query_params = request.GET.copy()
+    if 'page' in query_params:
+        query_params.pop('page')
+    querystring = query_params.urlencode()
     
     # Estadísticas generales
     total_usuarios = User.objects.count()
@@ -279,8 +334,8 @@ def administrar_usuarios(request):
         'estado_filter': estado_filter,
         'tipo_usuario_filter': tipo_usuario_filter,
         'balance_filter': balance_filter,
-        'fecha_desde': fecha_desde,
-        'fecha_hasta': fecha_hasta,
+        'filtro_fecha': filtro_fecha,
+        'querystring': querystring,
         'total_usuarios': total_usuarios,
         'usuarios_activos': usuarios_activos,
         'usuarios_staff': usuarios_staff,

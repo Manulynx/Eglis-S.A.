@@ -24,6 +24,21 @@
                 <div class="card-body">
                     <form method="post" enctype="multipart/form-data">
                         {% csrf_token %}
+
+                        {% if is_admin_user %}
+                            {{ pago.usuario.id|json_script:"pago-remesa-usuario-id" }}
+                            {{ pago.tipo_moneda.id|json_script:"pago-remesa-moneda-id" }}
+                            <div class="mb-3">
+                                <label for="usuario_asignado" class="form-label">Crear a nombre de *</label>
+                                <select class="form-control bg-dark text-white border-secondary" id="usuario_asignado" name="usuario_asignado" required>
+                                    <option value="">Cargando usuarios...</option>
+                                </select>
+                                <small class="text-muted">Este usuario será el dueño del pago enlazado.</small>
+                            </div>
+                        {% else %}
+                            {{ pago.usuario.id|json_script:"pago-remesa-usuario-id" }}
+                            {{ pago.tipo_moneda.id|json_script:"pago-remesa-moneda-id" }}
+                        {% endif %}
                         
                         <!-- Información básica del Pago -->
                         <div class="row">
@@ -206,6 +221,65 @@ document.addEventListener('DOMContentLoaded', function() {
     const tipoPagoSelect = document.getElementById('{{ form.tipo_pago.id_for_label }}');
     const campoTarjeta = document.getElementById('campo_tarjeta');
     const tarjetaInput = document.getElementById('{{ form.tarjeta.id_for_label }}');
+    const usuarioAsignadoSelect = document.getElementById('usuario_asignado');
+    const tipoMonedaSelect = document.getElementById('{{ form.tipo_moneda.id_for_label }}');
+
+    const pagoUsuarioIdEl = document.getElementById('pago-remesa-usuario-id');
+    const pagoMonedaIdEl = document.getElementById('pago-remesa-moneda-id');
+    const pagoUsuarioId = pagoUsuarioIdEl ? JSON.parse(pagoUsuarioIdEl.textContent) : null;
+    const pagoMonedaId = pagoMonedaIdEl ? JSON.parse(pagoMonedaIdEl.textContent) : null;
+
+    function cargarUsuariosAsignados() {
+        if (!usuarioAsignadoSelect) return;
+
+        fetch('/remesas/api/gestores/')
+            .then(r => r.json())
+            .then(data => {
+                usuarioAsignadoSelect.innerHTML = '<option value="">Seleccionar usuario...</option>';
+                data.forEach(u => {
+                    const option = document.createElement('option');
+                    option.value = u.id;
+                    option.textContent = u.nombre;
+                    if (pagoUsuarioId && String(u.id) === String(pagoUsuarioId)) {
+                        option.selected = true;
+                    }
+                    usuarioAsignadoSelect.appendChild(option);
+                });
+            })
+            .catch(err => {
+                console.error('Error cargando usuarios:', err);
+                usuarioAsignadoSelect.innerHTML = '<option value="">Error cargando usuarios</option>';
+            });
+    }
+
+    function cargarMonedas() {
+        if (!tipoMonedaSelect || !tipoPagoSelect) return;
+        const tipoMoneda = tipoPagoSelect.value || '';
+        if (!tipoMoneda) return;
+
+        const usuarioId = usuarioAsignadoSelect ? (usuarioAsignadoSelect.value || '') : '';
+        let url = `/remesas/api/monedas/?tipo_moneda=${encodeURIComponent(tipoMoneda)}`;
+        if (usuarioId) {
+            url += `&usuario_id=${encodeURIComponent(usuarioId)}`;
+        }
+
+        fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                const current = tipoMonedaSelect.value || (pagoMonedaId ? String(pagoMonedaId) : '');
+                tipoMonedaSelect.innerHTML = '<option value="">Seleccione una moneda</option>';
+                data.forEach(moneda => {
+                    const option = document.createElement('option');
+                    option.value = moneda.id;
+                    option.textContent = `${moneda.nombre} (${moneda.codigo})`;
+                    if (current && String(moneda.id) === String(current)) {
+                        option.selected = true;
+                    }
+                    tipoMonedaSelect.appendChild(option);
+                });
+            })
+            .catch(err => console.error('Error cargando monedas:', err));
+    }
     
     // Función para mostrar/ocultar campo de tarjeta
     function toggleTarjetaField() {
@@ -220,9 +294,20 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Configurar visibilidad inicial
     toggleTarjetaField();
+
+    // Cargar usuarios (si aplica) y monedas con filtros por usuario/tipo
+    cargarUsuariosAsignados();
+    cargarMonedas();
+
+    if (usuarioAsignadoSelect) {
+        usuarioAsignadoSelect.addEventListener('change', cargarMonedas);
+    }
     
     // Escuchar cambios en tipo de pago
-    tipoPagoSelect.addEventListener('change', toggleTarjetaField);
+    tipoPagoSelect.addEventListener('change', function() {
+        toggleTarjetaField();
+        cargarMonedas();
+    });
 });
 </script>
 

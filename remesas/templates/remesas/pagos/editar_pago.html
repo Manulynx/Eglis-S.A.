@@ -27,6 +27,21 @@
                 <div class="card-body">
                     <form id="formEditarPago" enctype="multipart/form-data">
                         {% csrf_token %}
+
+                        {% if is_admin_user %}
+                            {{ pago.usuario.id|json_script:"pago-usuario-id" }}
+                            {{ pago.tipo_moneda.id|json_script:"pago-moneda-id" }}
+                            <div class="mb-3">
+                                <label for="usuario_asignado" class="form-label">Crear a nombre de *</label>
+                                <select class="form-control bg-dark text-white border-secondary" id="usuario_asignado" name="usuario_asignado" required>
+                                    <option value="">Cargando usuarios...</option>
+                                </select>
+                                <small class="text-muted">Este usuario será el dueño del pago.</small>
+                            </div>
+                        {% else %}
+                            {{ pago.usuario.id|json_script:"pago-usuario-id" }}
+                            {{ pago.tipo_moneda.id|json_script:"pago-moneda-id" }}
+                        {% endif %}
                         
                         <!-- Información básica del Pago -->
                         <div class="row">
@@ -172,12 +187,72 @@ document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('formEditarPago');
     const btnGuardar = document.getElementById('btnGuardar');
     const tipoPagoSelect = document.getElementById('tipo_pago');
+    const usuarioAsignadoSelect = document.getElementById('usuario_asignado');
     const campoTarjeta = document.getElementById('campo_tarjeta');
     const tarjetaInput = document.getElementById('tarjeta');
     const cantidadInput = document.getElementById('cantidad');
     const tipoMonedaSelect = document.getElementById('tipo_moneda');
     const equivalenciaDiv = document.getElementById('equivalencia_usd');
     const montoUsdSpan = document.getElementById('monto_usd');
+
+    const pagoUsuarioIdEl = document.getElementById('pago-usuario-id');
+    const pagoMonedaIdEl = document.getElementById('pago-moneda-id');
+    const pagoUsuarioId = pagoUsuarioIdEl ? JSON.parse(pagoUsuarioIdEl.textContent) : null;
+    const pagoMonedaId = pagoMonedaIdEl ? JSON.parse(pagoMonedaIdEl.textContent) : null;
+
+    function cargarUsuariosAsignados() {
+        if (!usuarioAsignadoSelect) return;
+
+        fetch('/remesas/api/gestores/')
+            .then(r => r.json())
+            .then(data => {
+                usuarioAsignadoSelect.innerHTML = '<option value="">Seleccionar usuario...</option>';
+                data.forEach(u => {
+                    const option = document.createElement('option');
+                    option.value = u.id;
+                    option.textContent = u.nombre;
+                    if (pagoUsuarioId && String(u.id) === String(pagoUsuarioId)) {
+                        option.selected = true;
+                    }
+                    usuarioAsignadoSelect.appendChild(option);
+                });
+            })
+            .catch(err => {
+                console.error('Error cargando usuarios:', err);
+                usuarioAsignadoSelect.innerHTML = '<option value="">Error cargando usuarios</option>';
+            });
+    }
+
+    function cargarMonedas(tipoPago) {
+        if (!tipoMonedaSelect || !tipoPago) return;
+
+        const usuarioId = usuarioAsignadoSelect ? (usuarioAsignadoSelect.value || '') : '';
+        let url = `/remesas/api/monedas/?tipo_moneda=${encodeURIComponent(tipoPago)}`;
+        if (usuarioId) {
+            url += `&usuario_id=${encodeURIComponent(usuarioId)}`;
+        }
+
+        fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                const current = tipoMonedaSelect.value || (pagoMonedaId ? String(pagoMonedaId) : '');
+                tipoMonedaSelect.innerHTML = '<option value="">Seleccione una moneda</option>';
+
+                data.forEach(moneda => {
+                    const option = document.createElement('option');
+                    option.value = moneda.id;
+                    option.textContent = `${moneda.nombre} (${moneda.codigo})`;
+                    option.dataset.valor = String(moneda.valor_usuario || '1');
+                    if (current && String(moneda.id) === String(current)) {
+                        option.selected = true;
+                    }
+                    tipoMonedaSelect.appendChild(option);
+                });
+
+                calcularEquivalenciaUSD();
+            })
+            .catch(err => console.error('Error cargando monedas:', err));
+    }
     
     // Configurar visibilidad inicial del campo de tarjeta
     const tipoPagoInicial = '{{ pago.tipo_pago }}';
@@ -233,6 +308,21 @@ document.addEventListener('DOMContentLoaded', function() {
     
     cantidadInput.addEventListener('input', calcularEquivalenciaUSD);
     tipoMonedaSelect.addEventListener('change', calcularEquivalenciaUSD);
+
+    // Cargar usuarios (si aplica) y actualizar monedas con valores por usuario
+    cargarUsuariosAsignados();
+    cargarMonedas(tipoPagoSelect.value);
+
+    if (usuarioAsignadoSelect) {
+        usuarioAsignadoSelect.addEventListener('change', function() {
+            cargarMonedas(tipoPagoSelect.value);
+        });
+    }
+
+    // Cuando cambia el tipo de pago, recargar monedas filtradas
+    tipoPagoSelect.addEventListener('change', function() {
+        cargarMonedas(this.value);
+    });
     
     // Calcular al cargar la página
     calcularEquivalenciaUSD();

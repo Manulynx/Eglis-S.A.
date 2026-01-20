@@ -105,6 +105,17 @@
         </div>
     </div>
 
+    <!-- Filtros Rápidos de Fecha (por Fecha registro) -->
+    <div class="mb-3 text-center">
+        <div class="btn-group" role="group" aria-label="Filtros de fecha">
+            <a href="?filtro_fecha=hoy" class="btn btn-outline-light {% if filtro_fecha == 'hoy' %}active{% endif %}">Hoy</a>
+            <a href="?filtro_fecha=ayer" class="btn btn-outline-light {% if filtro_fecha == 'ayer' %}active{% endif %}">Ayer</a>
+            <a href="?filtro_fecha=semana" class="btn btn-outline-light {% if filtro_fecha == 'semana' %}active{% endif %}">1 Semana</a>
+            <a href="?filtro_fecha=mes" class="btn btn-outline-light {% if filtro_fecha == 'mes' %}active{% endif %}">1 Mes</a>
+            <a href="?filtro_fecha=todas" class="btn btn-outline-light {% if filtro_fecha == 'todas' %}active{% endif %}">Todas</a>
+        </div>
+    </div>
+
     <!-- Tabla de usuarios -->
     <div class="card-body">
         <!-- Vista Desktop -->
@@ -307,19 +318,31 @@
         <ul class="pagination justify-content-center">
             {% if usuarios.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="?page=1">&laquo; Primera</a>
+                    {% if querystring %}
+                        <a class="page-link" href="?{{ querystring }}&page=1">&laquo; Primera</a>
+                    {% else %}
+                        <a class="page-link" href="?page=1">&laquo; Primera</a>
+                    {% endif %}
                 </li>
             {% endif %}
             
             {% for num in usuarios.paginator.page_range %}
                 <li class="page-item {% if usuarios.number == num %}active{% endif %}">
-                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                    {% if querystring %}
+                        <a class="page-link" href="?{{ querystring }}&page={{ num }}">{{ num }}</a>
+                    {% else %}
+                        <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                    {% endif %}
                 </li>
             {% endfor %}
             
             {% if usuarios.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ usuarios.paginator.num_pages }}">Última &raquo;</a>
+                    {% if querystring %}
+                        <a class="page-link" href="?{{ querystring }}&page={{ usuarios.paginator.num_pages }}">Última &raquo;</a>
+                    {% else %}
+                        <a class="page-link" href="?page={{ usuarios.paginator.num_pages }}">Última &raquo;</a>
+                    {% endif %}
                 </li>
             {% endif %}
         </ul>

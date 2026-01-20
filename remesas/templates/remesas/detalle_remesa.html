@@ -30,6 +30,11 @@
                             <span class="badge badge-danger badge-lg">
                                 <i class="fas fa-times-circle mr-1"></i>CANCELADA
                             </span>
+                            {% if remesa.cancelado_por_tiempo %}
+                                <span class="badge badge-dark badge-lg ml-2">
+                                    <i class="fas fa-hourglass-end mr-1"></i>POR TIEMPO
+                                </span>
+                            {% endif %}
                         {% elif remesa.estado == 'confirmada' %}
                             <span class="badge badge-info badge-lg">
                                 <i class="fas fa-check mr-1"></i>CONFIRMADA
@@ -56,6 +61,11 @@
                                     data-remesa-id="{{ remesa.id }}" data-remesa-numero="{{ remesa.remesa_id }}">
                                 <i class="fas fa-times mr-1"></i>Cancelar
                             </button>
+                        {% elif remesa.estado == 'cancelada' and remesa.cancelado_por_tiempo %}
+                            <button type="button" class="btn btn-info btn-sm btn-reactivar-remesa"
+                                    data-remesa-id="{{ remesa.id }}" data-remesa-numero="{{ remesa.remesa_id }}">
+                                <i class="fas fa-redo mr-1"></i>Reactivar
+                            </button>
                         {% elif remesa.estado == 'completada' %}
                             <button type="button" class="btn btn-danger btn-sm btn-eliminar-remesa"
                                     data-remesa-id="{{ remesa.id }}" data-remesa-numero="{{ remesa.remesa_id }}">
@@ -75,6 +85,11 @@
                             <button type="button" class="btn btn-danger btn-sm btn-cancelar-remesa"
                                     data-remesa-id="{{ remesa.id }}" data-remesa-numero="{{ remesa.remesa_id }}">
                                 <i class="fas fa-times mr-1"></i>Cancelar
+                            </button>
+                        {% elif remesa.estado == 'cancelada' and remesa.cancelado_por_tiempo %}
+                            <button type="button" class="btn btn-info btn-sm btn-reactivar-remesa"
+                                    data-remesa-id="{{ remesa.id }}" data-remesa-numero="{{ remesa.remesa_id }}">
+                                <i class="fas fa-redo mr-1"></i>Reactivar
                             </button>
                         {% endif %}
                     {% else %}
@@ -136,6 +151,29 @@
                                         <span class="badge badge-secondary ml-sm-2">{{ remesa.moneda.codigo }}</span>
                                     {% endif %}
                                 </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="text-muted small">Equivalente USD (al crear):</label>
+                                <div class="text-white">
+                                    <i class="fas fa-usd-circle mr-1"></i>
+                                    {% if remesa.monto_usd_historico != None %}
+                                        <span class="text-success" style="font-weight: 600;">${{ remesa.monto_usd_historico|floatformat:2 }} USD</span>
+                                    {% else %}
+                                        <span class="text-muted">N/D</span>
+                                    {% endif %}
+                                </div>
+                                {% if remesa.moneda %}
+                                <small class="text-muted d-block">
+                                    Tasa usada (1 USD =
+                                    {% if remesa.valor_moneda_historico != None %}
+                                        {{ remesa.valor_moneda_historico|floatformat:6 }}
+                                    {% else %}
+                                        N/D
+                                    {% endif %}
+                                    {{ remesa.moneda.codigo }})
+                                </small>
+                                {% endif %}
                             </div>
 
                             {% if remesa.moneda %}
@@ -402,6 +440,11 @@
                                         <span class="badge badge-{% if pago.estado == 'confirmado' %}success{% elif pago.estado == 'pendiente' %}warning{% else %}danger{% endif %}">
                                             {{ pago.get_estado_display }}
                                         </span>
+                                        {% if pago.estado == 'cancelado' and pago.cancelado_por_tiempo %}
+                                            <span class="badge badge-dark ml-2">
+                                                <i class="fas fa-hourglass-end mr-1"></i>POR TIEMPO
+                                            </span>
+                                        {% endif %}
                                     </div>
                                     <div>
                                         {% if pago.estado == 'pendiente' %}
@@ -438,6 +481,16 @@
                                                 {% endif %}
                                             {% endif %}
                                         {% endif %}
+                                        {% if pago.estado == 'cancelado' and pago.cancelado_por_tiempo %}
+                                            {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                                            <button type="button" class="btn btn-sm btn-info btn-reactivar-pago-remesa"
+                                                    data-pago-id="{{ pago.id }}"
+                                                    data-pago-numero="{{ pago.pago_id }}"
+                                                    title="Reactivar pago (crea uno nuevo)">
+                                                <i class="fas fa-redo mr-1"></i>Reactivar
+                                            </button>
+                                            {% endif %}
+                                        {% endif %}
                                     </div>
                                 </div>
                                 <div class="card-body">
@@ -457,6 +510,11 @@
                                                 </div>
                                                 {% if pago.monto_usd_historico %}
                                                 <small class="text-muted">Equiv. USD: ${{ pago.monto_usd_historico|floatformat:2 }}</small>
+                                                {% endif %}
+                                                {% if pago.tipo_moneda %}
+                                                    {% if pago.valor_moneda_historico != None %}
+                                                    <small class="text-muted d-block">Tasa usada: 1 USD = {{ pago.valor_moneda_historico|floatformat:6 }} {{ pago.tipo_moneda.codigo }}</small>
+                                                    {% endif %}
                                                 {% endif %}
                                             </div>
                                             {% if pago.telefono %}
@@ -575,6 +633,12 @@
                                                     <i class="fas fa-{% if pago.estado == 'confirmado' %}check-circle{% elif pago.estado == 'pendiente' %}clock{% else %}times-circle{% endif %}"></i>
                                                     {{ pago.get_estado_display }}
                                                 </span>
+                                                {% if pago.estado == 'cancelado' and pago.cancelado_por_tiempo %}
+                                                    <span class="badge badge-dark ml-2">
+                                                        <i class="fas fa-hourglass-end"></i>
+                                                        Por tiempo
+                                                    </span>
+                                                {% endif %}
                                             </div>
                                         </div>
                                         <div class="text-end" style="margin-left: 0.5rem;">
@@ -640,6 +704,18 @@
                                             ${{ pago.monto_usd_historico|floatformat:2 }} USD
                                         </span>
                                     </div>
+                                    {% endif %}
+
+                                    <!-- Tasa usada -->
+                                    {% if pago.tipo_moneda %}
+                                        {% if pago.valor_moneda_historico != None %}
+                                        <div class="mb-2 pb-2 border-bottom border-secondary">
+                                            <small class="text-muted small d-block mb-1">Tasa usada (al crear):</small>
+                                            <span class="text-white d-block" style="font-size: 0.85rem;">
+                                                1 USD = {{ pago.valor_moneda_historico|floatformat:6 }} {{ pago.tipo_moneda.codigo }}
+                                            </span>
+                                        </div>
+                                        {% endif %}
                                     {% endif %}
                                     
                                     <!-- Fecha y usuario -->
@@ -733,6 +809,15 @@
                                                         <i class="fas fa-trash"></i> Eliminar
                                                     </button>
                                                     {% endif %}
+                                                {% endif %}
+                                            {% endif %}
+                                            {% if pago.estado == 'cancelado' and pago.cancelado_por_tiempo %}
+                                                {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                                                <button type="button" class="btn btn-sm btn-info flex-fill btn-reactivar-pago-remesa"
+                                                        data-pago-id="{{ pago.id }}"
+                                                        data-pago-numero="{{ pago.pago_id }}">
+                                                    <i class="fas fa-redo"></i> Reactivar
+                                                </button>
                                                 {% endif %}
                                             {% endif %}
                                         </div>
@@ -1230,7 +1315,7 @@ function getCSRFToken() {
 
 // Función para deshabilitar/habilitar todos los botones de acción
 function toggleActionButtons(disabled) {
-    const actionButtons = document.querySelectorAll('.btn-confirmar-remesa, .btn-cancelar-remesa, .btn-eliminar-remesa');
+    const actionButtons = document.querySelectorAll('.btn-confirmar-remesa, .btn-cancelar-remesa, .btn-eliminar-remesa, .btn-reactivar-remesa');
     actionButtons.forEach(btn => {
         btn.disabled = disabled;
         if (disabled) {
@@ -1307,8 +1392,12 @@ function sendAjaxRequest(url, remesaId, actionType) {
                 confirmButtonColor: '#28a745',
                 allowOutsideClick: false
             }).then(() => {
-                // Recargar la página para mostrar los cambios
-                window.location.reload();
+                // Si el backend manda redirect_url, navegar; si no, recargar.
+                if (data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                } else {
+                    window.location.reload();
+                }
             });
         } else {
             // Error - mostrar mensaje de error y rehabilitar botones
@@ -1449,6 +1538,39 @@ document.addEventListener('DOMContentLoaded', function() {
             }).then((result) => {
                 if (result.isConfirmed) {
                     sendAjaxRequest('{% url "remesas:eliminar_remesa" 0 %}', remesaId, 'eliminar');
+                }
+            });
+        });
+    });
+
+    // Reactivar remesa (cancelada por tiempo)
+    const btnsReactivar = document.querySelectorAll('.btn-reactivar-remesa');
+    btnsReactivar.forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+
+            if (isProcessing) {
+                return;
+            }
+
+            const remesaId = this.dataset.remesaId;
+            const remesaNumero = this.dataset.remesaNumero;
+
+            Swal.fire({
+                title: '¿Reactivar Remesa?',
+                text: `Se creará una NUEVA remesa basada en #${remesaNumero} y el contador de 23/24h se reiniciará.`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#17a2b8',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Sí, reactivar',
+                cancelButtonText: 'Cancelar',
+                background: '#343a40',
+                color: '#ffffff',
+                allowOutsideClick: false
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    sendAjaxRequest('{% url "remesas:reactivar_remesa" 0 %}', remesaId, 'reactivar');
                 }
             });
         });
@@ -1843,6 +1965,79 @@ document.addEventListener('click', function(e) {
                     Swal.fire({
                         title: 'Error',
                         text: 'Error al cancelar el pago: ' + error.message,
+                        icon: 'error',
+                        background: '#343a40',
+                        color: '#ffffff',
+                        confirmButtonColor: '#dc3545'
+                    });
+                });
+            }
+        });
+        return;
+    }
+
+    // Reactivar pago de remesa (cancelado por tiempo)
+    const btnReactivarPago = e.target.closest('.btn-reactivar-pago-remesa');
+    if (btnReactivarPago) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const pagoId = btnReactivarPago.getAttribute('data-pago-id');
+        const pagoNumero = btnReactivarPago.getAttribute('data-pago-numero');
+
+        Swal.fire({
+            title: '¿Reactivar Pago?',
+            text: `Se creará un NUEVO pago basado en ${pagoNumero} y el contador de 23/24h se reiniciará.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#17a2b8',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Sí, reactivar',
+            cancelButtonText: 'Cancelar',
+            background: '#343a40',
+            color: '#ffffff'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                fetch(`/remesas/pagos-remesa/reactivar/${pagoId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCSRFToken(),
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            title: '¡Reactivado!',
+                            text: data.message,
+                            icon: 'success',
+                            background: '#343a40',
+                            color: '#ffffff',
+                            confirmButtonColor: '#28a745'
+                        }).then(() => {
+                            if (data.redirect_url) {
+                                window.location.href = data.redirect_url;
+                            } else {
+                                window.location.reload();
+                            }
+                        });
+                    } else {
+                        Swal.fire({
+                            title: 'Error',
+                            text: data.message,
+                            icon: 'error',
+                            background: '#343a40',
+                            color: '#ffffff',
+                            confirmButtonColor: '#dc3545'
+                        });
+                    }
+                })
+                .catch(error => {
+                    Swal.fire({
+                        title: 'Error',
+                        text: 'Error al reactivar el pago: ' + error.message,
                         icon: 'error',
                         background: '#343a40',
                         color: '#ffffff',

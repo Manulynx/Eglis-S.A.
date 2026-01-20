@@ -29,6 +29,11 @@
                             <span class="badge badge-danger badge-lg">
                                 <i class="fas fa-times-circle mr-1"></i>CANCELADO
                             </span>
+                            {% if pago.cancelado_por_tiempo %}
+                                <span class="badge badge-dark badge-lg ml-2">
+                                    <i class="fas fa-hourglass-end mr-1"></i>POR TIEMPO
+                                </span>
+                            {% endif %}
                         {% else %}
                             <span class="badge badge-secondary badge-lg">
                                 <i class="fas fa-question-circle mr-1"></i>{{ pago.estado|upper }}
@@ -51,6 +56,11 @@
                                     data-pago-id="{{ pago.id }}" data-pago-destinatario="{{ pago.destinatario }}">
                                 <i class="fas fa-times mr-1"></i>Cancelar
                             </button>
+                        {% elif pago.estado == 'cancelado' and pago.cancelado_por_tiempo %}
+                            <button type="button" class="btn btn-info btn-sm btn-reactivar-pago"
+                                    data-pago-id="{{ pago.id }}" data-pago-destinatario="{{ pago.destinatario }}">
+                                <i class="fas fa-redo mr-1"></i>Reactivar
+                            </button>
                         {% elif pago.estado == 'confirmado' %}
                             <button type="button" class="btn btn-danger btn-sm btn-eliminar-pago"
                                     data-pago-id="{{ pago.id }}" data-pago-destinatario="{{ pago.destinatario }}">
@@ -70,6 +80,11 @@
                             <button type="button" class="btn btn-danger btn-sm btn-cancelar-pago"
                                     data-pago-id="{{ pago.id }}" data-pago-destinatario="{{ pago.destinatario }}">
                                 <i class="fas fa-times mr-1"></i>Cancelar
+                            </button>
+                        {% elif pago.estado == 'cancelado' and pago.cancelado_por_tiempo %}
+                            <button type="button" class="btn btn-info btn-sm btn-reactivar-pago"
+                                    data-pago-id="{{ pago.id }}" data-pago-destinatario="{{ pago.destinatario }}">
+                                <i class="fas fa-redo mr-1"></i>Reactivar
                             </button>
                         {% endif %}
                     {% else %}
@@ -131,6 +146,29 @@
                                         <span class="badge badge-secondary ml-sm-2">{{ pago.tipo_moneda.codigo }}</span>
                                     {% endif %}
                                 </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="text-muted small">Equivalente USD (al crear):</label>
+                                <div class="text-white">
+                                    <i class="fas fa-usd-circle mr-1"></i>
+                                    {% if pago.monto_usd_historico != None %}
+                                        <span class="text-success" style="font-weight: 600;">${{ pago.monto_usd_historico|floatformat:2 }} USD</span>
+                                    {% else %}
+                                        <span class="text-muted">N/D</span>
+                                    {% endif %}
+                                </div>
+                                {% if pago.tipo_moneda %}
+                                <small class="text-muted d-block">
+                                    Tasa usada (1 USD =
+                                    {% if pago.valor_moneda_historico != None %}
+                                        {{ pago.valor_moneda_historico|floatformat:6 }}
+                                    {% else %}
+                                        N/D
+                                    {% endif %}
+                                    {{ pago.tipo_moneda.codigo }})
+                                </small>
+                                {% endif %}
                             </div>
 
                             {% if pago.tipo_moneda %}
@@ -646,7 +684,7 @@ let isProcessing = false;
 
 // Función para deshabilitar/habilitar todos los botones de acción
 function toggleActionButtons(disabled) {
-    const actionButtons = document.querySelectorAll('.btn-confirmar-pago, .btn-cancelar-pago, .btn-eliminar-pago');
+    const actionButtons = document.querySelectorAll('.btn-confirmar-pago, .btn-cancelar-pago, .btn-eliminar-pago, .btn-reactivar-pago');
     actionButtons.forEach(btn => {
         btn.disabled = disabled;
         if (disabled) {
@@ -664,6 +702,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const btnEliminar = document.querySelector('.btn-eliminar-pago');
     const btnConfirmar = document.querySelector('.btn-confirmar-pago');
     const btnCancelar = document.querySelector('.btn-cancelar-pago');
+    const btnReactivar = document.querySelector('.btn-reactivar-pago');
     
     if (btnEliminar) {
         btnEliminar.addEventListener('click', function(e) {
@@ -709,6 +748,20 @@ document.addEventListener('DOMContentLoaded', function() {
             cancelarPago(pagoId, destinatario);
         });
     }
+
+    if (btnReactivar) {
+        btnReactivar.addEventListener('click', function(e) {
+            e.preventDefault();
+
+            if (isProcessing) {
+                return;
+            }
+
+            const pagoId = this.getAttribute('data-pago-id');
+            const destinatario = this.getAttribute('data-pago-destinatario');
+            reactivarPago(pagoId, destinatario);
+        });
+    }
     
     // Protección adicional: deshabilitar botones si la página se está recargando
     window.addEventListener('beforeunload', function() {
@@ -716,6 +769,110 @@ document.addEventListener('DOMContentLoaded', function() {
         toggleActionButtons(true);
     });
 });
+
+function reactivarPago(pagoId, destinatario) {
+    if (isProcessing) {
+        Swal.fire({
+            title: 'Operación en Proceso',
+            text: 'Ya hay una operación en curso. Por favor espere.',
+            icon: 'warning',
+            background: '#343a40',
+            color: '#ffffff',
+            confirmButtonColor: '#ffc107'
+        });
+        return;
+    }
+
+    Swal.fire({
+        title: `¿Reactivar pago para ${destinatario}?`,
+        text: 'Se creará un NUEVO pago pendiente y el contador de 23/24h se reiniciará.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#17a2b8',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Sí, reactivar',
+        cancelButtonText: 'Cancelar',
+        background: '#343a40',
+        color: '#ffffff',
+        allowOutsideClick: false
+    }).then((result) => {
+        if (result.isConfirmed) {
+            isProcessing = true;
+            toggleActionButtons(true);
+
+            Swal.fire({
+                title: 'Procesando...',
+                text: 'Reactivando pago...',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                background: '#343a40',
+                color: '#ffffff',
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            fetch(`/remesas/pagos/reactivar/${pagoId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                Swal.close();
+
+                if (data.success) {
+                    Swal.fire({
+                        title: '¡Pago reactivado!',
+                        text: data.message || 'Se creó un nuevo pago.',
+                        icon: 'success',
+                        background: '#343a40',
+                        color: '#ffffff',
+                        allowOutsideClick: false
+                    }).then(() => {
+                        if (data.redirect_url) {
+                            window.location.href = data.redirect_url;
+                        } else {
+                            window.location.reload();
+                        }
+                    });
+                } else {
+                    isProcessing = false;
+                    toggleActionButtons(false);
+                    Swal.fire({
+                        title: 'Error',
+                        text: data.message || 'Ocurrió un error al reactivar el pago',
+                        icon: 'error',
+                        background: '#343a40',
+                        color: '#ffffff'
+                    });
+                }
+            })
+            .catch(error => {
+                Swal.close();
+                isProcessing = false;
+                toggleActionButtons(false);
+                console.error('Error:', error);
+                Swal.fire({
+                    title: 'Error de Conexión',
+                    text: 'Ocurrió un error inesperado. Por favor, inténtelo de nuevo.',
+                    icon: 'error',
+                    background: '#343a40',
+                    color: '#ffffff'
+                });
+            });
+        }
+    });
+}
 
 function mostrarComprobanteCompleto(url) {
     Swal.fire({

@@ -67,6 +67,18 @@ form[data-enviando="true"] .btn[type="submit"] {
 
                     <form method="post" enctype="multipart/form-data" novalidate>
                         {% csrf_token %}
+
+                        {% if is_admin_user %}
+                        <div class="mb-3">
+                            <label for="usuario_asignado" class="form-label text-white">Crear a nombre de</label>
+                            <select class="form-select bg-dark text-white border-secondary"
+                                    id="usuario_asignado"
+                                    name="usuario_asignado">
+                                <option value="">Seleccionar usuario...</option>
+                            </select>
+                            <small class="form-text text-muted">El pago se asignará al usuario seleccionado.</small>
+                        </div>
+                        {% endif %}
                         
                         <!-- Tipo de Pago -->
                         <div class="mb-3">
@@ -291,6 +303,7 @@ form[data-enviando="true"] .btn[type="submit"] {
 </div>
 
 <!-- Script para pasar datos de Django a JavaScript -->
+{{ user.id|json_script:"user-id" }}
 <script type="application/json" id="monedas-data">{{ monedas_data_json|safe }}</script>
 <script type="application/json" id="user-balance">{{ user.perfil.balance|floatformat:2 }}</script>
 
@@ -354,6 +367,45 @@ input[type="file"].form-control::file-selector-button:hover {
 <!-- JavaScript para validación en tiempo real -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const usuarioAutenticadoId = JSON.parse(document.getElementById('user-id').textContent);
+
+    function cargarUsuariosAsignados() {
+        const select = document.getElementById('usuario_asignado');
+        if (!select) return;
+
+        fetch('/remesas/api/gestores/')
+            .then(r => r.json())
+            .then(data => {
+                select.innerHTML = '<option value="">Seleccionar usuario...</option>';
+                data.forEach(u => {
+                    const option = document.createElement('option');
+                    option.value = u.id;
+                    option.textContent = u.nombre;
+                    if (usuarioAutenticadoId && String(u.id) === String(usuarioAutenticadoId)) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+
+                select.addEventListener('change', function() {
+                    // Resetear selects de moneda
+                    const selectTransferencia = document.getElementById('{{ form.tipo_moneda.id_for_label }}');
+                    const selectEfectivo = document.getElementById('{{ form.tipo_moneda.id_for_label }}_efectivo');
+                    if (selectTransferencia) selectTransferencia.innerHTML = '<option value="">Seleccionar moneda...</option>';
+                    if (selectEfectivo) selectEfectivo.innerHTML = '<option value="">Seleccionar moneda...</option>';
+
+                    // Recargar monedas para el tipo de pago activo
+                    const activo = document.querySelector('.tipo-pago-check:checked');
+                    if (activo) {
+                        cargarMonedasPago(activo.value);
+                    }
+                });
+            })
+            .catch(err => console.error('Error cargando usuarios:', err));
+    }
+
+    cargarUsuariosAsignados();
+
     // Configurar checkboxes de tipo de pago para comportamiento exclusivo
     configurarTipoPago();
     
@@ -385,8 +437,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function cargarMonedasPago(tipoMoneda) {
+        const usuarioAsignado = document.getElementById('usuario_asignado');
+        const usuarioId = usuarioAsignado ? (usuarioAsignado.value || '') : '';
+
         // Construir URL con filtro
-        const url = `/remesas/api/monedas/?tipo_moneda=${tipoMoneda}`;
+        let url = `/remesas/api/monedas/?tipo_moneda=${encodeURIComponent(tipoMoneda)}`;
+        if (usuarioId) {
+            url += `&usuario_id=${encodeURIComponent(usuarioId)}`;
+        }
         
         fetch(url)
             .then(response => response.json())

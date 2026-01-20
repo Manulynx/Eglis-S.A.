@@ -563,6 +563,9 @@
                                             <span class="badge bg-warning text-dark">Pendiente</span>
                                         {% elif remesa.estado == 'cancelada' %}
                                             <span class="badge bg-danger">Cancelada</span>
+                                            {% if remesa.cancelado_por_tiempo %}
+                                                <span class="badge bg-dark ms-1">Tiempo</span>
+                                            {% endif %}
                                         {% else %}
                                             <span class="badge bg-secondary">{{ remesa.estado|title }}</span>
                                         {% endif %}
@@ -622,6 +625,17 @@
                                                 <i class="fas fa-times"></i>
                                             </button>
                                             {% else %}
+                                            {% if remesa.estado == 'cancelada' and remesa.cancelado_por_tiempo %}
+                                            {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                                            <button class="btn btn-outline-primary btn-sm btn-reactivar-remesa"
+                                                    data-remesa-id="{{ remesa.id }}"
+                                                    data-remesa-numero="{{ remesa.remesa_id }}"
+                                                    title="Reactivar remesa (crea una nueva)"
+                                                    data-bs-toggle="tooltip">
+                                                <i class="fas fa-redo"></i>
+                                            </button>
+                                            {% endif %}
+                                            {% endif %}
                                             <!-- Botón Eliminar solo para admins en remesas completadas -->
                                             {% if user_tipo == 'admin' and remesa.estado == 'completada' %}
                                             <button class="btn btn-outline-danger btn-sm btn-eliminar-remesa"
@@ -797,6 +811,16 @@
                                         </button>
                                         {% endif %}
 
+                                        {% if remesa.estado == 'cancelada' and remesa.cancelado_por_tiempo %}
+                                        {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                                        <button class="btn btn-primary btn-sm btn-reactivar-remesa"
+                                                data-remesa-id="{{ remesa.id }}"
+                                                data-remesa-numero="{{ remesa.remesa_id }}">
+                                            <i class="fas fa-redo"></i> Reactivar
+                                        </button>
+                                        {% endif %}
+                                        {% endif %}
+
                                         {% if remesa.estado != 'completada' and remesa.estado != 'cancelada' %}
                                         <button class="btn btn-danger btn-sm btn-cancelar"
                                                 data-remesa-id="{{ remesa.id }}"
@@ -953,6 +977,9 @@
                                             <span class="badge bg-warning text-dark">Pendiente</span>
                                         {% elif pago.estado == 'cancelado' %}
                                             <span class="badge bg-danger">Cancelado</span>
+                                            {% if pago.cancelado_por_tiempo %}
+                                                <span class="badge bg-dark ms-1">Tiempo</span>
+                                            {% endif %}
                                         {% else %}
                                             <span class="badge bg-secondary">{{ pago.estado|title }}</span>
                                         {% endif %}
@@ -1031,6 +1058,19 @@
                                                 <i class="fas fa-times"></i>
                                             </button>
                                             {% endif %}
+
+                                            {% if pago.estado == 'cancelado' and pago.cancelado_por_tiempo %}
+                                            {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                                            <button type="button"
+                                                    class="btn btn-outline-primary btn-sm btn-reactivar-pago"
+                                                    data-pago-id="{{ pago.id }}"
+                                                    data-pago-destinatario="{{ pago.destinatario }}"
+                                                    title="Reactivar pago (crea uno nuevo)"
+                                                    data-bs-toggle="tooltip">
+                                                <i class="fas fa-redo"></i>
+                                            </button>
+                                            {% endif %}
+                                            {% endif %}
                                             {% endif %}
 
                                             <!-- Botón Eliminar (admins solo en confirmados, cdtwilight siempre) -->
@@ -1089,6 +1129,9 @@
                                             <span class="badge bg-warning text-dark">Pendiente</span>
                                         {% elif pago.estado == 'cancelado' %}
                                             <span class="badge bg-danger">Cancelado</span>
+                                            {% if pago.cancelado_por_tiempo %}
+                                                <span class="badge bg-dark ms-1">Tiempo</span>
+                                            {% endif %}
                                         {% else %}
                                             <span class="badge bg-secondary">{{ pago.estado|title }}</span>
                                         {% endif %}
@@ -1148,6 +1191,19 @@
                                                data-bs-toggle="tooltip">
                                                 <i class="fas fa-edit"></i>
                                             </a>
+                                            {% endif %}
+
+                                            {% if pago.estado == 'cancelado' and pago.cancelado_por_tiempo %}
+                                            {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                                            <button type="button"
+                                                    class="btn btn-outline-primary btn-sm btn-reactivar-pago-remesa"
+                                                    data-pago-id="{{ pago.id }}"
+                                                    data-pago-numero="{{ pago.pago_id }}"
+                                                    title="Reactivar pago de remesa (crea uno nuevo)"
+                                                    data-bs-toggle="tooltip">
+                                                <i class="fas fa-redo"></i>
+                                            </button>
+                                            {% endif %}
                                             {% endif %}
                                             
                                             <!-- Nota: Los pagos de remesa se confirman/cancelan cuando se completa/cancela la remesa -->
@@ -1269,6 +1325,9 @@
                                         <span class="badge bg-warning text-dark">Pendiente</span>
                                     {% elif pago.estado == 'cancelado' %}
                                         <span class="badge bg-danger">Cancelado</span>
+                                        {% if pago.cancelado_por_tiempo %}
+                                            <span class="badge bg-dark ms-1">Tiempo</span>
+                                        {% endif %}
                                     {% else %}
                                         <span class="badge bg-secondary">{{ pago.estado|title }}</span>
                                     {% endif %}
@@ -1347,6 +1406,17 @@
                                             <i class="fas fa-times"></i> Cancelar
                                         </button>
                                         {% endif %}
+
+                                        {% if pago.estado == 'cancelado' and pago.cancelado_por_tiempo %}
+                                        {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                                        <button type="button"
+                                                class="btn btn-primary btn-sm btn-reactivar-pago"
+                                                data-pago-id="{{ pago.id }}"
+                                                data-pago-destinatario="{{ pago.destinatario }}">
+                                            <i class="fas fa-redo"></i> Reactivar
+                                        </button>
+                                        {% endif %}
+                                        {% endif %}
                                     {% endif %}
                                     
                                     <!-- Botón Eliminar (admins solo en confirmados, cdtwilight siempre) -->
@@ -1398,6 +1468,9 @@
                                         <span class="badge bg-warning text-dark">Pendiente</span>
                                     {% elif pago.estado == 'cancelado' %}
                                         <span class="badge bg-danger">Cancelado</span>
+                                        {% if pago.cancelado_por_tiempo %}
+                                            <span class="badge bg-dark ms-1">Tiempo</span>
+                                        {% endif %}
                                     {% else %}
                                         <span class="badge bg-secondary">{{ pago.estado|title }}</span>
                                     {% endif %}
@@ -1461,6 +1534,17 @@
                                            class="btn btn-warning btn-sm">
                                             <i class="fas fa-edit"></i> Editar en Remesa
                                         </a>
+                                        {% endif %}
+
+                                        {% if pago.estado == 'cancelado' and pago.cancelado_por_tiempo %}
+                                        {% if user_tipo == 'admin' or user_tipo == 'contable' %}
+                                        <button type="button"
+                                                class="btn btn-primary btn-sm btn-reactivar-pago-remesa"
+                                                data-pago-id="{{ pago.id }}"
+                                                data-pago-numero="{{ pago.pago_id }}">
+                                            <i class="fas fa-redo"></i> Reactivar
+                                        </button>
+                                        {% endif %}
                                         {% endif %}
                                         
                                         <!-- Nota informativa sobre gestión de pagos de remesa -->
@@ -1659,11 +1743,14 @@
                                             <span class="badge
                                                 {% if operacion.estado == 'pendiente' %}bg-warning text-dark
                                                 {% elif operacion.estado == 'procesado' %}bg-info
-                                                {% elif operacion.estado == 'completada' or operacion.estado == 'completado' %}bg-success
+                                                {% elif operacion.estado == 'completada' or operacion.estado == 'completado' or operacion.estado == 'confirmado' %}bg-success
                                                 {% elif operacion.estado == 'cancelada' or operacion.estado == 'cancelado' %}bg-danger
                                                 {% else %}bg-secondary{% endif %}">
                                                 {{ operacion.estado|capfirst }}
                                             </span>
+                                            {% if operacion.cancelado_por_tiempo %}
+                                                <span class="badge bg-dark ms-1">Tiempo</span>
+                                            {% endif %}
                                         {% else %}
                                             {% if operacion.estado == 'confirmado' %}
                                                 <span class="badge bg-success">Confirmado</span>
@@ -1671,6 +1758,9 @@
                                                 <span class="badge bg-warning text-dark">Pendiente</span>
                                             {% elif operacion.estado == 'cancelado' %}
                                                 <span class="badge bg-danger">Cancelado</span>
+                                                {% if operacion.cancelado_por_tiempo %}
+                                                    <span class="badge bg-dark ms-1">Tiempo</span>
+                                                {% endif %}
                                             {% else %}
                                                 <span class="badge bg-secondary">{{ operacion.estado|title }}</span>
                                             {% endif %}
@@ -1810,11 +1900,14 @@
                                     <span class="badge
                                         {% if operacion.estado == 'pendiente' %}bg-warning text-dark
                                         {% elif operacion.estado == 'procesado' %}bg-info
-                                        {% elif operacion.estado == 'completada' or operacion.estado == 'completado' %}bg-success
+                                        {% elif operacion.estado == 'completada' or operacion.estado == 'completado' or operacion.estado == 'confirmado' %}bg-success
                                         {% elif operacion.estado == 'cancelada' or operacion.estado == 'cancelado' %}bg-danger
                                         {% else %}bg-secondary{% endif %}">
                                         {{ operacion.estado|capfirst }}
                                     </span>
+                                    {% if operacion.cancelado_por_tiempo %}
+                                        <span class="badge bg-dark ms-1">Tiempo</span>
+                                    {% endif %}
                                 {% else %}
                                     {% if operacion.estado == 'confirmado' %}
                                         <span class="badge bg-success">Confirmado</span>
@@ -1822,6 +1915,9 @@
                                         <span class="badge bg-warning text-dark">Pendiente</span>
                                     {% elif operacion.estado == 'cancelado' %}
                                         <span class="badge bg-danger">Cancelado</span>
+                                        {% if operacion.cancelado_por_tiempo %}
+                                            <span class="badge bg-dark ms-1">Tiempo</span>
+                                        {% endif %}
                                     {% else %}
                                         <span class="badge bg-secondary">{{ operacion.estado|title }}</span>
                                     {% endif %}
@@ -2563,7 +2659,7 @@
         }
 
         // PROTECCIÓN SIMPLE CONTRA DOBLES CLICS EN BOTONES DE ACCIÓN
-        const actionButton = e.target.closest('.btn-confirmar, .btn-cancelar, .btn-eliminar-remesa, .btn-eliminar-pago, .btn-confirmar-pago, .btn-cancelar-pago');
+        const actionButton = e.target.closest('.btn-confirmar, .btn-cancelar, .btn-eliminar-remesa, .btn-eliminar-pago, .btn-confirmar-pago, .btn-cancelar-pago, .btn-reactivar-remesa, .btn-reactivar-pago, .btn-reactivar-pago-remesa');
         if (actionButton) {
             // Solo evitar dobles clics, no bloquear funcionalidad
             if (actionButton.dataset.procesando === 'true') {
@@ -2627,6 +2723,30 @@
             const destinatario = btn.dataset.pagoDestinatario;
             console.log('Cancelando pago ID:', pagoId, 'Destinatario:', destinatario);
             cancelarPago(pagoId, destinatario, btn);
+        }
+
+        if (e.target.closest('.btn-reactivar-remesa')) {
+            const btn = e.target.closest('.btn-reactivar-remesa');
+            const remesaId = btn.dataset.remesaId;
+            const remesaNumero = btn.dataset.remesaNumero;
+            console.log('Reactivando remesa ID:', remesaId, 'Número:', remesaNumero);
+            reactivarRemesa(remesaId, remesaNumero, btn);
+        }
+
+        if (e.target.closest('.btn-reactivar-pago')) {
+            const btn = e.target.closest('.btn-reactivar-pago');
+            const pagoId = btn.dataset.pagoId;
+            const destinatario = btn.dataset.pagoDestinatario;
+            console.log('Reactivando pago ID:', pagoId, 'Destinatario:', destinatario);
+            reactivarPago(pagoId, destinatario, btn);
+        }
+
+        if (e.target.closest('.btn-reactivar-pago-remesa')) {
+            const btn = e.target.closest('.btn-reactivar-pago-remesa');
+            const pagoId = btn.dataset.pagoId;
+            const pagoNumero = btn.dataset.pagoNumero;
+            console.log('Reactivando pago de remesa ID:', pagoId, 'Número:', pagoNumero);
+            reactivarPagoRemesa(pagoId, pagoNumero, btn);
         }
         
         if (e.target.closest('.btn-eliminar-pago-remesa')) {
@@ -2762,6 +2882,72 @@
                 });
             } else {
                 // Liberar botón si se cancela la acción
+                if (button) liberarBotonAccion(button);
+            }
+        });
+    }
+
+    function reactivarRemesa(remesaId, remesaNumero, button) {
+        // Protección contra doble click
+        if (button && !protegerBotonAccion(button)) {
+            return;
+        }
+
+        Swal.fire({
+            title: `¿Reactivar la remesa #${remesaNumero}?`,
+            text: "Se creará una nueva remesa pendiente y se reiniciará el tiempo.",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#0d6efd',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Sí, reactivar',
+            cancelButtonText: 'Cancelar',
+            background: '#212529',
+            color: '#fff'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+                fetch(`/remesas/reactivar/${remesaId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'same-origin'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            title: '¡Reactivada!',
+                            text: data.message || 'Se creó una nueva remesa.',
+                            icon: 'success',
+                            background: '#212529',
+                            color: '#fff'
+                        }).then(() => {
+                            if (data.redirect_url) {
+                                window.location.href = data.redirect_url;
+                            } else {
+                                window.location.reload();
+                            }
+                        });
+                    } else {
+                        if (button) liberarBotonAccion(button);
+                        throw new Error(data.error || data.message || 'Error al reactivar la remesa');
+                    }
+                })
+                .catch(error => {
+                    if (button) liberarBotonAccion(button);
+                    Swal.fire({
+                        title: 'Error',
+                        text: error.message,
+                        icon: 'error',
+                        background: '#212529',
+                        color: '#fff'
+                    });
+                });
+            } else {
                 if (button) liberarBotonAccion(button);
             }
         });
@@ -3098,6 +3284,138 @@
                 });
             } else {
                 // Liberar botón si se cancela la acción
+                if (button) liberarBotonAccion(button);
+            }
+        });
+    }
+
+    function reactivarPago(pagoId, destinatario, button) {
+        // Protección contra doble click
+        if (button && !protegerBotonAccion(button)) {
+            return;
+        }
+
+        Swal.fire({
+            title: `¿Reactivar pago para ${destinatario}?`,
+            text: "Se creará un nuevo pago pendiente y se reiniciará el tiempo.",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#0d6efd',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Sí, reactivar',
+            cancelButtonText: 'Cancelar',
+            background: '#212529',
+            color: '#fff'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+                fetch(`/remesas/pagos/reactivar/${pagoId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'same-origin'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            title: '¡Reactivado!',
+                            text: data.message || 'Se creó un nuevo pago.',
+                            icon: 'success',
+                            background: '#212529',
+                            color: '#fff'
+                        }).then(() => {
+                            if (data.redirect_url) {
+                                window.location.href = data.redirect_url;
+                            } else {
+                                window.location.reload();
+                            }
+                        });
+                    } else {
+                        if (button) liberarBotonAccion(button);
+                        throw new Error(data.error || data.message || 'Error al reactivar el pago');
+                    }
+                })
+                .catch(error => {
+                    if (button) liberarBotonAccion(button);
+                    Swal.fire({
+                        title: 'Error',
+                        text: error.message,
+                        icon: 'error',
+                        background: '#212529',
+                        color: '#fff'
+                    });
+                });
+            } else {
+                if (button) liberarBotonAccion(button);
+            }
+        });
+    }
+
+    function reactivarPagoRemesa(pagoId, pagoNumero, button) {
+        // Protección contra doble click
+        if (button && !protegerBotonAccion(button)) {
+            return;
+        }
+
+        Swal.fire({
+            title: `¿Reactivar el pago ${pagoNumero}?`,
+            text: "Se creará un nuevo pago de remesa pendiente y se reiniciará el tiempo.",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#0d6efd',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Sí, reactivar',
+            cancelButtonText: 'Cancelar',
+            background: '#212529',
+            color: '#fff'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+                fetch(`/remesas/pagos-remesa/reactivar/${pagoId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'same-origin'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            title: '¡Reactivado!',
+                            text: data.message || 'Se creó un nuevo pago de remesa.',
+                            icon: 'success',
+                            background: '#212529',
+                            color: '#fff'
+                        }).then(() => {
+                            if (data.redirect_url) {
+                                window.location.href = data.redirect_url;
+                            } else {
+                                window.location.reload();
+                            }
+                        });
+                    } else {
+                        if (button) liberarBotonAccion(button);
+                        throw new Error(data.error || data.message || 'Error al reactivar el pago de remesa');
+                    }
+                })
+                .catch(error => {
+                    if (button) liberarBotonAccion(button);
+                    Swal.fire({
+                        title: 'Error',
+                        text: error.message,
+                        icon: 'error',
+                        background: '#212529',
+                        color: '#fff'
+                    });
+                });
+            } else {
                 if (button) liberarBotonAccion(button);
             }
         });
@@ -3788,7 +4106,7 @@
     // Función para limpiar event listeners duplicados
     function cleanupEventListeners() {
         // Remover todos los event listeners duplicados de botones
-        const buttons = document.querySelectorAll('.btn-editar, .btn-confirmar, .btn-cancelar, .btn-eliminar-pago, .btn-eliminar-remesa, .btn-confirmar-pago, .btn-cancelar-pago');
+        const buttons = document.querySelectorAll('.btn-editar, .btn-confirmar, .btn-cancelar, .btn-eliminar-pago, .btn-eliminar-remesa, .btn-confirmar-pago, .btn-cancelar-pago, .btn-reactivar-remesa, .btn-reactivar-pago, .btn-reactivar-pago-remesa');
         buttons.forEach(function(button) {
             // Clonar el elemento para remover todos sus event listeners
             const newButton = button.cloneNode(true);

@@ -31,15 +31,18 @@ def detectar_cambio_estado_remesa(sender, instance, **kwargs):
 def manejar_notificaciones_remesa(sender, instance, created, **kwargs):
     """Maneja todas las notificaciones de remesas (creación y cambio de estado)"""
     try:
-        whatsapp_service = WhatsAppService()
+        # Permite suprimir WhatsApp en operaciones automáticas (ej: cancelación por tiempo)
+        skip_whatsapp = bool(getattr(instance, '_skip_whatsapp', False))
+        whatsapp_service = None if skip_whatsapp else WhatsAppService()
         
         if created:
             # Nueva remesa creada
-            whatsapp_service.enviar_notificacion(
-                tipo='remesa_nueva',
-                remesa=instance
-            )
-            logger.info(f"Notificación enviada para nueva remesa: {instance.remesa_id}")
+            if whatsapp_service:
+                whatsapp_service.enviar_notificacion(
+                    tipo='remesa_nueva',
+                    remesa=instance
+                )
+                logger.info(f"Notificación enviada para nueva remesa: {instance.remesa_id}")
         else:
             # Verificar cambio de estado
             if hasattr(instance, '_estado_anterior'):
@@ -53,22 +56,24 @@ def manejar_notificaciones_remesa(sender, instance, created, **kwargs):
                         'cancelada': 'remesa_cancelada',
                     }.get(instance.estado, 'remesa_estado')
 
-                    whatsapp_service.enviar_notificacion(
-                        tipo=tipo_estado,
-                        remesa=instance,
-                        estado_anterior=estado_anterior
-                    )
-                    logger.info(f"Notificación enviada para cambio de estado remesa: {instance.remesa_id} - {estado_anterior} -> {instance.estado}")
+                    if whatsapp_service:
+                        whatsapp_service.enviar_notificacion(
+                            tipo=tipo_estado,
+                            remesa=instance,
+                            estado_anterior=estado_anterior
+                        )
+                        logger.info(f"Notificación enviada para cambio de estado remesa: {instance.remesa_id} - {estado_anterior} -> {instance.estado}")
 
             # Notificar edición (si cambió fecha_edicion)
             try:
                 fecha_edicion_anterior = getattr(instance, '_fecha_edicion_anterior', None)
                 if instance.fecha_edicion and instance.fecha_edicion != fecha_edicion_anterior:
-                    whatsapp_service.enviar_notificacion(
-                        tipo='remesa_editada',
-                        remesa=instance,
-                    )
-                    logger.info(f"Notificación enviada para remesa editada: {instance.remesa_id}")
+                    if whatsapp_service:
+                        whatsapp_service.enviar_notificacion(
+                            tipo='remesa_editada',
+                            remesa=instance,
+                        )
+                        logger.info(f"Notificación enviada para remesa editada: {instance.remesa_id}")
             except Exception as e:
                 logger.error(f"Error enviando notificación de remesa editada: {e}")
 
@@ -123,15 +128,18 @@ def detectar_cambio_estado_pago(sender, instance, **kwargs):
 def notificar_pago(sender, instance, created, **kwargs):
     """Envía notificación cuando se crea un nuevo pago y cuando cambia de estado"""
     try:
-        whatsapp_service = WhatsAppService()
+        # Permite suprimir WhatsApp en operaciones automáticas (ej: cancelación por tiempo)
+        skip_whatsapp = bool(getattr(instance, '_skip_whatsapp', False))
+        whatsapp_service = None if skip_whatsapp else WhatsAppService()
         
         if created:
             # Nuevo pago creado
-            whatsapp_service.enviar_notificacion(
-                tipo='pago_nuevo',
-                pago=instance
-            )
-            logger.info(f"Notificación enviada para nuevo pago: {instance.id}")
+            if whatsapp_service:
+                whatsapp_service.enviar_notificacion(
+                    tipo='pago_nuevo',
+                    pago=instance
+                )
+                logger.info(f"Notificación enviada para nuevo pago: {instance.id}")
 
         # Cambios de estado y ediciones
         if not created and hasattr(instance, '_estado_anterior'):
@@ -142,22 +150,24 @@ def notificar_pago(sender, instance, created, **kwargs):
                     'cancelado': 'pago_cancelado',
                 }.get(instance.estado, 'pago_estado')
 
-                whatsapp_service.enviar_notificacion(
-                    tipo=tipo_estado,
-                    pago=instance,
-                    estado_anterior=estado_anterior,
-                )
-                logger.info(f"Notificación enviada para cambio de estado pago: {instance.pago_id} - {estado_anterior} -> {instance.estado}")
+                if whatsapp_service:
+                    whatsapp_service.enviar_notificacion(
+                        tipo=tipo_estado,
+                        pago=instance,
+                        estado_anterior=estado_anterior,
+                    )
+                    logger.info(f"Notificación enviada para cambio de estado pago: {instance.pago_id} - {estado_anterior} -> {instance.estado}")
 
         if not created:
             try:
                 fecha_edicion_anterior = getattr(instance, '_fecha_edicion_anterior', None)
                 if instance.fecha_edicion and instance.fecha_edicion != fecha_edicion_anterior:
-                    whatsapp_service.enviar_notificacion(
-                        tipo='pago_editado',
-                        pago=instance,
-                    )
-                    logger.info(f"Notificación enviada para pago editado: {instance.pago_id}")
+                    if whatsapp_service:
+                        whatsapp_service.enviar_notificacion(
+                            tipo='pago_editado',
+                            pago=instance,
+                        )
+                        logger.info(f"Notificación enviada para pago editado: {instance.pago_id}")
             except Exception as e:
                 logger.error(f"Error enviando notificación de pago editado: {e}")
 

@@ -21,6 +21,19 @@
                         
                         <!-- Datos de la remesa -->
                         <div class="mb-4">
+                            {% if is_admin_user %}
+                            <div class="form-group mb-3">
+                                <label for="gestor" class="form-label text-white">Crear a nombre de</label>
+                                <select class="form-select bg-dark text-white border-secondary"
+                                        id="gestor"
+                                        name="gestor"
+                                        required>
+                                    <option value="">Seleccionar usuario...</option>
+                                </select>
+                                <small class="form-text text-muted">La remesa se asignará al usuario seleccionado.</small>
+                            </div>
+                            {% endif %}
+
                             <div class="form-group mb-3">
                                 <label for="tipo_pago" class="form-label text-white">Tipo de Pago</label>
                                 <select class="form-select bg-dark text-white border-secondary" 
@@ -143,6 +156,21 @@
                             <div class="card-body">
                                 <form id="formPagoRemesa" enctype="multipart/form-data">
                                     {% csrf_token %}
+                                    {% if is_admin_user %}
+                                    <div class="row">
+                                        <div class="col-12 mb-3">
+                                            <label for="pago_usuario_asignado" class="form-label text-white">
+                                                Crear a nombre de
+                                            </label>
+                                            <select class="form-control bg-dark text-white border-secondary"
+                                                    id="pago_usuario_asignado"
+                                                    name="usuario_asignado">
+                                                <option value="">Seleccionar usuario...</option>
+                                            </select>
+                                            <div class="invalid-feedback"></div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
                                     <div class="row">
                                         <!-- Tipo de Pago -->
                                         <div class="col-md-6 mb-3">
@@ -1044,11 +1072,15 @@ function configurarFiltroMonedas() {
 }
 
 function cargarMonedas(tipoMoneda = null) {
+    const gestorSelect = document.getElementById('gestor');
+    const usuarioId = gestorSelect ? (gestorSelect.value || null) : null;
+
     // Construir URL con filtro opcional
     let url = '/remesas/api/monedas/';
-    if (tipoMoneda) {
-        url += `?tipo_moneda=${tipoMoneda}`;
-    }
+    const params = [];
+    if (tipoMoneda) params.push(`tipo_moneda=${encodeURIComponent(tipoMoneda)}`);
+    if (usuarioId) params.push(`usuario_id=${encodeURIComponent(usuarioId)}`);
+    if (params.length) url += `?${params.join('&')}`;
     
     // Cargar monedas desde el servidor
     fetch(url)
@@ -1104,11 +1136,13 @@ function cargarMonedas(tipoMoneda = null) {
 }
 
 function cargarGestores() {
+    const select = document.getElementById('gestor');
+    if (!select) return;
+
     // Cargar gestores desde el servidor
     fetch('/remesas/api/gestores/')
         .then(response => response.json())
         .then(data => {
-            const select = document.getElementById('gestor');
             // Limpiar opciones existentes excepto la primera
             select.innerHTML = '<option value="">Seleccionar gestor...</option>';
             
@@ -1124,6 +1158,13 @@ function cargarGestores() {
                 
                 select.appendChild(option);
             });
+
+            // Al cambiar el usuario objetivo, recargar monedas/valores
+            select.addEventListener('change', function() {
+                const tipoPagoSelect = document.getElementById('tipo_pago');
+                const tipo = tipoPagoSelect ? (tipoPagoSelect.value || null) : null;
+                cargarMonedas(tipo);
+            });
         })
         .catch(error => {
             console.error('Error cargando gestores:', error);
@@ -1131,11 +1172,13 @@ function cargarGestores() {
 }
 
 function cargarMetodosPago() {
+    const select = document.getElementById('metodo_pago');
+    if (!select) return;
+
     // Cargar métodos de pago desde el servidor
     fetch('/remesas/api/metodos-pago/')
         .then(response => response.json())
         .then(data => {
-            const select = document.getElementById('metodo_pago');
             // Limpiar opciones existentes excepto la primera
             select.innerHTML = '<option value="">Seleccionar método...</option>';
             
@@ -1355,12 +1398,25 @@ let pagosTemporales = [];
 
 function mostrarSeccionPagos() {
     document.getElementById('seccionPagos').style.display = 'block';
+    // Cargar usuarios (solo si existe el select de admin)
+    cargarUsuariosPagoRemesa();
     // Cargar monedas en el select de pagos
     cargarMonedasPago();
 }
 
 function cargarMonedasPago() {
-    fetch('/remesas/api/monedas/')
+    const usuarioSelect = document.getElementById('pago_usuario_asignado');
+    const usuarioId = usuarioSelect ? (usuarioSelect.value || '') : '';
+    const tipoPagoSelect = document.getElementById('pago_tipo_pago');
+    const tipo = tipoPagoSelect ? (tipoPagoSelect.value || '') : '';
+
+    let url = '/remesas/api/monedas/';
+    const params = [];
+    if (tipo) params.push(`tipo_moneda=${encodeURIComponent(tipo)}`);
+    if (usuarioId) params.push(`usuario_id=${encodeURIComponent(usuarioId)}`);
+    if (params.length) url += `?${params.join('&')}`;
+
+    fetch(url)
         .then(response => response.json())
         .then(data => {
             const select = document.getElementById('pago_tipo_moneda');
@@ -1376,6 +1432,31 @@ function cargarMonedasPago() {
         .catch(error => {
             console.error('Error cargando monedas:', error);
         });
+}
+
+function cargarUsuariosPagoRemesa() {
+    const select = document.getElementById('pago_usuario_asignado');
+    if (!select) return;
+
+    fetch('/remesas/api/gestores/')
+        .then(r => r.json())
+        .then(data => {
+            select.innerHTML = '<option value="">Seleccionar usuario...</option>';
+            data.forEach(u => {
+                const option = document.createElement('option');
+                option.value = u.id;
+                option.textContent = u.nombre;
+                if (usuarioAutenticadoId && String(u.id) === String(usuarioAutenticadoId)) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            });
+
+            select.addEventListener('change', function() {
+                cargarMonedasPago();
+            });
+        })
+        .catch(err => console.error('Error cargando usuarios para pago remesa:', err));
 }
 
 // Mostrar/Ocultar formulario de pago
@@ -1435,6 +1516,9 @@ if (pagoTipoPagoSelect) {
             document.getElementById('pago_telefono_required').style.display = 'inline';
             document.getElementById('pago_direccion_required').style.display = 'inline';
         }
+
+        // Recargar monedas filtradas por tipo y usuario seleccionado
+        cargarMonedasPago();
     });
 }
 

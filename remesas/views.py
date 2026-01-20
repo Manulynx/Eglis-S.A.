@@ -16,6 +16,7 @@ import decimal
 from urllib.parse import quote
 from django.db.models import Sum
 from decimal import Decimal
+from django.urls import reverse
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +144,29 @@ def remesas_admin(request):
 
 @login_required
 def remesas(request):
+    from django.contrib.auth.models import User
+
+    def _es_admin(usuario: User) -> bool:
+        if not usuario or not usuario.is_authenticated:
+            return False
+        if usuario.is_superuser:
+            return True
+        return bool(getattr(getattr(usuario, 'perfil', None), 'tipo_usuario', None) == 'admin')
+
+    def _resolver_usuario_objetivo() -> User:
+        """Retorna el usuario al que se le asignará la operación (gestor real)."""
+        if not _es_admin(request.user):
+            return request.user
+
+        gestor_id = (request.POST.get('gestor') or request.POST.get('gestor_id') or '').strip()
+        if not gestor_id:
+            return request.user
+
+        try:
+            return User.objects.get(id=int(gestor_id), is_active=True)
+        except (User.DoesNotExist, ValueError, TypeError):
+            return request.user
+
     if request.method == 'POST':
         # Debug: verificar que llegue el POST
         print("=== DEBUG POST ===")
@@ -212,8 +236,11 @@ def remesas(request):
                     except models.Moneda.DoesNotExist:
                         return JsonResponse({'success': False, 'message': 'La moneda seleccionada no existe'})
 
+                    usuario_objetivo = _resolver_usuario_objetivo()
+
                     # Validar permisos de moneda (gestor/domicilio restringidos)
-                    if hasattr(request.user, 'perfil') and not request.user.perfil.puede_usar_moneda(moneda):
+                    # La operación se asigna al usuario objetivo.
+                    if hasattr(usuario_objetivo, 'perfil') and not usuario_objetivo.perfil.puede_usar_moneda(moneda):
                         return JsonResponse({
                             'success': False,
                             'message': 'No tienes permisos para operar con la moneda seleccionada'
@@ -227,7 +254,7 @@ def remesas(request):
                         'importe': importe_decimal,
                         'tipo_pago': tipo_pago,
                         'moneda': moneda,
-                        'gestor': request.user if request.user.is_authenticated else None,
+                        'gestor': usuario_objetivo if usuario_objetivo and usuario_objetivo.is_authenticated else None,
                     }
                     
                     # Agregar campos opcionales
@@ -298,7 +325,6 @@ def remesas(request):
     
     # GET request: renderizar template
     print("GET request - renderizando template")
-    from django.contrib.auth.models import User
     import json
     
     # Obtener monedas para cálculos con valores específicos del usuario
@@ -345,7 +371,8 @@ def remesas(request):
     context = {
         'gestores': User.objects.filter(is_active=True),
         'monedas_json': json.dumps(monedas_data),
-        'user_balance': user_balance
+        'user_balance': user_balance,
+        'is_admin_user': _es_admin(request.user),
     }
     return render(request, 'remesas/remesas.html', context)
 
@@ -353,12 +380,29 @@ def remesas(request):
 @login_required
 def api_monedas(request):
     tipo_moneda = request.GET.get('tipo_moneda', None)
+    usuario_id = request.GET.get('usuario_id', None)
+
+    from django.contrib.auth.models import User
+
+    def _es_admin(usuario: User) -> bool:
+        if not usuario or not usuario.is_authenticated:
+            return False
+        if usuario.is_superuser:
+            return True
+        return bool(getattr(getattr(usuario, 'perfil', None), 'tipo_usuario', None) == 'admin')
+
+    usuario_valor = request.user
+    if usuario_id and _es_admin(request.user):
+        try:
+            usuario_valor = User.objects.get(id=int(usuario_id), is_active=True)
+        except (User.DoesNotExist, ValueError, TypeError):
+            usuario_valor = request.user
     
-    # Filtrar monedas activas según permisos del usuario
-    if request.user.is_superuser:
+    # Filtrar monedas activas según permisos del usuario objetivo
+    if usuario_valor.is_superuser:
         monedas_query = models.Moneda.objects.filter(activa=True)
-    elif hasattr(request.user, 'perfil'):
-        monedas_query = request.user.perfil.get_monedas_disponibles().filter(activa=True)
+    elif hasattr(usuario_valor, 'perfil'):
+        monedas_query = usuario_valor.perfil.get_monedas_disponibles().filter(activa=True)
     else:
         monedas_query = models.Moneda.objects.filter(activa=True)
     
@@ -368,7 +412,7 @@ def api_monedas(request):
     
     monedas_list = []
     for moneda in monedas_query:
-        valor_usuario = moneda.get_valor_para_usuario(request.user)
+        valor_usuario = moneda.get_valor_para_usuario(usuario_valor)
         monedas_list.append({
             'id': moneda.id,
             'nombre': f"{moneda.nombre} - {valor_usuario}",
@@ -490,29 +534,42 @@ def eliminar_remesa(request, remesa_id):
                 'gestor': remesa.gestor,
                 'fecha': remesa.fecha
             }
-            
-            # Calcular monto en USD para revertir el balance
+
+            # El balance es dinámico: solo remesas confirmadas/completadas afectan.
+            # Para evitar inconsistencias (p.ej. al eliminar canceladas), recalculamos.
+            balance_change = None
             monto_usd = remesa.calcular_monto_en_usd()
-            
-            # Revertir el balance del gestor (restar el monto que se había agregado)
-            if remesa.gestor:
+            gestor = remesa.gestor
+            afecta_balance = remesa.estado in ['confirmada', 'completada']
+            balance_anterior = None
+            if gestor and afecta_balance:
                 # Verificar si el gestor tiene perfil, si no, crearlo
-                if not hasattr(remesa.gestor, 'perfil'):
+                if not hasattr(gestor, 'perfil'):
                     from login.models import PerfilUsuario
                     from remesas.models import TipoValorMoneda
                     tipo_valor_defecto = TipoValorMoneda.get_tipo_por_defecto()
                     PerfilUsuario.objects.create(
-                        user=remesa.gestor,
-                        tipo_usuario='admin' if remesa.gestor.is_superuser else 'gestor',
+                        user=gestor,
+                        tipo_usuario='admin' if gestor.is_superuser else 'gestor',
                         tipo_valor_moneda=tipo_valor_defecto
                     )
-                
-                perfil_gestor = remesa.gestor.perfil
-                perfil_gestor.balance -= monto_usd
-                perfil_gestor.save()
+                balance_anterior = gestor.perfil.calcular_balance_real()
             
             # Eliminar la remesa
             remesa.delete()
+
+            # Recalcular balance del gestor si esta remesa contaba
+            if gestor and afecta_balance and hasattr(gestor, 'perfil'):
+                balance_nuevo = gestor.perfil.actualizar_balance()
+                try:
+                    balance_change = balance_nuevo - balance_anterior
+                except Exception:
+                    balance_change = None
+                try:
+                    from remesas.context_processors import invalidate_user_balance_cache
+                    invalidate_user_balance_cache(gestor.id)
+                except Exception:
+                    pass
             
             # Crear notificación
             try:
@@ -521,7 +578,16 @@ def eliminar_remesa(request, remesa_id):
                 from notificaciones.services import WhatsAppService
                 
                 # Mensaje de notificación
-                mensaje_notificacion = f"🗑️ REMESA ELIMINADA: La remesa #{remesa_info['id']} por ${remesa_info['importe']} {remesa_info['moneda'].codigo if remesa_info['moneda'] else 'USD'} ha sido eliminada por el administrador {request.user.get_full_name() or request.user.username}. Balance actualizado: -${monto_usd:.2f} USD"
+                if balance_change is None:
+                    balance_change_str = "(recalculado)"
+                else:
+                    balance_change_str = f"{balance_change:+.2f} USD"
+
+                mensaje_notificacion = (
+                    f"🗑️ REMESA ELIMINADA: La remesa #{remesa_info['id']} por ${remesa_info['importe']} "
+                    f"{remesa_info['moneda'].codigo if remesa_info['moneda'] else 'USD'} ha sido eliminada por el administrador "
+                    f"{request.user.get_full_name() or request.user.username}. Balance actualizado: {balance_change_str}"
+                )
                 
                 # Crear logs de notificación para destinatarios activos
                 destinatarios = DestinatarioNotificacion.objects.filter(activo=True, recibir_remesas=True)
@@ -548,7 +614,7 @@ def eliminar_remesa(request, remesa_id):
                     remesa_id=remesa_info['id'],
                     monto=f"{remesa_info['importe']} {remesa_info['moneda'].codigo if remesa_info['moneda'] else 'USD'}",
                     admin_name=request.user.get_full_name() or request.user.username,
-                    balance_change=f"-${monto_usd:.2f} USD"
+                    balance_change=(f"{balance_change:+.2f} USD" if balance_change is not None else "(recalculado)")
                 )
                 print(f"DEBUG: Notificación WhatsApp completada")
                 
@@ -559,7 +625,10 @@ def eliminar_remesa(request, remesa_id):
             
             return JsonResponse({
                 'success': True,
-                'message': f'Remesa #{remesa_info["id"]} eliminada exitosamente. Balance actualizado: -${monto_usd:.2f} USD'
+                'message': (
+                    f"Remesa #{remesa_info['id']} eliminada exitosamente. "
+                    f"Balance actualizado: {(f'{balance_change:+.2f} USD' if balance_change is not None else '(recalculado)')}"
+                )
             })
             
         except Exception as e:
@@ -605,29 +674,41 @@ def eliminar_pago(request, pago_id):
                 'usuario': pago.usuario,
                 'fecha': pago.fecha_creacion
             }
-            
-            # Calcular monto en USD para revertir el balance
+
+            # El balance es dinámico: solo pagos confirmados afectan.
+            # Para evitar inconsistencias (p.ej. eliminar cancelados/pendientes), recalculamos.
             monto_usd = pago.calcular_monto_en_usd()
-            
-            # Revertir el balance del usuario (agregar el monto que se había descontado)
-            if pago.usuario:
+            usuario_pago = pago.usuario
+            afecta_balance = pago.estado == 'confirmado'
+            balance_anterior = None
+            if usuario_pago and afecta_balance:
                 # Verificar si el usuario tiene perfil, si no, crearlo
-                if not hasattr(pago.usuario, 'perfil'):
+                if not hasattr(usuario_pago, 'perfil'):
                     from login.models import PerfilUsuario
                     from remesas.models import TipoValorMoneda
                     tipo_valor_defecto = TipoValorMoneda.get_tipo_por_defecto()
                     PerfilUsuario.objects.create(
-                        user=pago.usuario,
-                        tipo_usuario='admin' if pago.usuario.is_superuser else 'gestor',
+                        user=usuario_pago,
+                        tipo_usuario='admin' if usuario_pago.is_superuser else 'gestor',
                         tipo_valor_moneda=tipo_valor_defecto
                     )
-                
-                perfil_usuario = pago.usuario.perfil
-                perfil_usuario.balance += monto_usd
-                perfil_usuario.save()
+                balance_anterior = usuario_pago.perfil.calcular_balance_real()
             
             # Eliminar el pago
             pago.delete()
+
+            balance_change = None
+            if usuario_pago and afecta_balance and hasattr(usuario_pago, 'perfil'):
+                balance_nuevo = usuario_pago.perfil.actualizar_balance()
+                try:
+                    balance_change = balance_nuevo - balance_anterior
+                except Exception:
+                    balance_change = None
+                try:
+                    from remesas.context_processors import invalidate_user_balance_cache
+                    invalidate_user_balance_cache(usuario_pago.id)
+                except Exception:
+                    pass
             
             # SIEMPRE enviar notificación
             print(f"DEBUG: Enviando notificación para pago eliminado #{pago_info['id']}")
@@ -646,7 +727,7 @@ def eliminar_pago(request, pago_id):
                     monto=monto_str,
                     destinatario=pago_info['destinatario'],
                     admin_name=request.user.get_full_name() or request.user.username,
-                    balance_change=f"+${monto_usd:.2f} USD"
+                    balance_change=(f"{balance_change:+.2f} USD" if balance_change is not None else "(recalculado)")
                 )
                 print(f"DEBUG: Notificación WhatsApp enviada exitosamente")
                 
@@ -657,7 +738,10 @@ def eliminar_pago(request, pago_id):
             
             return JsonResponse({
                 'success': True,
-                'message': f'Pago #{pago_info["id"]} eliminado exitosamente. Balance actualizado: +${monto_usd:.2f} USD'
+                'message': (
+                    f"Pago #{pago_info['id']} eliminado exitosamente. "
+                    f"Balance actualizado: {(f'{balance_change:+.2f} USD' if balance_change is not None else '(recalculado)')}"
+                )
             })
             
         except Exception as e:
@@ -819,6 +903,50 @@ def cancelar_remesa(request, remesa_id):
         'message': 'Método no permitido'
     }, status=405)
 
+
+@login_required
+@require_POST
+def reactivar_remesa(request, remesa_id):
+    """Reactivar una remesa cancelada por tiempo creando una NUEVA remesa pendiente."""
+    remesa = get_object_or_404(models.Remesa, id=remesa_id)
+
+    user_tipo = 'admin' if request.user.is_superuser else (
+        request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
+    )
+    if user_tipo not in ['admin', 'contable']:
+        return JsonResponse({'success': False, 'message': 'No tienes permisos para reactivar remesas.'}, status=403)
+
+    if remesa.estado != 'cancelada' or not getattr(remesa, 'cancelado_por_tiempo', False):
+        return JsonResponse({'success': False, 'message': 'Esta remesa no fue cancelada por tiempo o no está cancelada.'})
+
+    with transaction.atomic():
+        remesa_locked = models.Remesa.objects.select_for_update().get(pk=remesa.pk)
+        if remesa_locked.estado != 'cancelada' or not getattr(remesa_locked, 'cancelado_por_tiempo', False):
+            return JsonResponse({'success': False, 'message': 'La remesa ya no está disponible para reactivar.'})
+
+        nueva = models.Remesa(
+            tipo_pago=remesa_locked.tipo_pago,
+            moneda=remesa_locked.moneda,
+            importe=remesa_locked.importe,
+            receptor_nombre=remesa_locked.receptor_nombre,
+            observaciones=remesa_locked.observaciones,
+            comprobante=remesa_locked.comprobante,
+            gestor=remesa_locked.gestor,
+            estado='pendiente',
+            notificado_pendiente_23h_en=None,
+            cancelado_por_tiempo=False,
+            cancelado_por_tiempo_en=None,
+            reactivado_desde=remesa_locked,
+        )
+        nueva.save()
+
+    return JsonResponse({
+        'success': True,
+        'message': f'Remesa reactivada. Se creó una nueva remesa {nueva.remesa_id}.',
+        'redirect_url': reverse('remesas:detalle_remesa', args=[nueva.id]),
+        'new_id': nueva.id,
+    })
+
 @login_required
 def detalle_remesa(request, remesa_id):
     """
@@ -890,6 +1018,31 @@ def editar_remesa(request, remesa_id):
     """
     try:
         remesa = get_object_or_404(models.Remesa, id=remesa_id)
+
+        # Determinar permisos del usuario
+        user_tipo = 'admin' if request.user.is_superuser else (
+            request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
+        )
+
+        # Verificar permisos (admin/contable o el gestor de la remesa)
+        if user_tipo not in ['admin', 'contable'] and remesa.gestor != request.user:
+            messages.error(request, 'No tiene permisos para editar esta remesa')
+            return redirect('remesas:detalle_remesa', remesa_id=remesa.id)
+
+        # Solo admins pueden reasignar "a nombre de"
+        def _puede_reasignar(usuario) -> bool:
+            if not usuario or not usuario.is_authenticated:
+                return False
+            if usuario.is_superuser:
+                return True
+            return bool(getattr(getattr(usuario, 'perfil', None), 'tipo_usuario', None) == 'admin')
+
+        def _actualizar_balance_si_existe(usuario):
+            try:
+                if usuario and hasattr(usuario, 'perfil'):
+                    usuario.perfil.actualizar_balance()
+            except Exception:
+                pass
         
         # Solo permitir editar remesas en estado pendiente
         if remesa.estado != 'pendiente':
@@ -901,6 +1054,18 @@ def editar_remesa(request, remesa_id):
             is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
             
             try:
+                gestor_original = remesa.gestor
+
+                gestor_objetivo = remesa.gestor
+                if _puede_reasignar(request.user):
+                    from django.contrib.auth.models import User
+                    gestor_id = (request.POST.get('gestor') or '').strip()
+                    if gestor_id:
+                        try:
+                            gestor_objetivo = User.objects.get(id=int(gestor_id), is_active=True)
+                        except (User.DoesNotExist, ValueError, TypeError):
+                            gestor_objetivo = remesa.gestor
+
                 # Obtener datos del formulario simplificado
                 receptor_nombre = request.POST.get('receptor_nombre', '').strip()
                 importe = request.POST.get('importe', '').strip()
@@ -941,6 +1106,23 @@ def editar_remesa(request, remesa_id):
                     else:
                         messages.error(request, error_msg)
                         return redirect(request.path)
+
+                # Validar consistencia tipo_pago/moneda
+                if moneda.tipo_moneda and tipo_pago and moneda.tipo_moneda != tipo_pago:
+                    error_msg = 'La moneda seleccionada no coincide con el tipo de pago'
+                    if is_ajax:
+                        return JsonResponse({'success': False, 'message': error_msg})
+                    messages.error(request, error_msg)
+                    return redirect(request.path)
+
+                # Validar permisos de moneda según el gestor objetivo
+                if (gestor_objetivo and not gestor_objetivo.is_superuser and hasattr(gestor_objetivo, 'perfil')):
+                    if moneda not in gestor_objetivo.perfil.get_monedas_disponibles().filter(activa=True):
+                        error_msg = 'El usuario seleccionado no tiene permiso para usar esa moneda'
+                        if is_ajax:
+                            return JsonResponse({'success': False, 'message': error_msg})
+                        messages.error(request, error_msg)
+                        return redirect(request.path)
                 
                 # Actualizar remesa
                 remesa.receptor_nombre = receptor_nombre
@@ -948,6 +1130,7 @@ def editar_remesa(request, remesa_id):
                 remesa.moneda = moneda
                 remesa.tipo_pago = tipo_pago
                 remesa.observaciones = observaciones or None
+                remesa.gestor = gestor_objetivo
                 
                 # Actualizar comprobante si se proporciona uno nuevo
                 if comprobante:
@@ -961,6 +1144,11 @@ def editar_remesa(request, remesa_id):
                 
                 # Recalcular valores USD con las tasas actuales después de la edición
                 remesa.recalcular_valores_por_edicion()
+
+                # Sincronizar balances (por si la remesa cambia de dueño)
+                if gestor_original != gestor_objetivo:
+                    _actualizar_balance_si_existe(gestor_original)
+                _actualizar_balance_si_existe(gestor_objetivo)
                 
                 success_msg = f'Remesa {remesa.remesa_id} actualizada exitosamente con nuevos valores USD'
                 if is_ajax:
@@ -987,7 +1175,9 @@ def editar_remesa(request, remesa_id):
         context = {
             'remesa': remesa,
             'monedas': monedas,
-            'title': f'Editar Remesa {remesa.remesa_id}'
+            'title': f'Editar Remesa {remesa.remesa_id}',
+            'is_admin_user': _puede_reasignar(request.user),
+            'user_tipo': user_tipo,
         }
         return render(request, 'remesas/editar_remesa.html', context)
         
@@ -1277,7 +1467,30 @@ from .models import Pago
 @login_required
 def crear_pago(request):
     """Vista para crear un nuevo pago"""
+    from django.contrib.auth.models import User
+
+    def _es_admin(usuario: User) -> bool:
+        if not usuario or not usuario.is_authenticated:
+            return False
+        if usuario.is_superuser:
+            return True
+        return bool(getattr(getattr(usuario, 'perfil', None), 'tipo_usuario', None) == 'admin')
+
+    def _resolver_usuario_objetivo_post() -> User:
+        if not _es_admin(request.user):
+            return request.user
+
+        usuario_id = (request.POST.get('usuario_asignado') or request.POST.get('usuario_id') or '').strip()
+        if not usuario_id:
+            return request.user
+
+        try:
+            return User.objects.get(id=int(usuario_id), is_active=True)
+        except (User.DoesNotExist, ValueError, TypeError):
+            return request.user
+
     if request.method == 'POST':
+        usuario_objetivo = _resolver_usuario_objetivo_post()
         # Procesar datos del formulario dual (transferencia/efectivo)
         form_data = request.POST.copy()
         
@@ -1299,10 +1512,10 @@ def crear_pago(request):
             if 'carnet_identidad_efectivo' in form_data:
                 form_data['carnet_identidad'] = form_data['carnet_identidad_efectivo']
         
-        form = PagoForm(form_data, request.FILES, user=request.user)
+        form = PagoForm(form_data, request.FILES, user=usuario_objetivo)
         if form.is_valid():
             pago = form.save(commit=False)
-            pago.usuario = request.user  # Asignar el usuario actual
+            pago.usuario = usuario_objetivo  # Asignar el usuario objetivo
             pago.estado = 'pendiente'  # Los pagos inician en estado pendiente
             
             # Calcular el monto para mostrar en el mensaje
@@ -1341,7 +1554,8 @@ def crear_pago(request):
         'form': form,
         'title': 'Crear Nuevo Pago',
         'action': 'Crear',
-        'monedas_data_json': json.dumps(monedas_data)
+        'monedas_data_json': json.dumps(monedas_data),
+        'is_admin_user': _es_admin(request.user),
     }
     return render(request, 'remesas/pagos/pago_form.html', context)
 
@@ -1349,16 +1563,51 @@ def crear_pago(request):
 def editar_pago(request, pago_id):
     """Vista para editar un pago existente"""
     pago = get_object_or_404(Pago, id=pago_id)
+
+    # Determinar permisos del usuario
+    user_tipo = 'admin' if request.user.is_superuser else (
+        request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
+    )
+
+    # Verificar permisos (dueño o admin/contable)
+    if user_tipo not in ['admin', 'contable'] and pago.usuario != request.user:
+        messages.error(request, 'No tiene permisos para editar este pago')
+        return redirect('remesas:registro_transacciones')
+
+    def _puede_reasignar(usuario) -> bool:
+        if not usuario or not usuario.is_authenticated:
+            return False
+        if usuario.is_superuser:
+            return True
+        return bool(getattr(getattr(usuario, 'perfil', None), 'tipo_usuario', None) == 'admin')
+
+    def _actualizar_balance_si_existe(usuario):
+        try:
+            if usuario and hasattr(usuario, 'perfil'):
+                usuario.perfil.actualizar_balance()
+        except Exception:
+            pass
     
     # Guardar valores originales para revertir cambios en el balance si es necesario
     cantidad_original = pago.cantidad
     moneda_original = pago.tipo_moneda
+    usuario_original = pago.usuario
     
     if request.method == 'POST':
         # Verificar si es una petición AJAX
         is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
         
         try:
+            usuario_objetivo = pago.usuario
+            if _puede_reasignar(request.user):
+                from django.contrib.auth.models import User
+                usuario_id = (request.POST.get('usuario_asignado') or '').strip()
+                if usuario_id:
+                    try:
+                        usuario_objetivo = User.objects.get(id=int(usuario_id), is_active=True)
+                    except (User.DoesNotExist, ValueError, TypeError):
+                        usuario_objetivo = pago.usuario
+
             # Procesar datos del formulario
             destinatario = request.POST.get('destinatario')
             cantidad = request.POST.get('cantidad')
@@ -1413,19 +1662,36 @@ def editar_pago(request, pago_id):
                     messages.error(request, error_msg)
                     return redirect(request.path)
             
+            # Validar consistencia tipo_pago/moneda
+            if tipo_moneda.tipo_moneda and tipo_moneda.tipo_moneda != tipo_pago:
+                error_msg = 'La moneda seleccionada no coincide con el tipo de pago'
+                if is_ajax:
+                    return JsonResponse({'success': False, 'message': error_msg})
+                messages.error(request, error_msg)
+                return redirect(request.path)
+
+            # Validar permisos de moneda según el usuario objetivo
+            if (usuario_objetivo and not usuario_objetivo.is_superuser and hasattr(usuario_objetivo, 'perfil')):
+                if tipo_moneda not in usuario_objetivo.perfil.get_monedas_disponibles().filter(activa=True):
+                    error_msg = 'El usuario seleccionado no tiene permiso para usar esa moneda'
+                    if is_ajax:
+                        return JsonResponse({'success': False, 'message': error_msg})
+                    messages.error(request, error_msg)
+                    return redirect(request.path)
+
             # Calcular diferencia de monto en USD para mensaje informativo
             monto_original_usd = Decimal('0')
-            if cantidad_original and moneda_original:
-                if moneda_original.codigo == 'USD':
-                    monto_original_usd = cantidad_original
-                else:
-                    monto_original_usd = cantidad_original / moneda_original.valor_actual
-            
-            # Calcular nuevo monto en USD
+            try:
+                monto_original_usd = Decimal(str(pago.calcular_monto_en_usd(usuario=usuario_original)))
+            except Exception:
+                monto_original_usd = Decimal('0')
+
+            # Calcular nuevo monto en USD con valores del usuario objetivo
             if tipo_moneda.codigo == 'USD':
                 monto_nuevo_usd = cantidad
             else:
-                monto_nuevo_usd = cantidad / tipo_moneda.valor_actual
+                valor_para_usuario = tipo_moneda.get_valor_para_usuario(usuario_objetivo)
+                monto_nuevo_usd = cantidad / Decimal(str(valor_para_usuario)) if valor_para_usuario else Decimal('0')
             
             # Calcular diferencia para mensaje informativo
             diferencia_usd = monto_nuevo_usd - monto_original_usd
@@ -1435,6 +1701,7 @@ def editar_pago(request, pago_id):
             pago.cantidad = cantidad
             pago.tipo_moneda = tipo_moneda
             pago.tipo_pago = tipo_pago
+            pago.usuario = usuario_objetivo
             pago.telefono = telefono
             pago.carnet_identidad = carnet_identidad
             pago.tarjeta = tarjeta if tipo_pago == 'transferencia' else ''
@@ -1454,20 +1721,25 @@ def editar_pago(request, pago_id):
             # Recalcular valores USD con las tasas actuales después de la edición
             pago.recalcular_valores_por_edicion()
             
-            # Calcular balance final real después de la actualización
-            perfil = request.user.perfil
-            balance_calculado = perfil.calcular_balance_real()
-            perfil.actualizar_balance()  # Sincronizar el balance almacenado
-            balance_final = balance_calculado
+            # Sincronizar balances para el usuario original y el usuario objetivo
+            if usuario_original != usuario_objetivo:
+                _actualizar_balance_si_existe(usuario_original)
+            _actualizar_balance_si_existe(usuario_objetivo)
+
+            # Calcular balance final real del usuario objetivo
+            try:
+                balance_final = usuario_objetivo.perfil.calcular_balance_real() if hasattr(usuario_objetivo, 'perfil') else Decimal('0')
+            except Exception:
+                balance_final = Decimal('0')
             if diferencia_usd > 0:
                 if balance_final < 0:
-                    success_msg = f'Pago actualizado exitosamente con nuevos valores USD. Se descontaron ${diferencia_usd:.2f} USD adicionales. Tu balance ahora es ${balance_final:.2f} USD (negativo).'
+                    success_msg = f'Pago actualizado exitosamente con nuevos valores USD. Se descontaron ${diferencia_usd:.2f} USD adicionales. Balance actual: ${balance_final:.2f} USD (negativo).'
                 else:
-                    success_msg = f'Pago actualizado exitosamente con nuevos valores USD. Se descontaron ${diferencia_usd:.2f} USD adicionales de tu balance.'
+                    success_msg = f'Pago actualizado exitosamente con nuevos valores USD. Se descontaron ${diferencia_usd:.2f} USD adicionales. Balance actual: ${balance_final:.2f} USD.'
             elif diferencia_usd < 0:
-                success_msg = f'Pago actualizado exitosamente con nuevos valores USD. Se reembolsaron ${abs(diferencia_usd):.2f} USD a tu balance.'
+                success_msg = f'Pago actualizado exitosamente con nuevos valores USD. Se reembolsaron ${abs(diferencia_usd):.2f} USD. Balance actual: ${balance_final:.2f} USD.'
             else:
-                success_msg = 'Pago actualizado exitosamente con nuevos valores USD.'
+                success_msg = f'Pago actualizado exitosamente con nuevos valores USD. Balance actual: ${balance_final:.2f} USD.'
             
             if is_ajax:
                 return JsonResponse({'success': True, 'message': success_msg})
@@ -1493,7 +1765,9 @@ def editar_pago(request, pago_id):
     context = {
         'pago': pago,
         'monedas': monedas,
-        'title': f'Editar Pago {pago.pago_id}'
+        'title': f'Editar Pago {pago.pago_id}',
+        'is_admin_user': _puede_reasignar(request.user),
+        'user_tipo': user_tipo,
     }
     return render(request, 'remesas/pagos/editar_pago.html', context)
 
@@ -1634,6 +1908,54 @@ def cancelar_pago(request, pago_id):
         'success': False,
         'message': 'Método no permitido'
     }, status=405)
+
+
+@login_required
+@require_POST
+def reactivar_pago(request, pago_id):
+    """Reactivar un pago cancelado por tiempo creando un NUEVO pago pendiente."""
+    pago = get_object_or_404(models.Pago, id=pago_id)
+
+    user_tipo = 'admin' if request.user.is_superuser else (
+        request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
+    )
+    if user_tipo not in ['admin', 'contable']:
+        return JsonResponse({'success': False, 'message': 'No tienes permisos para reactivar pagos.'}, status=403)
+
+    if pago.estado != 'cancelado' or not getattr(pago, 'cancelado_por_tiempo', False):
+        return JsonResponse({'success': False, 'message': 'Este pago no fue cancelado por tiempo o no está cancelado.'})
+
+    with transaction.atomic():
+        pago_locked = models.Pago.objects.select_for_update().get(pk=pago.pk)
+        if pago_locked.estado != 'cancelado' or not getattr(pago_locked, 'cancelado_por_tiempo', False):
+            return JsonResponse({'success': False, 'message': 'El pago ya no está disponible para reactivar.'})
+
+        nuevo = models.Pago(
+            tipo_pago=pago_locked.tipo_pago,
+            tipo_moneda=pago_locked.tipo_moneda,
+            cantidad=pago_locked.cantidad,
+            destinatario=pago_locked.destinatario,
+            telefono=pago_locked.telefono,
+            direccion=pago_locked.direccion,
+            carnet_identidad=pago_locked.carnet_identidad,
+            usuario=pago_locked.usuario,
+            estado='pendiente',
+            tarjeta=pago_locked.tarjeta,
+            comprobante_pago=pago_locked.comprobante_pago,
+            observaciones=pago_locked.observaciones,
+            notificado_pendiente_23h_en=None,
+            cancelado_por_tiempo=False,
+            cancelado_por_tiempo_en=None,
+            reactivado_desde=pago_locked,
+        )
+        nuevo.save()
+
+    return JsonResponse({
+        'success': True,
+        'message': f'Pago reactivado. Se creó un nuevo pago {nuevo.pago_id}.',
+        'redirect_url': reverse('remesas:detalle_pago', args=[nuevo.id]),
+        'new_id': nuevo.id,
+    })
 
 
 # FUNCIÓN ELIMINADA - Reemplazada por la nueva función eliminar_pago con restricciones de admin
@@ -2028,6 +2350,29 @@ def crear_pago_remesa(request, remesa_id):
     """
     try:
         remesa = get_object_or_404(models.Remesa, id=remesa_id)
+
+        from django.contrib.auth.models import User
+
+        def _es_admin(usuario: User) -> bool:
+            if not usuario or not usuario.is_authenticated:
+                return False
+            if usuario.is_superuser:
+                return True
+            return bool(getattr(getattr(usuario, 'perfil', None), 'tipo_usuario', None) == 'admin')
+
+        def _resolver_usuario_objetivo_post() -> User:
+            """Usuario al que se asigna el pago enlazado (solo admins pueden elegir)."""
+            if not _es_admin(request.user):
+                return request.user
+
+            usuario_id = (request.POST.get('usuario_asignado') or request.POST.get('usuario_id') or '').strip()
+            if not usuario_id:
+                return request.user
+
+            try:
+                return User.objects.get(id=int(usuario_id), is_active=True)
+            except (User.DoesNotExist, ValueError, TypeError):
+                return request.user
         
         # Verificar que el usuario tenga permisos (admin, contable o el gestor de la remesa)
         user_tipo = 'admin' if request.user.is_superuser else (
@@ -2039,15 +2384,17 @@ def crear_pago_remesa(request, remesa_id):
                 'success': False, 
                 'message': 'No tiene permisos para agregar pagos a esta remesa'
             })
+
+        usuario_objetivo = _resolver_usuario_objetivo_post()
         
         # Crear el formulario con los datos POST y FILES (monedas filtradas por usuario)
-        form = PagoRemesaForm(request.POST, request.FILES, user=request.user)
+        form = PagoRemesaForm(request.POST, request.FILES, user=usuario_objetivo)
         
         if form.is_valid():
             # Crear el pago pero no guardarlo todavía
             pago = form.save(commit=False)
             pago.remesa = remesa
-            pago.usuario = request.user
+            pago.usuario = usuario_objetivo
             pago.save()
             
             return JsonResponse({
@@ -2098,7 +2445,33 @@ def editar_pago_remesa(request, pago_id):
         return redirect('remesas:detalle_remesa', remesa_id=remesa.id)
     
     if request.method == 'POST':
-        form = PagoRemesaForm(request.POST, request.FILES, instance=pago, user=request.user)
+        # Solo admins pueden reasignar "a nombre de"
+        def _puede_reasignar(usuario) -> bool:
+            if not usuario or not usuario.is_authenticated:
+                return False
+            if usuario.is_superuser:
+                return True
+            return bool(getattr(getattr(usuario, 'perfil', None), 'tipo_usuario', None) == 'admin')
+
+        def _actualizar_balance_si_existe(usuario):
+            try:
+                if usuario and hasattr(usuario, 'perfil'):
+                    usuario.perfil.actualizar_balance()
+            except Exception:
+                pass
+
+        usuario_original = pago.usuario
+        usuario_objetivo = pago.usuario
+        if _puede_reasignar(request.user):
+            from django.contrib.auth.models import User
+            usuario_id = (request.POST.get('usuario_asignado') or '').strip()
+            if usuario_id:
+                try:
+                    usuario_objetivo = User.objects.get(id=int(usuario_id), is_active=True)
+                except (User.DoesNotExist, ValueError, TypeError):
+                    usuario_objetivo = pago.usuario
+
+        form = PagoRemesaForm(request.POST, request.FILES, instance=pago, user=usuario_objetivo)
         
         if form.is_valid():
             # Marcar como editado
@@ -2106,19 +2479,31 @@ def editar_pago_remesa(request, pago_id):
             pago_editado.editado = True
             pago_editado.fecha_edicion = timezone.now()
             pago_editado.usuario_editor = request.user
+            pago_editado.usuario = usuario_objetivo
             pago_editado.save()
+
+            # Recalcular valores USD con las tasas actuales después de la edición
+            pago_editado.recalcular_valores_por_edicion()
+
+            # Sincronizar balances por si cambia de usuario o estaba confirmado
+            if usuario_original != usuario_objetivo:
+                _actualizar_balance_si_existe(usuario_original)
+            _actualizar_balance_si_existe(usuario_objetivo)
             
             messages.success(request, f'Pago {pago.pago_id} editado exitosamente')
             return redirect('remesas:detalle_remesa', remesa_id=remesa.id)
     else:
-        form = PagoRemesaForm(instance=pago, user=request.user)
+        # Mostrar monedas según el usuario dueño del pago (o el usuario actual si no hay dueño)
+        form_usuario = pago.usuario or request.user
+        form = PagoRemesaForm(instance=pago, user=form_usuario)
     
     context = {
         'form': form,
         'pago': pago,
         'remesa': remesa,
         'title': f'Editar Pago {pago.pago_id}',
-        'user_tipo': user_tipo
+        'user_tipo': user_tipo,
+        'is_admin_user': (request.user.is_superuser or (hasattr(request.user, 'perfil') and request.user.perfil.tipo_usuario == 'admin')),
     }
     
     return render(request, 'remesas/editar_pago_remesa.html', context)
@@ -2296,22 +2681,28 @@ def confirmar_pago_remesa(request, pago_id):
                 'message': 'El usuario no tiene un perfil configurado'
             })
         
-        balance_anterior = usuario_pago.perfil.balance
-        print(f"Balance anterior: {balance_anterior}")
-        
-        # Descontar del balance (permitir balances negativos siguiendo la lógica del sistema)
-        usuario_pago.perfil.balance -= monto_usd
-        usuario_pago.perfil.save()
-        
+        # Balance dinámico: confirmar el pago y recalcular balance real.
+        balance_anterior = usuario_pago.perfil.calcular_balance_real()
+        print(f"Balance anterior (calculado): {balance_anterior}")
+
         # Cambiar estado del pago
         pago.estado = 'confirmado'
         pago.save()
-        
-        balance_final = usuario_pago.perfil.balance
-        print(f"Balance final: {balance_final}")
+
+        # Sincronizar balance almacenado con el balance real (incluye PagoRemesa confirmado)
+        balance_final = usuario_pago.perfil.actualizar_balance()
+        print(f"Balance final (calculado): {balance_final}")
+        try:
+            from remesas.context_processors import invalidate_user_balance_cache
+            invalidate_user_balance_cache(usuario_pago.id)
+        except Exception:
+            pass
         print(f"Pago confirmado exitosamente")
         
-        mensaje = f'Pago {pago.pago_id} confirmado exitosamente. Se descontaron ${monto_usd:.2f} USD del balance. Balance actual: ${balance_final:.2f} USD'
+        mensaje = (
+            f"Pago {pago.pago_id} confirmado exitosamente. "
+            f"Se descontaron ${monto_usd:.2f} USD. Balance actual: ${balance_final:.2f} USD"
+        )
         
         return JsonResponse({
             'success': True,
@@ -2400,6 +2791,62 @@ def cancelar_pago_remesa(request, pago_id):
             'success': False,
             'message': f'Error al cancelar el pago: {str(e)}'
         })
+
+
+@login_required
+@require_POST
+def reactivar_pago_remesa(request, pago_id):
+    """Reactivar un pago de remesa cancelado por tiempo creando un NUEVO pago de remesa pendiente."""
+    pago = get_object_or_404(PagoRemesa, id=pago_id)
+
+    user_tipo = 'admin' if request.user.is_superuser else (
+        request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
+    )
+    if user_tipo not in ['admin', 'contable']:
+        return JsonResponse({'success': False, 'message': 'No tienes permisos para reactivar pagos de remesa.'}, status=403)
+
+    if pago.estado != 'cancelado' or not getattr(pago, 'cancelado_por_tiempo', False):
+        return JsonResponse({'success': False, 'message': 'Este pago no fue cancelado por tiempo o no está cancelado.'})
+
+    with transaction.atomic():
+        pago_locked = PagoRemesa.objects.select_for_update().select_related('remesa').get(pk=pago.pk)
+        if pago_locked.estado != 'cancelado' or not getattr(pago_locked, 'cancelado_por_tiempo', False):
+            return JsonResponse({'success': False, 'message': 'El pago ya no está disponible para reactivar.'})
+
+        nuevo = PagoRemesa(
+            remesa=pago_locked.remesa,
+            tipo_pago=pago_locked.tipo_pago,
+            tipo_moneda=pago_locked.tipo_moneda,
+            cantidad=pago_locked.cantidad,
+            destinatario=pago_locked.destinatario,
+            telefono=pago_locked.telefono,
+            direccion=pago_locked.direccion,
+            carnet_identidad=pago_locked.carnet_identidad,
+            usuario=pago_locked.usuario,
+            estado='pendiente',
+            tarjeta=pago_locked.tarjeta,
+            comprobante_pago=pago_locked.comprobante_pago,
+            observaciones=pago_locked.observaciones,
+            notificado_pendiente_23h_en=None,
+            cancelado_por_tiempo=False,
+            cancelado_por_tiempo_en=None,
+            reactivado_desde=pago_locked,
+        )
+        nuevo.save()
+
+        # Por defecto, volver al detalle de la remesa.
+        redirect_url = (
+            reverse('remesas:detalle_remesa', args=[pago_locked.remesa.id])
+            if pago_locked.remesa
+            else reverse('remesas:registro_transacciones')
+        )
+
+    return JsonResponse({
+        'success': True,
+        'message': f'Pago reactivado. Se creó un nuevo pago {nuevo.pago_id}.',
+        'redirect_url': redirect_url,
+        'new_id': nuevo.id,
+    })
 
 
 @login_required

@@ -37,6 +37,18 @@
                             </div>
                             
                             <div class="col-md-6">
+                                {% if is_admin_user %}
+                                    {{ remesa.gestor.id|json_script:"remesa-gestor-id" }}
+                                    {{ remesa.moneda.id|json_script:"remesa-moneda-id" }}
+                                    <div class="mb-3">
+                                        <label for="gestor" class="form-label">Crear a nombre de *</label>
+                                        <select class="form-control bg-dark text-white border-secondary" id="gestor" name="gestor" required>
+                                            <option value="">Cargando usuarios...</option>
+                                        </select>
+                                        <small class="text-muted">Este usuario será el gestor (dueño) de la remesa.</small>
+                                    </div>
+                                {% endif %}
+
                                 <div class="mb-3">
                                     <label for="receptor_nombre" class="form-label">Remitente *</label>
                                     <input type="text" class="form-control bg-dark text-white border-secondary" 
@@ -128,6 +140,78 @@
 document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('formEditarRemesa');
     const btnGuardar = document.getElementById('btnGuardar');
+    const gestorSelect = document.getElementById('gestor');
+    const monedaSelect = document.getElementById('moneda');
+    const tipoPagoSelect = document.getElementById('tipo_pago');
+
+    const remesaGestorIdEl = document.getElementById('remesa-gestor-id');
+    const remesaMonedaIdEl = document.getElementById('remesa-moneda-id');
+    const remesaGestorId = remesaGestorIdEl ? JSON.parse(remesaGestorIdEl.textContent) : null;
+    const remesaMonedaId = remesaMonedaIdEl ? JSON.parse(remesaMonedaIdEl.textContent) : null;
+
+    function cargarGestores() {
+        if (!gestorSelect) return;
+
+        fetch('/remesas/api/gestores/')
+            .then(r => r.json())
+            .then(data => {
+                gestorSelect.innerHTML = '<option value="">Seleccionar usuario...</option>';
+                data.forEach(u => {
+                    const option = document.createElement('option');
+                    option.value = u.id;
+                    option.textContent = u.nombre;
+                    if (remesaGestorId && String(u.id) === String(remesaGestorId)) {
+                        option.selected = true;
+                    }
+                    gestorSelect.appendChild(option);
+                });
+            })
+            .catch(err => {
+                console.error('Error cargando usuarios:', err);
+                gestorSelect.innerHTML = '<option value="">Error cargando usuarios</option>';
+            });
+    }
+
+    function cargarMonedas() {
+        if (!monedaSelect || !tipoPagoSelect) return;
+
+        const tipoMoneda = tipoPagoSelect.value || '';
+        if (!tipoMoneda) return;
+
+        const usuarioId = gestorSelect ? (gestorSelect.value || '') : '';
+        let url = `/remesas/api/monedas/?tipo_moneda=${encodeURIComponent(tipoMoneda)}`;
+        if (usuarioId) {
+            url += `&usuario_id=${encodeURIComponent(usuarioId)}`;
+        }
+
+        fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                const current = monedaSelect.value || (remesaMonedaId ? String(remesaMonedaId) : '');
+                monedaSelect.innerHTML = '<option value="">Seleccione una moneda</option>';
+                data.forEach(moneda => {
+                    const option = document.createElement('option');
+                    option.value = moneda.id;
+                    option.textContent = `${moneda.nombre} (${moneda.codigo})`;
+                    if (current && String(moneda.id) === String(current)) {
+                        option.selected = true;
+                    }
+                    monedaSelect.appendChild(option);
+                });
+            })
+            .catch(err => console.error('Error cargando monedas:', err));
+    }
+
+    cargarGestores();
+    // Actualiza valores/monedas al cargar, para que refleje el usuario correcto
+    cargarMonedas();
+
+    if (gestorSelect) {
+        gestorSelect.addEventListener('change', cargarMonedas);
+    }
+    if (tipoPagoSelect) {
+        tipoPagoSelect.addEventListener('change', cargarMonedas);
+    }
     
     form.addEventListener('submit', function(e) {
         e.preventDefault();
