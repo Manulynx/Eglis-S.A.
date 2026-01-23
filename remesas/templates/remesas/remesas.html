@@ -1,340 +1,534 @@
-{% extends 'eglisapp/base.html' %}
-{% load static %}
-{% block content %}
+{% extends 'eglisapp/base.html' %} {% load static %} {% block content %}
 
-<div class="container-fluid px-2 py-4">
-    <div class="row justify-content-center no-gutters">
-        <div class="col-12 col-md-8 col-lg-6">
-            <div class="card bg-dark border-secondary">
-                <div class="card-body">
-                    <h4 class="text-white mb-4 text-center">
-                        <i class="fas fa-credit-card mr-2"></i>
-                        Recibir
-                    </h4>
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-6">
+      <div class="card bg-dark border-secondary">
+        <div class="card-body">
+          <h4 class="text-white mb-4 text-center">
+            <i class="fas fa-credit-card text-primary me-2"></i>
+            Recibir
+          </h4>
 
-                    <form id="formRemesa" method="post" enctype="multipart/form-data">
-                        {% csrf_token %}
-                        
-                        <!-- Datos principales -->
-                        <input type="hidden" id="remesa_id" name="remesa_id">
-                        <input type="hidden" id="fecha" name="fecha">
-                        
-                        <!-- Datos de la remesa -->
-                        <div class="mb-4">
-                            {% if is_admin_user %}
-                            <div class="form-group mb-3">
-                                <label for="gestor" class="form-label text-white">Crear a nombre de</label>
-                                <select class="form-select bg-dark text-white border-secondary"
-                                        id="gestor"
-                                        name="gestor"
-                                        required>
-                                    <option value="">Seleccionar usuario...</option>
-                                </select>
-                                <small class="form-text text-muted">La remesa se asignará al usuario seleccionado.</small>
-                            </div>
-                            {% endif %}
-
-                            <div class="form-group mb-3">
-                                <label for="tipo_pago" class="form-label text-white">Tipo de Pago</label>
-                                <select class="form-select bg-dark text-white border-secondary" 
-                                        id="tipo_pago" 
-                                        name="tipo_pago"
-                                        required>
-                                    <option value="">Seleccionar tipo de pago...</option>
-                                    <option value="transferencia">Transferencia</option>
-                                    <option value="efectivo">Efectivo</option>
-                                </select>
-                            </div>
-
-                            <div class="form-group mb-3">
-                                <label for="moneda" class="form-label text-white">Moneda</label>
-                                <select class="form-select bg-dark text-white border-secondary" 
-                                        id="moneda" 
-                                        name="moneda"
-                                        required>
-                                    <option value="">Seleccionar moneda...</option>
-                                </select>
-                            </div>
-
-                            <div class="form-group mb-3">
-                                <label for="importe" class="form-label text-white">Importe</label>
-                                <input type="number" 
-                                       class="form-control bg-dark text-white border-secondary" 
-                                       id="importe" 
-                                       name="importe" 
-                                       step="0.01" 
-                                       required>
-                            </div>
-                        </div>
-
-                        <!-- Remitente -->
-                        <div class="mb-4">
-                            <h6 class="text-white mb-3">Remitente</h6>
-                            <div class="form-group">
-                                <input type="text" 
-                                       class="form-control bg-dark text-white border-secondary" 
-                                       id="receptor_nombre" 
-                                       name="receptor_nombre" 
-                                       placeholder="Nombre completo del remitente"
-                                       required>
-                            </div>
-                        </div>
-
-                        <!-- Observaciones -->
-                        <div class="mb-4">
-                            <div class="form-check mb-3">
-                                <input class="form-check-input" type="checkbox" id="check_observaciones">
-                                <label class="form-check-label text-white" for="check_observaciones">
-                                    <i class="fas fa-sticky-note me-2"></i>Agregar observaciones
-                                </label>
-                            </div>
-                            <div id="campo_observaciones" class="form-group" style="display: none;">
-                                <label for="observaciones" class="form-label text-white">Observaciones</label>
-                                <textarea class="form-control bg-dark text-white border-secondary" 
-                                          id="observaciones" 
-                                          name="observaciones" 
-                                          rows="3"
-                                          placeholder="Observaciones adicionales"></textarea>
-                            </div>
-                        </div>
-
-                        <!-- Comprobante -->
-                        <div class="mb-4">
-                            <div class="form-check mb-3">
-                                <input class="form-check-input" type="checkbox" id="check_comprobante">
-                                <label class="form-check-label text-white" for="check_comprobante">
-                                    <i class="fas fa-file-image me-2"></i>Subir comprobante
-                                </label>
-                            </div>
-                            <div id="campo_comprobante" class="form-group" style="display: none;">
-                                <label for="comprobante" class="form-label text-white">Comprobante</label>
-                                <input type="file" 
-                                       class="form-control bg-dark text-white border-secondary" 
-                                       id="comprobante" 
-                                       name="comprobante" 
-                                       accept="image/*">
-                                <small class="form-text text-muted">Suba una imagen del comprobante</small>
-                            </div>
-                        </div>
-
-                        <!-- Botones -->
-                        <div class="d-flex justify-content-between align-items-center">
-                            <a href="{% url 'remesas:registro_transacciones' %}" class="btn btn-outline-light">
-                                <i class="fas fa-arrow-left me-2"></i>Volver
-                            </a>
-                            <button type="submit" class="btn btn-primary" id="btnGuardarRemesa">
-                                <i class="fas fa-paper-plane me-2" id="btnIcono"></i>
-                                <span id="btnTexto">Enviar Remesa</span>
-                            </button>
-                        </div>
-                    </form>
-                </div>
+          <!-- Balance disponible (estilo pagos) -->
+          <div
+            class="alert bg-dark text-white border {% if user_balance >= 0 %}border-info{% else %}border-danger{% endif %} mb-4"
+          >
+            <div class="text-center">
+              <h6 class="mb-2">Balance Disponible</h6>
+              <h3
+                class="mb-0 {% if user_balance >= 0 %}text-success{% else %}text-danger{% endif %}"
+              >
+                ${{ user_balance|floatformat:2 }} USD {% if user_balance < 0 %}
+                <small class="d-block text-warning" style="font-size: 0.7rem">
+                  <i class="fas fa-exclamation-triangle me-1"></i>Balance
+                  negativo
+                </small>
+                {% endif %}
+              </h3>
             </div>
-            
-            <!-- Sección de Pagos Enlazados -->
-            <div class="card bg-dark border-secondary mt-3" id="seccionPagos" style="display: none;">
-                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">
-                        <i class="fas fa-money-bill-wave me-2"></i>
-                        Pagos para esta Remesa
-                    </h6>
-                    <button type="button" class="btn btn-sm btn-light" id="btnMostrarFormularioPago">
-                        <i class="fas fa-plus me-2"></i>
-                        Agregar Pago
-                    </button>
-                </div>
-                <div class="card-body p-2 p-md-3">
-                    <!-- Formulario para crear pago (inicialmente oculto) -->
-                    <div id="formularioPagoRemesa" style="display: none;" class="mb-4">
-                        <div class="card bg-secondary">
-                            <div class="card-header d-flex justify-content-between align-items-center">
-                                <h6 class="mb-0 text-white">Nuevo Pago</h6>
-                                <button type="button" class="btn btn-sm btn-danger" id="btnCerrarFormularioPago">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
-                            <div class="card-body">
-                                <form id="formPagoRemesa" enctype="multipart/form-data">
-                                    {% csrf_token %}
-                                    {% if is_admin_user %}
-                                    <div class="row">
-                                        <div class="col-12 mb-3">
-                                            <label for="pago_usuario_asignado" class="form-label text-white">
-                                                Crear a nombre de
-                                            </label>
-                                            <select class="form-control bg-dark text-white border-secondary"
-                                                    id="pago_usuario_asignado"
-                                                    name="usuario_asignado">
-                                                <option value="">Seleccionar usuario...</option>
-                                            </select>
-                                            <div class="invalid-feedback"></div>
-                                        </div>
-                                    </div>
-                                    {% endif %}
-                                    <div class="row">
-                                        <!-- Tipo de Pago -->
-                                        <div class="col-md-6 mb-3">
-                                            <label for="pago_tipo_pago" class="form-label text-white">
-                                                Tipo de Pago <span class="text-danger">*</span>
-                                            </label>
-                                            <select class="form-control bg-dark text-white border-secondary" 
-                                                    id="pago_tipo_pago" 
-                                                    name="tipo_pago" 
-                                                    required>
-                                                <option value="">Seleccionar...</option>
-                                                <option value="transferencia">Transferencia</option>
-                                                <option value="efectivo">Efectivo</option>
-                                            </select>
-                                            <div class="invalid-feedback"></div>
-                                        </div>
-                                        
-                                        <!-- Moneda -->
-                                        <div class="col-md-6 mb-3">
-                                            <label for="pago_tipo_moneda" class="form-label text-white">
-                                                Moneda <span class="text-danger">*</span>
-                                            </label>
-                                            <select class="form-control bg-dark text-white border-secondary" 
-                                                    id="pago_tipo_moneda" 
-                                                    name="tipo_moneda" 
-                                                    required>
-                                                <option value="">Seleccionar...</option>
-                                            </select>
-                                            <div class="invalid-feedback"></div>
-                                        </div>
-                                        
-                                        <!-- Cantidad -->
-                                        <div class="col-md-6 mb-3">
-                                            <label for="pago_cantidad" class="form-label text-white">
-                                                Cantidad <span class="text-danger">*</span>
-                                            </label>
-                                            <input type="number" 
-                                                   class="form-control bg-dark text-white border-secondary" 
-                                                   id="pago_cantidad" 
-                                                   name="cantidad" 
-                                                   step="0.01" 
-                                                   placeholder="0.00"
-                                                   required>
-                                            <div class="invalid-feedback"></div>
-                                        </div>
-                                        
-                                        <!-- Destinatario -->
-                                        <div class="col-md-6 mb-3">
-                                            <label for="pago_destinatario" class="form-label text-white">
-                                                Destinatario <span class="text-danger">*</span>
-                                            </label>
-                                            <input type="text" 
-                                                   class="form-control bg-dark text-white border-secondary" 
-                                                   id="pago_destinatario" 
-                                                   name="destinatario" 
-                                                   placeholder="Nombre completo"
-                                                   required>
-                                            <div class="invalid-feedback"></div>
-                                        </div>
-                                        
-                                        <!-- Teléfono -->
-                                        <div class="col-md-6 mb-3" id="pago_div_telefono">
-                                            <label for="pago_telefono" class="form-label text-white">
-                                                Teléfono <span class="text-danger" id="pago_telefono_required" style="display: none;">*</span>
-                                            </label>
-                                            <input type="text" 
-                                                   class="form-control bg-dark text-white border-secondary" 
-                                                   id="pago_telefono" 
-                                                   name="telefono" 
-                                                   placeholder="+1234567890">
-                                            <div class="invalid-feedback"></div>
-                                        </div>
-                                        
-                                        <!-- Dirección -->
-                                        <div class="col-md-6 mb-3" id="pago_div_direccion">
-                                            <label for="pago_direccion" class="form-label text-white">
-                                                Dirección <span class="text-danger" id="pago_direccion_required" style="display: none;">*</span>
-                                            </label>
-                                            <textarea class="form-control bg-dark text-white border-secondary" 
-                                                      id="pago_direccion" 
-                                                      name="direccion" 
-                                                      rows="2" 
-                                                      placeholder="Dirección completa"></textarea>
-                                            <div class="invalid-feedback"></div>
-                                        </div>
-                                        
-                                        <!-- Cédula/Documento -->
-                                        <div class="col-md-6 mb-3">
-                                            <label for="pago_carnet_identidad" class="form-label text-white">
-                                                Cédula/Documento
-                                            </label>
-                                            <input type="text" 
-                                                   class="form-control bg-dark text-white border-secondary" 
-                                                   id="pago_carnet_identidad" 
-                                                   name="carnet_identidad" 
-                                                   placeholder="Número de identificación">
-                                            <div class="invalid-feedback"></div>
-                                        </div>
-                                        
-                                        <!-- Número de Tarjeta -->
-                                        <div class="col-md-6 mb-3" id="pago_div_tarjeta" style="display: none;">
-                                            <label for="pago_tarjeta" class="form-label text-white">
-                                                Número de Tarjeta <span class="text-danger">*</span>
-                                            </label>
-                                            <input type="text" 
-                                                   class="form-control bg-dark text-white border-secondary" 
-                                                   id="pago_tarjeta" 
-                                                   name="tarjeta" 
-                                                   placeholder="1234-5678-9012-3456"
-                                                   maxlength="19">
-                                            <div class="invalid-feedback"></div>
-                                        </div>
-                                        
-                                        <!-- Comprobante -->
-                                        <div class="col-md-6 mb-3">
-                                            <label for="pago_comprobante_pago" class="form-label text-white">
-                                                Comprobante de Pago
-                                            </label>
-                                            <input type="file" 
-                                                   class="form-control bg-dark text-white border-secondary" 
-                                                   id="pago_comprobante_pago" 
-                                                   name="comprobante_pago" 
-                                                   accept="image/*">
-                                            <div class="invalid-feedback"></div>
-                                        </div>
-                                        
-                                        <!-- Observaciones -->
-                                        <div class="col-12 mb-3">
-                                            <label for="pago_observaciones" class="form-label text-white">
-                                                Observaciones
-                                            </label>
-                                            <textarea class="form-control bg-dark text-white border-secondary" 
-                                                      id="pago_observaciones" 
-                                                      name="observaciones" 
-                                                      rows="2" 
-                                                      placeholder="Observaciones adicionales (opcional)"></textarea>
-                                            <div class="invalid-feedback"></div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="d-flex justify-content-end gap-2">
-                                        <button type="button" class="btn btn-secondary" id="btnCancelarPago">
-                                            <i class="fas fa-times me-2"></i>Cancelar
-                                        </button>
-                                        <button type="submit" class="btn btn-success" id="btnGuardarPago">
-                                            <i class="fas fa-save me-2"></i>Agregar Pago
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Lista de pagos temporales -->
-                    <div id="listaPagosTemporales">
-                        <div class="alert alert-info mb-0">
-                            <i class="fas fa-info-circle me-2"></i>
-                            No hay pagos agregados todavía. Use el botón "Agregar Pago" para añadir pagos a esta remesa.
-                        </div>
-                    </div>
-                </div>
+          </div>
+
+          <form id="formRemesa" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            <!-- Datos principales -->
+            <input type="hidden" id="remesa_id" name="remesa_id" />
+            <input type="hidden" id="fecha" name="fecha" />
+
+            <!-- Crear a nombre de (mismo layout que pagos) -->
+            {% if is_admin_user %}
+            <div class="mb-3">
+              <label for="gestor" class="form-label text-white"
+                >Crear a nombre de</label
+              >
+              <select
+                class="form-select bg-dark text-white border-secondary"
+                id="gestor"
+                name="gestor"
+              >
+                <option value="">Seleccionar usuario...</option>
+              </select>
+              <small class="form-text text-muted"
+                >La remesa se asignará al usuario seleccionado.</small
+              >
             </div>
+            {% endif %}
+
+            <!-- Tipo de pago (mismo layout que pagos, pero sincroniza con select oculto) -->
+            <div class="mb-3">
+              <!-- Select real (se mantiene para backend/JS). Se sincroniza con los checkboxes. -->
+              <select
+                class="form-select bg-dark text-white border-secondary"
+                id="tipo_pago"
+                name="tipo_pago"
+                required
+                style="display: none"
+              >
+                <option value="">Seleccionar tipo de pago...</option>
+                <option value="transferencia">Transferencia</option>
+                <option value="efectivo">Efectivo</option>
+              </select>
+
+              <label class="form-label text-white">Tipo de Pago *</label>
+              <div class="mt-2">
+                <div class="form-check mb-2">
+                  <input
+                    class="form-check-input tipo-pago-check"
+                    type="checkbox"
+                    id="tipo_pago_check_transferencia"
+                    value="transferencia"
+                  />
+                  <label
+                    class="form-check-label text-white"
+                    for="tipo_pago_check_transferencia"
+                  >
+                    <i class="fas fa-university me-2"></i>Transferencia
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input
+                    class="form-check-input tipo-pago-check"
+                    type="checkbox"
+                    id="tipo_pago_check_efectivo"
+                    value="efectivo"
+                  />
+                  <label
+                    class="form-check-label text-white"
+                    for="tipo_pago_check_efectivo"
+                  >
+                    <i class="fas fa-money-bills me-2"></i>Efectivo
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Campos que se moverán dentro del box seleccionado -->
+            <div id="remesa_campos_comunes" style="display: none">
+              <div class="form-group mb-3">
+                <label for="moneda" class="form-label text-white">Moneda</label>
+                <select
+                  class="form-select bg-dark text-white border-secondary"
+                  id="moneda"
+                  name="moneda"
+                  required
+                >
+                  <option value="">Seleccionar moneda...</option>
+                </select>
+              </div>
+
+              <div class="form-group mb-3">
+                <label for="importe" class="form-label text-white"
+                  >Importe</label
+                >
+                <input
+                  type="number"
+                  class="form-control bg-dark text-white border-secondary"
+                  id="importe"
+                  name="importe"
+                  step="0.01"
+                  required
+                />
+                <div
+                  id="calculo-usd-remesa"
+                  class="mt-2"
+                  style="display: none"
+                ></div>
+              </div>
+
+              <div class="mb-4">
+                <h6 class="text-white mb-3">Remitente</h6>
+                <div class="form-group">
+                  <input
+                    type="text"
+                    class="form-control bg-dark text-white border-secondary"
+                    id="receptor_nombre"
+                    name="receptor_nombre"
+                    placeholder="Nombre completo del remitente"
+                    required
+                  />
+                </div>
+              </div>
+
+              <!-- Observaciones -->
+              <div class="mb-4">
+                <div class="form-check mb-3">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    id="check_observaciones"
+                  />
+                  <label
+                    class="form-check-label text-white"
+                    for="check_observaciones"
+                  >
+                    <i class="fas fa-sticky-note me-2"></i>Agregar observaciones
+                  </label>
+                </div>
+                <div
+                  id="campo_observaciones"
+                  class="form-group"
+                  style="display: none"
+                >
+                  <label for="observaciones" class="form-label text-white"
+                    >Observaciones</label
+                  >
+                  <textarea
+                    class="form-control bg-dark text-white border-secondary"
+                    id="observaciones"
+                    name="observaciones"
+                    rows="3"
+                    placeholder="Observaciones adicionales"
+                  ></textarea>
+                </div>
+              </div>
+
+              <!-- Comprobante -->
+              <div class="mb-4">
+                <div class="form-check mb-3">
+                  <input
+                    class="form-check-input"
+                    type="checkbox"
+                    id="check_comprobante"
+                  />
+                  <label
+                    class="form-check-label text-white"
+                    for="check_comprobante"
+                  >
+                    <i class="fas fa-file-image me-2"></i>Subir comprobante
+                  </label>
+                </div>
+                <div
+                  id="campo_comprobante"
+                  class="form-group"
+                  style="display: none"
+                >
+                  <label for="comprobante" class="form-label text-white"
+                    >Comprobante</label
+                  >
+                  <input
+                    type="file"
+                    class="form-control bg-dark text-white border-secondary"
+                    id="comprobante"
+                    name="comprobante"
+                    accept="image/*"
+                  />
+                  <small class="form-text text-muted"
+                    >Suba una imagen del comprobante</small
+                  >
+                </div>
+              </div>
+            </div>
+
+            <!-- Secciones (estilo pagos): aquí se insertan los campos comunes según tipo -->
+            <div id="campos_transferencia" style="display: none"></div>
+            <div id="campos_efectivo" style="display: none"></div>
+
+            <!-- Botones -->
+            <div class="d-flex justify-content-between align-items-center">
+              <a
+                href="{% url 'remesas:registro_transacciones' %}"
+                class="btn btn-outline-light"
+              >
+                <i class="fas fa-arrow-left me-2"></i>Volver
+              </a>
+              <button
+                type="submit"
+                class="btn btn-primary"
+                id="btnGuardarRemesa"
+              >
+                <i class="fas fa-paper-plane me-2" id="btnIcono"></i>
+                <span id="btnTexto">Enviar Remesa</span>
+              </button>
+            </div>
+          </form>
         </div>
+      </div>
+
+      <!-- Sección de Pagos Enlazados -->
+      <div
+        class="card bg-dark border-secondary mt-3"
+        id="seccionPagos"
+        style="display: none"
+      >
+        <div
+          class="card-header bg-success text-white d-flex justify-content-between align-items-center"
+        >
+          <h6 class="mb-0">
+            <i class="fas fa-money-bill-wave me-2"></i>
+            Pagos para esta Remesa
+          </h6>
+          <button
+            type="button"
+            class="btn btn-sm btn-light"
+            id="btnMostrarFormularioPago"
+          >
+            <i class="fas fa-plus me-2"></i>
+            Agregar Pago
+          </button>
+        </div>
+        <div class="card-body p-2 p-md-3">
+          <!-- Formulario para crear pago (inicialmente oculto) -->
+          <div id="formularioPagoRemesa" style="display: none" class="mb-4">
+            <div class="card bg-secondary">
+              <div
+                class="card-header d-flex justify-content-between align-items-center"
+              >
+                <h6 class="mb-0 text-white">Nuevo Pago</h6>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-danger"
+                  id="btnCerrarFormularioPago"
+                >
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+              <div class="card-body">
+                <form id="formPagoRemesa" enctype="multipart/form-data">
+                  {% csrf_token %} {% if is_admin_user %}
+                  <div class="row">
+                    <div class="col-12 mb-3">
+                      <label
+                        for="pago_usuario_asignado"
+                        class="form-label text-white"
+                      >
+                        Crear a nombre de
+                      </label>
+                      <select
+                        class="form-control bg-dark text-white border-secondary"
+                        id="pago_usuario_asignado"
+                        name="usuario_asignado"
+                      >
+                        <option value="">Seleccionar usuario...</option>
+                      </select>
+                      <div class="invalid-feedback"></div>
+                    </div>
+                  </div>
+                  {% endif %}
+                  <div class="row">
+                    <!-- Tipo de Pago -->
+                    <div class="col-md-6 mb-3">
+                      <label for="pago_tipo_pago" class="form-label text-white">
+                        Tipo de Pago <span class="text-danger">*</span>
+                      </label>
+                      <select
+                        class="form-control bg-dark text-white border-secondary"
+                        id="pago_tipo_pago"
+                        name="tipo_pago"
+                        required
+                      >
+                        <option value="">Seleccionar...</option>
+                        <option value="transferencia">Transferencia</option>
+                        <option value="efectivo">Efectivo</option>
+                      </select>
+                      <div class="invalid-feedback"></div>
+                    </div>
+
+                    <!-- Moneda -->
+                    <div class="col-md-6 mb-3">
+                      <label
+                        for="pago_tipo_moneda"
+                        class="form-label text-white"
+                      >
+                        Moneda <span class="text-danger">*</span>
+                      </label>
+                      <select
+                        class="form-control bg-dark text-white border-secondary"
+                        id="pago_tipo_moneda"
+                        name="tipo_moneda"
+                        required
+                      >
+                        <option value="">Seleccionar...</option>
+                      </select>
+                      <div class="invalid-feedback"></div>
+                    </div>
+
+                    <!-- Cantidad -->
+                    <div class="col-md-6 mb-3">
+                      <label for="pago_cantidad" class="form-label text-white">
+                        Cantidad <span class="text-danger">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        class="form-control bg-dark text-white border-secondary"
+                        id="pago_cantidad"
+                        name="cantidad"
+                        step="0.01"
+                        placeholder="0.00"
+                        required
+                      />
+                      <div class="invalid-feedback"></div>
+                    </div>
+
+                    <!-- Destinatario -->
+                    <div class="col-md-6 mb-3">
+                      <label
+                        for="pago_destinatario"
+                        class="form-label text-white"
+                      >
+                        Destinatario <span class="text-danger">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        class="form-control bg-dark text-white border-secondary"
+                        id="pago_destinatario"
+                        name="destinatario"
+                        placeholder="Nombre completo"
+                        required
+                      />
+                      <div class="invalid-feedback"></div>
+                    </div>
+
+                    <!-- Teléfono -->
+                    <div class="col-md-6 mb-3" id="pago_div_telefono">
+                      <label for="pago_telefono" class="form-label text-white">
+                        Teléfono
+                        <span
+                          class="text-danger"
+                          id="pago_telefono_required"
+                          style="display: none"
+                          >*</span
+                        >
+                      </label>
+                      <input
+                        type="text"
+                        class="form-control bg-dark text-white border-secondary"
+                        id="pago_telefono"
+                        name="telefono"
+                        placeholder="+1234567890"
+                      />
+                      <div class="invalid-feedback"></div>
+                    </div>
+
+                    <!-- Dirección -->
+                    <div class="col-md-6 mb-3" id="pago_div_direccion">
+                      <label for="pago_direccion" class="form-label text-white">
+                        Dirección
+                        <span
+                          class="text-danger"
+                          id="pago_direccion_required"
+                          style="display: none"
+                          >*</span
+                        >
+                      </label>
+                      <textarea
+                        class="form-control bg-dark text-white border-secondary"
+                        id="pago_direccion"
+                        name="direccion"
+                        rows="2"
+                        placeholder="Dirección completa"
+                      ></textarea>
+                      <div class="invalid-feedback"></div>
+                    </div>
+
+                    <!-- Cédula/Documento -->
+                    <div class="col-md-6 mb-3">
+                      <label
+                        for="pago_carnet_identidad"
+                        class="form-label text-white"
+                      >
+                        Cédula/Documento
+                      </label>
+                      <input
+                        type="text"
+                        class="form-control bg-dark text-white border-secondary"
+                        id="pago_carnet_identidad"
+                        name="carnet_identidad"
+                        placeholder="Número de identificación"
+                      />
+                      <div class="invalid-feedback"></div>
+                    </div>
+
+                    <!-- Número de Tarjeta -->
+                    <div
+                      class="col-md-6 mb-3"
+                      id="pago_div_tarjeta"
+                      style="display: none"
+                    >
+                      <label for="pago_tarjeta" class="form-label text-white">
+                        Número de Tarjeta <span class="text-danger">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        class="form-control bg-dark text-white border-secondary"
+                        id="pago_tarjeta"
+                        name="tarjeta"
+                        placeholder="1234-5678-9012-3456"
+                        maxlength="19"
+                      />
+                      <div class="invalid-feedback"></div>
+                    </div>
+
+                    <!-- Comprobante -->
+                    <div class="col-md-6 mb-3">
+                      <label
+                        for="pago_comprobante_pago"
+                        class="form-label text-white"
+                      >
+                        Comprobante de Pago
+                      </label>
+                      <input
+                        type="file"
+                        class="form-control bg-dark text-white border-secondary"
+                        id="pago_comprobante_pago"
+                        name="comprobante_pago"
+                        accept="image/*"
+                      />
+                      <div class="invalid-feedback"></div>
+                    </div>
+
+                    <!-- Observaciones -->
+                    <div class="col-12 mb-3">
+                      <label
+                        for="pago_observaciones"
+                        class="form-label text-white"
+                      >
+                        Observaciones
+                      </label>
+                      <textarea
+                        class="form-control bg-dark text-white border-secondary"
+                        id="pago_observaciones"
+                        name="observaciones"
+                        rows="2"
+                        placeholder="Observaciones adicionales (opcional)"
+                      ></textarea>
+                      <div class="invalid-feedback"></div>
+                    </div>
+                  </div>
+
+                  <div class="d-flex justify-content-end gap-2">
+                    <button
+                      type="button"
+                      class="btn btn-secondary"
+                      id="btnCancelarPago"
+                    >
+                      <i class="fas fa-times me-2"></i>Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      class="btn btn-success"
+                      id="btnGuardarPago"
+                    >
+                      <i class="fas fa-save me-2"></i>Agregar Pago
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <!-- Lista de pagos temporales -->
+          <div id="listaPagosTemporales">
+            <div class="alert alert-info mb-0">
+              <i class="fas fa-info-circle me-2"></i>
+              No hay pagos agregados todavía. Use el botón "Agregar Pago" para
+              añadir pagos a esta remesa.
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
+  </div>
 </div>
 
 <!-- Django context data -->
@@ -342,52 +536,56 @@
 
 <!-- Datos de monedas y balance -->
 <script id="monedas-data" type="application/json">
-    {{ monedas_json|safe }}
+  {{ monedas_json|safe }}
 </script>
 
 <script id="user-balance" type="application/json">
-    {{ user_balance|safe }}
+  {{ user_balance|safe }}
 </script>
 
 <style>
-/* PREVENCIÓN DE OVERFLOW HORIZONTAL */
-* {
+  /* PREVENCIÓN DE OVERFLOW HORIZONTAL */
+  * {
     box-sizing: border-box;
-}
+  }
 
-html, body {
+  html,
+  body {
     overflow-x: hidden;
     width: 100%;
     max-width: 100vw;
-}
+  }
 
-.container-fluid {
+  .container-fluid {
     max-width: 100vw;
     overflow-x: hidden;
     padding-left: 8px;
     padding-right: 8px;
-}
+  }
 
-.row {
+  .row {
     margin-left: 0;
     margin-right: 0;
     max-width: 100%;
-}
+  }
 
-.col-12, .col-md-8, .col-lg-6 {
+  .col-12,
+  .col-md-8,
+  .col-lg-6 {
     padding-left: 4px;
     padding-right: 4px;
     max-width: 100%;
-}
+  }
 
-.card {
+  .card {
     width: 100%;
     max-width: 100%;
     overflow: hidden;
-}
+  }
 
-/* Estilos minimalistas */
-.form-control, .form-select {
+  /* Estilos minimalistas */
+  .form-control,
+  .form-select {
     background-color: #1a1a1a !important;
     border: 1px solid #333;
     color: #fff !important;
@@ -398,25 +596,26 @@ html, body {
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
-}
+  }
 
-.form-control:focus, .form-select:focus {
+  .form-control:focus,
+  .form-select:focus {
     border-color: #0d6efd;
     box-shadow: none;
-}
+  }
 
-/* Estilos específicos para textarea */
-textarea.form-control {
+  /* Estilos específicos para textarea */
+  textarea.form-control {
     resize: vertical;
     min-height: 80px;
-}
+  }
 
-/* Estilos para input file */
-input[type="file"].form-control {
+  /* Estilos para input file */
+  input[type="file"].form-control {
     padding: 8px;
-}
+  }
 
-input[type="file"].form-control::file-selector-button {
+  input[type="file"].form-control::file-selector-button {
     background-color: #0d6efd;
     border: none;
     color: white;
@@ -424,1225 +623,1436 @@ input[type="file"].form-control::file-selector-button {
     border-radius: 3px;
     margin-right: 10px;
     cursor: pointer;
-}
+  }
 
-input[type="file"].form-control::file-selector-button:hover {
+  input[type="file"].form-control::file-selector-button:hover {
     background-color: #0b5ed7;
-}
+  }
 
-/* Estilos para checkboxes */
-.form-check-input {
+  /* Estilos para checkboxes */
+  .form-check-input {
     background-color: #1a1a1a;
     border: 1px solid #333;
     margin-right: 8px;
-}
+  }
 
-.form-check-input:checked {
+  .form-check-input:checked {
     background-color: #0d6efd;
     border-color: #0d6efd;
-}
+  }
 
-.form-check-input:focus {
+  .form-check-input:focus {
     border-color: #0d6efd;
     box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
-}
+  }
 
-.form-check-label {
+  .form-check-label {
     cursor: pointer;
     user-select: none;
-}
+  }
 
-.form-check-label:hover {
+  .form-check-label:hover {
     color: #87ceeb !important;
-}
+  }
 
-/* Animación para mostrar/ocultar campos */
-.campo-animado {
+  .tipo-pago-check:checked + .form-check-label {
+    color: #87ceeb !important;
+  }
+
+  /* Unificar select de "Crear a nombre de" con el de pagos */
+  #gestor.form-select {
+    background-color: #212529 !important; /* bg-dark */
+    border-color: #6c757d !important; /* border-secondary */
+    color: #fff !important;
+    padding: 0.375rem 2.25rem 0.375rem 0.75rem !important; /* Bootstrap default */
+    margin-bottom: 0 !important;
+  }
+
+  .container {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  /* Animación para mostrar/ocultar campos */
+  .campo-animado {
     transition: all 0.3s ease-in-out;
     overflow: hidden;
-}
+  }
 
-.form-label {
+  .form-label {
     font-size: 0.9rem;
     margin-bottom: 5px;
     font-weight: 500;
-}
+  }
 
-.btn {
+  .btn {
     padding: 10px 20px;
     border-radius: 4px;
     font-weight: 500;
     min-height: 44px; /* Mejor para uso táctil */
-}
+  }
 
-.btn-primary {
+  .btn-primary {
     background-color: #0d6efd;
     border: none;
-}
+  }
 
-.btn-primary:hover {
+  .btn-primary:hover {
     background-color: #0b5ed7;
-}
+  }
 
-/* RESPONSIVIDAD MEJORADA PARA MÓVILES */
+  /* RESPONSIVIDAD MEJORADA PARA MÓVILES */
 
-/* Para tablets medianas y móviles grandes (768px - 991px) */
-@media (max-width: 991px) {
+  /* Para tablets medianas y móviles grandes (768px - 991px) */
+  @media (max-width: 991px) {
     .container {
-        padding-left: 15px;
-        padding-right: 15px;
+      padding-left: 15px;
+      padding-right: 15px;
     }
-    
-    .col-lg-6 {
-        max-width: 100%;
-    }
-    
-    .card-body {
-        padding: 1.5rem;
-    }
-    
-    h4 {
-        font-size: 1.4rem;
-        margin-bottom: 1.5rem;
-    }
-}
 
-/* Para móviles (576px - 767px) */
-@media (max-width: 767px) {
-    html, body {
-        overflow-x: hidden !important;
-        width: 100% !important;
-        max-width: 100vw !important;
+    .col-lg-6 {
+      max-width: 100%;
     }
-    
-    .container-fluid {
-        padding-left: 5px !important;
-        padding-right: 5px !important;
-        max-width: 100vw !important;
-        overflow-x: hidden !important;
-    }
-    
-    .row {
-        margin-left: 0 !important;
-        margin-right: 0 !important;
-        max-width: 100% !important;
-    }
-    
-    .col-12, .col-md-8 {
-        padding-left: 3px !important;
-        padding-right: 3px !important;
-        max-width: 100% !important;
-        width: 100% !important;
-    }
-    
-    .card {
-        margin: 0 !important;
-        max-width: 100% !important;
-        width: 100% !important;
-        border-radius: 6px;
-    }
-    
+
     .card-body {
-        padding: 1rem !important;
-        max-width: 100% !important;
-        overflow-x: hidden !important;
+      padding: 1.5rem;
     }
-    
-    .form-control, .form-select {
-        padding: 12px 14px !important;
-        font-size: 16px !important; /* Evita zoom en iOS */
-        width: 100% !important;
-        max-width: 100% !important;
-        box-sizing: border-box !important;
-        margin-left: 0 !important;
-        margin-right: 0 !important;
-    }
-    
-    .form-label {
-        font-size: 0.85rem;
-        font-weight: 600;
-        margin-bottom: 6px;
-    }
-    
+
     h4 {
-        font-size: 1.3rem;
-        margin-bottom: 1.25rem;
+      font-size: 1.4rem;
+      margin-bottom: 1.5rem;
     }
-    
+  }
+
+  /* Para móviles (576px - 767px) */
+  @media (max-width: 767px) {
+    html,
+    body {
+      overflow-x: hidden !important;
+      width: 100% !important;
+      max-width: 100vw !important;
+    }
+
+    .container-fluid {
+      padding-left: 5px !important;
+      padding-right: 5px !important;
+      max-width: 100vw !important;
+      overflow-x: hidden !important;
+    }
+
+    .row {
+      margin-left: 0 !important;
+      margin-right: 0 !important;
+      max-width: 100% !important;
+    }
+
+    .col-12,
+    .col-md-8 {
+      padding-left: 3px !important;
+      padding-right: 3px !important;
+      max-width: 100% !important;
+      width: 100% !important;
+    }
+
+    .card {
+      margin: 0 !important;
+      max-width: 100% !important;
+      width: 100% !important;
+      border-radius: 6px;
+    }
+
+    .card-body {
+      padding: 1rem !important;
+      max-width: 100% !important;
+      overflow-x: hidden !important;
+    }
+
+    .form-control,
+    .form-select {
+      padding: 12px 14px !important;
+      font-size: 16px !important; /* Evita zoom en iOS */
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+      margin-left: 0 !important;
+      margin-right: 0 !important;
+    }
+
+    .form-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    h4 {
+      font-size: 1.3rem;
+      margin-bottom: 1.25rem;
+    }
+
     .btn {
-        padding: 12px 16px;
-        font-size: 15px;
-        margin: 4px 0;
+      padding: 12px 16px;
+      font-size: 15px;
+      margin: 4px 0;
     }
-    
+
     /* Ajustar layout de botones en móvil */
     .d-flex.justify-content-between {
-        flex-direction: column;
-        gap: 10px;
+      flex-direction: column;
+      gap: 10px;
     }
-    
+
     .d-flex.justify-content-between .btn {
-        width: 100%;
-        text-align: center;
+      width: 100%;
+      text-align: center;
     }
-    
+
     /* Mejorar checkboxes para táctil */
     .form-check {
-        padding-left: 2rem;
-        margin-bottom: 0.75rem;
+      padding-left: 2rem;
+      margin-bottom: 0.75rem;
     }
-    
-    .form-check-input {
-        width: 1.1em;
-        height: 1.1em;
-        margin-top: 0.1em;
-    }
-    
-    .form-check-label {
-        font-size: 0.9rem;
-        line-height: 1.4;
-    }
-}
 
-/* Para móviles pequeños (hasta 575px) */
-@media (max-width: 575px) {
-    html, body {
-        overflow-x: hidden !important;
-        width: 100% !important;
-        max-width: 100vw !important;
-        margin: 0 !important;
-        padding: 0 !important;
+    .form-check-input {
+      width: 1.1em;
+      height: 1.1em;
+      margin-top: 0.1em;
     }
-    
+
+    .form-check-label {
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+  }
+
+  /* Para móviles pequeños (hasta 575px) */
+  @media (max-width: 575px) {
+    html,
+    body {
+      overflow-x: hidden !important;
+      width: 100% !important;
+      max-width: 100vw !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
     .container-fluid {
-        padding-left: 3px !important;
-        padding-right: 3px !important;
-        max-width: 100vw !important;
-        width: 100% !important;
-        margin: 0 !important;
+      padding-left: 3px !important;
+      padding-right: 3px !important;
+      max-width: 100vw !important;
+      width: 100% !important;
+      margin: 0 !important;
     }
-    
+
     .row {
-        margin-left: 0 !important;
-        margin-right: 0 !important;
-        max-width: 100% !important;
-        width: 100% !important;
+      margin-left: 0 !important;
+      margin-right: 0 !important;
+      max-width: 100% !important;
+      width: 100% !important;
     }
-    
+
     .col-12 {
-        padding-left: 2px !important;
-        padding-right: 2px !important;
-        max-width: 100% !important;
-        width: 100% !important;
+      padding-left: 2px !important;
+      padding-right: 2px !important;
+      max-width: 100% !important;
+      width: 100% !important;
     }
-    
+
     .card {
-        border-radius: 8px;
-        margin: 0.25rem 0 !important;
-        max-width: 100% !important;
-        width: 100% !important;
-        overflow: hidden !important;
+      border-radius: 8px;
+      margin: 0.25rem 0 !important;
+      max-width: 100% !important;
+      width: 100% !important;
+      overflow: hidden !important;
     }
-    
+
     .card-body {
-        padding: 0.75rem !important;
-        max-width: 100% !important;
-        width: 100% !important;
-        overflow-x: hidden !important;
+      padding: 0.75rem !important;
+      max-width: 100% !important;
+      width: 100% !important;
+      overflow-x: hidden !important;
     }
-    
+
     h4 {
-        font-size: 1.2rem;
-        margin-bottom: 1rem;
+      font-size: 1.2rem;
+      margin-bottom: 1rem;
     }
-    
-    .form-control, .form-select {
-        padding: 14px 16px;
-        font-size: 16px;
-        border-radius: 6px;
+
+    .form-control,
+    .form-select {
+      padding: 14px 16px;
+      font-size: 16px;
+      border-radius: 6px;
     }
-    
+
     .form-label {
-        font-size: 0.8rem;
-        font-weight: 600;
+      font-size: 0.8rem;
+      font-weight: 600;
     }
-    
+
     .btn {
-        padding: 14px 18px;
-        font-size: 16px;
-        border-radius: 6px;
-        min-height: 48px; /* Mejor para táctil */
+      padding: 14px 18px;
+      font-size: 16px;
+      border-radius: 6px;
+      min-height: 48px; /* Mejor para táctil */
     }
-    
+
     .mb-4 {
-        margin-bottom: 1rem !important;
+      margin-bottom: 1rem !important;
     }
-    
+
     .mb-3 {
-        margin-bottom: 0.75rem !important;
+      margin-bottom: 0.75rem !important;
     }
-    
+
     /* Espaciado específico para campos opcionales */
     #campo_observaciones,
     #campo_comprobante {
-        margin-top: 0.5rem;
+      margin-top: 0.5rem;
     }
-    
+
     textarea.form-control {
-        min-height: 90px;
+      min-height: 90px;
     }
-    
+
     .form-check-input {
-        width: 1.2em;
-        height: 1.2em;
+      width: 1.2em;
+      height: 1.2em;
     }
-    
+
     .form-check-label {
-        font-size: 0.85rem;
+      font-size: 0.85rem;
     }
-}
+  }
 
-/* Para móviles muy pequeños (hasta 375px) */
-@media (max-width: 375px) {
-    html, body {
-        overflow-x: hidden !important;
-        width: 100% !important;
-        max-width: 100vw !important;
-        margin: 0 !important;
-        padding: 0 !important;
+  /* Para móviles muy pequeños (hasta 375px) */
+  @media (max-width: 375px) {
+    html,
+    body {
+      overflow-x: hidden !important;
+      width: 100% !important;
+      max-width: 100vw !important;
+      margin: 0 !important;
+      padding: 0 !important;
     }
-    
+
     .container-fluid {
-        padding-left: 2px !important;
-        padding-right: 2px !important;
-        max-width: 100vw !important;
-        width: 100% !important;
-        margin: 0 !important;
+      padding-left: 2px !important;
+      padding-right: 2px !important;
+      max-width: 100vw !important;
+      width: 100% !important;
+      margin: 0 !important;
     }
-    
+
     .row {
-        margin-left: 0 !important;
-        margin-right: 0 !important;
-        max-width: 100% !important;
-        width: 100% !important;
+      margin-left: 0 !important;
+      margin-right: 0 !important;
+      max-width: 100% !important;
+      width: 100% !important;
     }
-    
+
     .col-12 {
-        padding-left: 1px !important;
-        padding-right: 1px !important;
-        max-width: 100% !important;
-        width: 100% !important;
+      padding-left: 1px !important;
+      padding-right: 1px !important;
+      max-width: 100% !important;
+      width: 100% !important;
     }
-    
-    .card-body {
-        padding: 0.5rem !important;
-        max-width: 100% !important;
-        width: 100% !important;
-        overflow-x: hidden !important;
-    }
-    
-    h4 {
-        font-size: 1.1rem;
-        margin-bottom: 0.75rem;
-    }
-    
-    .form-control, .form-select {
-        padding: 12px 14px;
-        font-size: 16px;
-        width: 100% !important;
-        max-width: 100% !important;
-        box-sizing: border-box !important;
-        margin-left: 0 !important;
-        margin-right: 0 !important;
-        overflow-x: hidden !important;
-    }
-    
-    .btn {
-        padding: 12px 16px;
-        font-size: 15px;
-        min-height: 44px;
-        width: 100% !important;
-        max-width: 100% !important;
-        box-sizing: border-box !important;
-        word-wrap: break-word;
-        overflow-wrap: break-word;
-    }
-    
-    .mb-4 {
-        margin-bottom: 0.75rem !important;
-    }
-}
 
-/* Orientación landscape en móviles */
-@media (max-height: 500px) and (orientation: landscape) {
+    .card-body {
+      padding: 0.5rem !important;
+      max-width: 100% !important;
+      width: 100% !important;
+      overflow-x: hidden !important;
+    }
+
+    h4 {
+      font-size: 1.1rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .form-control,
+    .form-select {
+      padding: 12px 14px;
+      font-size: 16px;
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+      margin-left: 0 !important;
+      margin-right: 0 !important;
+      overflow-x: hidden !important;
+    }
+
+    .btn {
+      padding: 12px 16px;
+      font-size: 15px;
+      min-height: 44px;
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+
+    .mb-4 {
+      margin-bottom: 0.75rem !important;
+    }
+  }
+
+  /* Orientación landscape en móviles */
+  @media (max-height: 500px) and (orientation: landscape) {
     .container {
-        padding-top: 0.5rem;
-        padding-bottom: 0.5rem;
+      padding-top: 0.5rem;
+      padding-bottom: 0.5rem;
     }
-    
+
     .card-body {
-        padding: 0.75rem;
+      padding: 0.75rem;
     }
-    
+
     h4 {
-        font-size: 1.1rem;
-        margin-bottom: 0.75rem;
+      font-size: 1.1rem;
+      margin-bottom: 0.75rem;
     }
-    
+
     .mb-4 {
-        margin-bottom: 0.5rem !important;
+      margin-bottom: 0.5rem !important;
     }
-    
+
     .mb-3 {
-        margin-bottom: 0.4rem !important;
+      margin-bottom: 0.4rem !important;
     }
-    
-    .btn {
-        padding: 8px 16px;
-        min-height: 40px;
-    }
-}
 
-/* Mejoras específicas para iOS */
-@supports (-webkit-touch-callout: none) {
-    .form-control, .form-select {
-        font-size: 16px !important; /* Evita zoom en iOS */
-        -webkit-appearance: none;
-        appearance: none;
-    }
-    
     .btn {
-        -webkit-appearance: none;
-        appearance: none;
-        border-radius: 6px;
+      padding: 8px 16px;
+      min-height: 40px;
     }
-}
+  }
 
-/* Estilos para protección contra envíos duplicados */
-.btn[disabled], .btn:disabled {
+  /* Mejoras específicas para iOS */
+  @supports (-webkit-touch-callout: none) {
+    .form-control,
+    .form-select {
+      font-size: 16px !important; /* Evita zoom en iOS */
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .btn {
+      -webkit-appearance: none;
+      appearance: none;
+      border-radius: 6px;
+    }
+  }
+
+  /* Estilos para protección contra envíos duplicados */
+  .btn[disabled],
+  .btn:disabled {
     pointer-events: none !important;
     opacity: 0.6 !important;
     cursor: not-allowed !important;
-}
+  }
 
-.btn[data-enviando="true"] {
+  .btn[data-enviando="true"] {
     pointer-events: none !important;
     opacity: 0.7 !important;
     cursor: not-allowed !important;
     position: relative;
-}
+  }
 
-.btn[data-enviando="true"]:after {
+  .btn[data-enviando="true"]:after {
     content: "";
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0,0,0,0.1);
+    background: rgba(0, 0, 0, 0.1);
     border-radius: inherit;
-}
+  }
 
-/* Mejoras para Android */
-@media (max-width: 767px) and (min-resolution: 2dppx) {
-    .form-control, .form-select {
-        padding: 14px 16px;
+  /* Mejoras para Android */
+  @media (max-width: 767px) and (min-resolution: 2dppx) {
+    .form-control,
+    .form-select {
+      padding: 14px 16px;
     }
-    
+
     .btn {
-        min-height: 48px;
-        font-size: 16px;
+      min-height: 48px;
+      font-size: 16px;
     }
-}
+  }
 </style>
 
 <script>
-// Variables desde Django
-const usuarioAutenticadoId = JSON.parse(document.getElementById('user-id').textContent);
+  // Variables desde Django
+  const usuarioAutenticadoId = JSON.parse(
+    document.getElementById("user-id").textContent,
+  );
 
-// Variables para cálculos de moneda
-let monedasData = {};
-let balanceActual = 0;
+  // Variables para cálculos de moneda
+  let monedasData = {};
+  let balanceActual = 0;
 
-// Cargar datos de monedas y balance
-function cargarDatosCalculos() {
+  // Cargar datos de monedas y balance
+  function cargarDatosCalculos() {
     try {
-        const monedasDataElement = document.getElementById('monedas-data');
-        const userBalanceElement = document.getElementById('user-balance');
-        
-        if (monedasDataElement) {
-            monedasData = JSON.parse(monedasDataElement.textContent);
-        }
-        
-        if (userBalanceElement) {
-            balanceActual = parseFloat(userBalanceElement.textContent) || 0;
-        }
-    } catch (e) {
-        console.error('Error cargando datos para cálculos:', e);
-        monedasData = {};
-        balanceActual = 0;
-    }
-}
+      const monedasDataElement = document.getElementById("monedas-data");
+      const userBalanceElement = document.getElementById("user-balance");
 
-// Función para obtener datos de una moneda por ID
-function obtenerValorMoneda(monedaId) {
+      if (monedasDataElement) {
+        monedasData = JSON.parse(monedasDataElement.textContent);
+      }
+
+      if (userBalanceElement) {
+        balanceActual = parseFloat(userBalanceElement.textContent) || 0;
+      }
+    } catch (e) {
+      console.error("Error cargando datos para cálculos:", e);
+      monedasData = {};
+      balanceActual = 0;
+    }
+  }
+
+  // Función para obtener datos de una moneda por ID
+  function obtenerValorMoneda(monedaId) {
     for (let moneda of monedasData) {
-        if (moneda.id == monedaId) {
-            return moneda;
-        }
+      if (moneda.id == monedaId) {
+        return moneda;
+      }
     }
     return null;
-}
+  }
 
-// Función para calcular y mostrar el monto en USD
-function calcularMontoUSD() {
-    const importeInput = document.getElementById('importe');
-    const monedaSelect = document.getElementById('moneda');
-    
+  // Función para calcular y mostrar el monto en USD
+  function calcularMontoUSD() {
+    const importeInput = document.getElementById("importe");
+    const monedaSelect = document.getElementById("moneda");
+
     if (importeInput && monedaSelect) {
-        const importe = parseFloat(importeInput.value) || 0;
-        const monedaId = monedaSelect.value;
-        
-        if (importe > 0 && monedaId) {
-            const moneda = obtenerValorMoneda(monedaId);
-            console.log('Moneda encontrada:', moneda); // Debug
-            
-            if (moneda && moneda.valor_usuario) {
-                let montoUSD = importe;
-                
-                // Verificar que valor_usuario es un número válido
-                const valorUsuario = parseFloat(moneda.valor_usuario);
-                console.log('Valor de usuario para la moneda:', valorUsuario); // Debug
-                
-                if (moneda.codigo !== 'USD' && valorUsuario > 0) {
-                    montoUSD = importe / valorUsuario;
-                }
-                
-                // Verificar que montoUSD es un número válido
-                if (!isNaN(montoUSD) && isFinite(montoUSD)) {
-                    // Mostrar el cálculo
-                    let calculoDiv = document.getElementById('calculo-usd-remesa');
-                    if (!calculoDiv) {
-                        calculoDiv = document.createElement('div');
-                        calculoDiv.id = 'calculo-usd-remesa';
-                        calculoDiv.className = 'alert alert-info mt-2';
-                        importeInput.parentNode.appendChild(calculoDiv);
-                    }
-                    
-                    const balanceDespues = balanceActual + montoUSD;
-                    
-                    let mensaje = '<strong>Monto en USD:</strong> $' + montoUSD.toFixed(2) + ' USD<br>';
-                    mensaje += '<strong>Balance después de recibir:</strong> $' + balanceDespues.toFixed(2) + ' USD';
-                    
-                    calculoDiv.className = 'alert alert-success mt-2';
-                    calculoDiv.innerHTML = mensaje;
-                } else {
-                    console.error('Error en el cálculo: montoUSD no es válido', montoUSD);
-                }
-            } else {
-                console.error('Moneda no encontrada o sin valor_usuario válido:', moneda);
+      const importe = parseFloat(importeInput.value) || 0;
+      const monedaId = monedaSelect.value;
+
+      if (importe > 0 && monedaId) {
+        const moneda = obtenerValorMoneda(monedaId);
+        console.log("Moneda encontrada:", moneda); // Debug
+
+        if (moneda && moneda.valor_usuario) {
+          let montoUSD = importe;
+
+          // Verificar que valor_usuario es un número válido
+          const valorUsuario = parseFloat(moneda.valor_usuario);
+          console.log("Valor de usuario para la moneda:", valorUsuario); // Debug
+
+          if (moneda.codigo !== "USD" && valorUsuario > 0) {
+            montoUSD = importe / valorUsuario;
+          }
+
+          // Verificar que montoUSD es un número válido
+          if (!isNaN(montoUSD) && isFinite(montoUSD)) {
+            // Mostrar el cálculo
+            let calculoDiv = document.getElementById("calculo-usd-remesa");
+            if (!calculoDiv) {
+              calculoDiv = document.createElement("div");
+              calculoDiv.id = "calculo-usd-remesa";
+              calculoDiv.className = "alert alert-info mt-2";
+              importeInput.parentNode.appendChild(calculoDiv);
             }
+
+            const balanceDespues = balanceActual + montoUSD;
+
+            let mensaje =
+              "<strong>Monto en USD:</strong> $" +
+              montoUSD.toFixed(2) +
+              " USD<br>";
+            mensaje +=
+              "<strong>Balance después de recibir:</strong> $" +
+              balanceDespues.toFixed(2) +
+              " USD";
+
+            calculoDiv.className = "alert alert-success mt-2";
+            calculoDiv.innerHTML = mensaje;
+          } else {
+            console.error(
+              "Error en el cálculo: montoUSD no es válido",
+              montoUSD,
+            );
+          }
         } else {
-            const calculoDiv = document.getElementById('calculo-usd-remesa');
-            if (calculoDiv) {
-                calculoDiv.remove();
-            }
+          console.error(
+            "Moneda no encontrada o sin valor_usuario válido:",
+            moneda,
+          );
         }
+      } else {
+        const calculoDiv = document.getElementById("calculo-usd-remesa");
+        if (calculoDiv) {
+          calculoDiv.remove();
+        }
+      }
     }
-}
+  }
 
-// Configurar listeners para recalcular automáticamente
-function configurarCalculosRemesa() {
-    const importeInput = document.getElementById('importe');
-    const monedaSelect = document.getElementById('moneda');
-    
+  // Configurar listeners para recalcular automáticamente
+  function configurarCalculosRemesa() {
+    const importeInput = document.getElementById("importe");
+    const monedaSelect = document.getElementById("moneda");
+
     if (importeInput) {
-        importeInput.addEventListener('input', function() {
-            const value = parseFloat(this.value);
-            if (isNaN(value) || value <= 0) {
-                this.classList.add('is-invalid');
-            } else {
-                this.classList.remove('is-invalid');
-                this.classList.add('is-valid');
-            }
-            calcularMontoUSD();
-        });
+      importeInput.addEventListener("input", function () {
+        const value = parseFloat(this.value);
+        if (isNaN(value) || value <= 0) {
+          this.classList.add("is-invalid");
+        } else {
+          this.classList.remove("is-invalid");
+          this.classList.add("is-valid");
+        }
+        calcularMontoUSD();
+      });
     }
-    
+
     if (monedaSelect) {
-        monedaSelect.addEventListener('change', calcularMontoUSD);
+      monedaSelect.addEventListener("change", calcularMontoUSD);
     }
-}
+  }
 
-function generarIdYFecha() {
+  function generarIdYFecha() {
     // Establecer fecha actual
-    const fechaInput = document.getElementById('fecha');
-    const hoy = new Date().toISOString().split('T')[0];
+    const fechaInput = document.getElementById("fecha");
+    const hoy = new Date().toISOString().split("T")[0];
     fechaInput.value = hoy;
-    
-    // Generar ID de remesa
-    const remesaIdInput = document.getElementById('remesa_id');
-    const año = new Date().getFullYear();
-    const numeroAleatorio = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
-    remesaIdInput.value = `REM-${año}-${numeroAleatorio}`;
-}
 
-document.addEventListener('DOMContentLoaded', function() {
+    // Generar ID de remesa
+    const remesaIdInput = document.getElementById("remesa_id");
+    const año = new Date().getFullYear();
+    const numeroAleatorio = Math.floor(Math.random() * 1000000)
+      .toString()
+      .padStart(6, "0");
+    remesaIdInput.value = `REM-${año}-${numeroAleatorio}`;
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
     // Cargar datos para cálculos
     cargarDatosCalculos();
-    
+
     // Inicializar fecha e ID
     generarIdYFecha();
-    
+
     // Cargar datos dinámicos
     cargarMonedas();
     cargarGestores();
     cargarMetodosPago();
-    
+
     // Configurar cálculos de USD
     configurarCalculosRemesa();
-    
+
     // Configurar filtrado de monedas por tipo de pago
     configurarFiltroMonedas();
-    
+
+    // Configurar tipo de pago estilo "pagos" (checkboxes exclusivos)
+    configurarTipoPagoRemesa();
+
     // Configurar el formulario
-    const form = document.getElementById('formRemesa');
-    form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        enviarRemesa();
+    const form = document.getElementById("formRemesa");
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      enviarRemesa();
     });
-    
+
     // Configurar checkboxes para mostrar/ocultar campos opcionales
     configurarCamposOpcionales();
-});
+  });
 
-function configurarCamposOpcionales() {
-    // Checkbox para observaciones
-    const checkObservaciones = document.getElementById('check_observaciones');
-    const campoObservaciones = document.getElementById('campo_observaciones');
-    const textareaObservaciones = document.getElementById('observaciones');
-    
-    checkObservaciones.addEventListener('change', function() {
-        if (this.checked) {
-            campoObservaciones.style.display = 'block';
-            campoObservaciones.classList.add('campo-animado');
-            textareaObservaciones.focus();
-        } else {
-            campoObservaciones.style.display = 'none';
-            textareaObservaciones.value = ''; // Limpiar el contenido cuando se oculta
-        }
-    });
-    
-    // Checkbox para comprobante
-    const checkComprobante = document.getElementById('check_comprobante');
-    const campoComprobante = document.getElementById('campo_comprobante');
-    const inputComprobante = document.getElementById('comprobante');
-    
-    checkComprobante.addEventListener('change', function() {
-        if (this.checked) {
-            campoComprobante.style.display = 'block';
-            campoComprobante.classList.add('campo-animado');
-        } else {
-            campoComprobante.style.display = 'none';
-            inputComprobante.value = ''; // Limpiar el archivo cuando se oculta
-        }
-    });
-}
+  function configurarTipoPagoRemesa() {
+    const checkTransferencia = document.getElementById(
+      "tipo_pago_check_transferencia",
+    );
+    const checkEfectivo = document.getElementById("tipo_pago_check_efectivo");
+    const tipoPagoSelect = document.getElementById("tipo_pago");
 
-function configurarFiltroMonedas() {
-    const tipoPagoSelect = document.getElementById('tipo_pago');
-    const monedaSelect = document.getElementById('moneda');
-    
-    if (tipoPagoSelect && monedaSelect) {
-        tipoPagoSelect.addEventListener('change', function() {
-            const tipoPagoSeleccionado = this.value;
-            
-            // Limpiar selección de moneda
-            monedaSelect.value = '';
-            
-            // Cargar monedas filtradas por tipo
-            if (tipoPagoSeleccionado === 'efectivo' || tipoPagoSeleccionado === 'transferencia') {
-                cargarMonedas(tipoPagoSeleccionado);
-            } else {
-                // Si no hay tipo seleccionado, cargar todas las monedas
-                cargarMonedas();
-            }
-        });
+    const contTransferencia = document.getElementById("campos_transferencia");
+    const contEfectivo = document.getElementById("campos_efectivo");
+    const camposComunes = document.getElementById("remesa_campos_comunes");
+
+    if (
+      !checkTransferencia ||
+      !checkEfectivo ||
+      !tipoPagoSelect ||
+      !camposComunes
+    )
+      return;
+
+    function activar(tipo) {
+      // Exclusividad
+      checkTransferencia.checked = tipo === "transferencia";
+      checkEfectivo.checked = tipo === "efectivo";
+
+      // Select oculto para envío/JS
+      tipoPagoSelect.value = tipo || "";
+      tipoPagoSelect.dispatchEvent(new Event("change"));
+
+      // Mostrar sección correspondiente (estilo pagos) y mover campos
+      if (tipo === "transferencia" && contTransferencia) {
+        contTransferencia.style.display = "block";
+        if (contEfectivo) contEfectivo.style.display = "none";
+        camposComunes.style.display = "block";
+        contTransferencia.appendChild(camposComunes);
+      } else if (tipo === "efectivo" && contEfectivo) {
+        contEfectivo.style.display = "block";
+        if (contTransferencia) contTransferencia.style.display = "none";
+        camposComunes.style.display = "block";
+        contEfectivo.appendChild(camposComunes);
+      } else {
+        if (contTransferencia) contTransferencia.style.display = "none";
+        if (contEfectivo) contEfectivo.style.display = "none";
+        camposComunes.style.display = "none";
+      }
     }
-}
 
-function cargarMonedas(tipoMoneda = null) {
-    const gestorSelect = document.getElementById('gestor');
-    const usuarioId = gestorSelect ? (gestorSelect.value || null) : null;
+    checkTransferencia.addEventListener("change", function () {
+      activar(this.checked ? "transferencia" : "");
+    });
+
+    checkEfectivo.addEventListener("change", function () {
+      activar(this.checked ? "efectivo" : "");
+    });
+
+    // Si el select ya tuviera un valor (por back/recarga), sincronizar
+    if (tipoPagoSelect.value) {
+      activar(tipoPagoSelect.value);
+    } else {
+      activar("");
+    }
+  }
+
+  function configurarCamposOpcionales() {
+    // Checkbox para observaciones
+    const checkObservaciones = document.getElementById("check_observaciones");
+    const campoObservaciones = document.getElementById("campo_observaciones");
+    const textareaObservaciones = document.getElementById("observaciones");
+
+    checkObservaciones.addEventListener("change", function () {
+      if (this.checked) {
+        campoObservaciones.style.display = "block";
+        campoObservaciones.classList.add("campo-animado");
+        textareaObservaciones.focus();
+      } else {
+        campoObservaciones.style.display = "none";
+        textareaObservaciones.value = ""; // Limpiar el contenido cuando se oculta
+      }
+    });
+
+    // Checkbox para comprobante
+    const checkComprobante = document.getElementById("check_comprobante");
+    const campoComprobante = document.getElementById("campo_comprobante");
+    const inputComprobante = document.getElementById("comprobante");
+
+    checkComprobante.addEventListener("change", function () {
+      if (this.checked) {
+        campoComprobante.style.display = "block";
+        campoComprobante.classList.add("campo-animado");
+      } else {
+        campoComprobante.style.display = "none";
+        inputComprobante.value = ""; // Limpiar el archivo cuando se oculta
+      }
+    });
+  }
+
+  function configurarFiltroMonedas() {
+    const tipoPagoSelect = document.getElementById("tipo_pago");
+    const monedaSelect = document.getElementById("moneda");
+
+    if (tipoPagoSelect && monedaSelect) {
+      tipoPagoSelect.addEventListener("change", function () {
+        const tipoPagoSeleccionado = this.value;
+
+        // Limpiar selección de moneda
+        monedaSelect.value = "";
+
+        // Cargar monedas filtradas por tipo
+        if (
+          tipoPagoSeleccionado === "efectivo" ||
+          tipoPagoSeleccionado === "transferencia"
+        ) {
+          cargarMonedas(tipoPagoSeleccionado);
+        } else {
+          // Si no hay tipo seleccionado, cargar todas las monedas
+          cargarMonedas();
+        }
+      });
+    }
+  }
+
+  function cargarMonedas(tipoMoneda = null) {
+    const gestorSelect = document.getElementById("gestor");
+    const usuarioId = gestorSelect ? gestorSelect.value || null : null;
 
     // Construir URL con filtro opcional
-    let url = '/remesas/api/monedas/';
+    let url = "/remesas/api/monedas/";
     const params = [];
-    if (tipoMoneda) params.push(`tipo_moneda=${encodeURIComponent(tipoMoneda)}`);
+    if (tipoMoneda)
+      params.push(`tipo_moneda=${encodeURIComponent(tipoMoneda)}`);
     if (usuarioId) params.push(`usuario_id=${encodeURIComponent(usuarioId)}`);
-    if (params.length) url += `?${params.join('&')}`;
-    
+    if (params.length) url += `?${params.join("&")}`;
+
     // Cargar monedas desde el servidor
     fetch(url)
-        .then(response => response.json())
-        .then(data => {
-            const select = document.getElementById('moneda');
-            // Limpiar opciones existentes excepto la primera
-            select.innerHTML = '<option value="">Seleccionar moneda...</option>';
-            
-            // Actualizar datos de monedas para cálculos
-            monedasData = data;
-            console.log('Monedas cargadas:', monedasData); // Debug
-            
-            data.forEach(moneda => {
-                const option = document.createElement('option');
-                option.value = moneda.id;
-                option.textContent = moneda.nombre;
-                select.appendChild(option);
-            });
-            
-            // Recalcular si hay valores
-            calcularMontoUSD();
-        })
-        .catch(error => {
-            console.error('Error cargando monedas:', error);
-            // Si hay error, usar los datos del script inicial
-            const monedasDataElement = document.getElementById('monedas-data');
-            if (monedasDataElement) {
-                try {
-                    monedasData = JSON.parse(monedasDataElement.textContent);
-                    console.log('Usando monedas del script inicial:', monedasData);
-                    
-                    const select = document.getElementById('moneda');
-                    select.innerHTML = '<option value="">Seleccionar moneda...</option>';
-                    
-                    // Filtrar por tipo si es necesario
-                    let monedasFiltradas = monedasData;
-                    if (tipoMoneda) {
-                        monedasFiltradas = monedasData.filter(m => m.tipo_moneda === tipoMoneda);
-                    }
-                    
-                    monedasFiltradas.forEach(moneda => {
-                        const option = document.createElement('option');
-                        option.value = moneda.id;
-                        option.textContent = moneda.nombre;
-                        select.appendChild(option);
-                    });
-                } catch (e) {
-                    console.error('Error procesando datos de monedas:', e);
-                }
-            }
-        });
-}
+      .then((response) => response.json())
+      .then((data) => {
+        const select = document.getElementById("moneda");
+        // Limpiar opciones existentes excepto la primera
+        select.innerHTML = '<option value="">Seleccionar moneda...</option>';
 
-function cargarGestores() {
-    const select = document.getElementById('gestor');
+        // Actualizar datos de monedas para cálculos
+        monedasData = data;
+        console.log("Monedas cargadas:", monedasData); // Debug
+
+        data.forEach((moneda) => {
+          const option = document.createElement("option");
+          option.value = moneda.id;
+          option.textContent = moneda.nombre;
+          select.appendChild(option);
+        });
+
+        // Recalcular si hay valores
+        calcularMontoUSD();
+      })
+      .catch((error) => {
+        console.error("Error cargando monedas:", error);
+        // Si hay error, usar los datos del script inicial
+        const monedasDataElement = document.getElementById("monedas-data");
+        if (monedasDataElement) {
+          try {
+            monedasData = JSON.parse(monedasDataElement.textContent);
+            console.log("Usando monedas del script inicial:", monedasData);
+
+            const select = document.getElementById("moneda");
+            select.innerHTML =
+              '<option value="">Seleccionar moneda...</option>';
+
+            // Filtrar por tipo si es necesario
+            let monedasFiltradas = monedasData;
+            if (tipoMoneda) {
+              monedasFiltradas = monedasData.filter(
+                (m) => m.tipo_moneda === tipoMoneda,
+              );
+            }
+
+            monedasFiltradas.forEach((moneda) => {
+              const option = document.createElement("option");
+              option.value = moneda.id;
+              option.textContent = moneda.nombre;
+              select.appendChild(option);
+            });
+          } catch (e) {
+            console.error("Error procesando datos de monedas:", e);
+          }
+        }
+      });
+  }
+
+  function cargarGestores() {
+    const select = document.getElementById("gestor");
     if (!select) return;
 
     // Cargar gestores desde el servidor
-    fetch('/remesas/api/gestores/')
-        .then(response => response.json())
-        .then(data => {
-            // Limpiar opciones existentes excepto la primera
-            select.innerHTML = '<option value="">Seleccionar gestor...</option>';
-            
-            data.forEach(gestor => {
-                const option = document.createElement('option');
-                option.value = gestor.id;
-                option.textContent = gestor.nombre;
-                
-                // Preseleccionar el usuario autenticado si existe
-                if (usuarioAutenticadoId && gestor.id == usuarioAutenticadoId) {
-                    option.selected = true;
-                }
-                
-                select.appendChild(option);
-            });
+    fetch("/remesas/api/gestores/")
+      .then((response) => response.json())
+      .then((data) => {
+        // Limpiar opciones existentes excepto la primera
+        select.innerHTML = '<option value="">Seleccionar gestor...</option>';
 
-            // Al cambiar el usuario objetivo, recargar monedas/valores
-            select.addEventListener('change', function() {
-                const tipoPagoSelect = document.getElementById('tipo_pago');
-                const tipo = tipoPagoSelect ? (tipoPagoSelect.value || null) : null;
-                cargarMonedas(tipo);
-            });
-        })
-        .catch(error => {
-            console.error('Error cargando gestores:', error);
+        data.forEach((gestor) => {
+          const option = document.createElement("option");
+          option.value = gestor.id;
+          option.textContent = gestor.nombre;
+
+          // Preseleccionar el usuario autenticado si existe
+          if (usuarioAutenticadoId && gestor.id == usuarioAutenticadoId) {
+            option.selected = true;
+          }
+
+          select.appendChild(option);
         });
-}
 
-function cargarMetodosPago() {
-    const select = document.getElementById('metodo_pago');
+        // Al cambiar el usuario objetivo, recargar monedas/valores
+        select.addEventListener("change", function () {
+          const tipoPagoSelect = document.getElementById("tipo_pago");
+          const tipo = tipoPagoSelect ? tipoPagoSelect.value || null : null;
+          cargarMonedas(tipo);
+        });
+      })
+      .catch((error) => {
+        console.error("Error cargando gestores:", error);
+      });
+  }
+
+  function cargarMetodosPago() {
+    const select = document.getElementById("metodo_pago");
     if (!select) return;
 
     // Cargar métodos de pago desde el servidor
-    fetch('/remesas/api/metodos-pago/')
-        .then(response => response.json())
-        .then(data => {
-            // Limpiar opciones existentes excepto la primera
-            select.innerHTML = '<option value="">Seleccionar método...</option>';
-            
-            data.forEach(metodo => {
-                const option = document.createElement('option');
-                option.value = metodo.id;
-                option.textContent = metodo.nombre;
-                select.appendChild(option);
-            });
-        })
-        .catch(error => {
-            console.error('Error cargando métodos de pago:', error);
+    fetch("/remesas/api/metodos-pago/")
+      .then((response) => response.json())
+      .then((data) => {
+        // Limpiar opciones existentes excepto la primera
+        select.innerHTML = '<option value="">Seleccionar método...</option>';
+
+        data.forEach((metodo) => {
+          const option = document.createElement("option");
+          option.value = metodo.id;
+          option.textContent = metodo.nombre;
+          select.appendChild(option);
         });
-}
+      })
+      .catch((error) => {
+        console.error("Error cargando métodos de pago:", error);
+      });
+  }
 
-function limpiarFormulario() {
-    if (confirm('¿Está seguro que desea limpiar el formulario?')) {
-        document.getElementById('formRemesa').reset();
-        generarIdYFecha();
-        
-        // Resetear checkboxes y ocultar campos opcionales
-        document.getElementById('check_observaciones').checked = false;
-        document.getElementById('check_comprobante').checked = false;
-        document.getElementById('campo_observaciones').style.display = 'none';
-        document.getElementById('campo_comprobante').style.display = 'none';
-        
-        // Eliminar cálculo de USD
-        const calculoDiv = document.getElementById('calculo-usd-remesa');
-        if (calculoDiv) {
-            calculoDiv.remove();
-        }
-        
-        // Recargar los selects para restablecer valores por defecto
-        cargarMonedas();
-        cargarGestores();
-        cargarMetodosPago();
+  function limpiarFormulario() {
+    if (confirm("¿Está seguro que desea limpiar el formulario?")) {
+      document.getElementById("formRemesa").reset();
+      generarIdYFecha();
+
+      // Resetear tipo de pago (checkboxes) y ocultar secciones
+      const checkTransferencia = document.getElementById(
+        "tipo_pago_check_transferencia",
+      );
+      const checkEfectivo = document.getElementById("tipo_pago_check_efectivo");
+      if (checkTransferencia) checkTransferencia.checked = false;
+      if (checkEfectivo) checkEfectivo.checked = false;
+      const contTransferencia = document.getElementById("campos_transferencia");
+      const contEfectivo = document.getElementById("campos_efectivo");
+      if (contTransferencia) contTransferencia.style.display = "none";
+      if (contEfectivo) contEfectivo.style.display = "none";
+      const camposComunes = document.getElementById("remesa_campos_comunes");
+      if (camposComunes) camposComunes.style.display = "none";
+      const tipoPagoSelect = document.getElementById("tipo_pago");
+      if (tipoPagoSelect) tipoPagoSelect.value = "";
+
+      // Resetear checkboxes y ocultar campos opcionales
+      document.getElementById("check_observaciones").checked = false;
+      document.getElementById("check_comprobante").checked = false;
+      document.getElementById("campo_observaciones").style.display = "none";
+      document.getElementById("campo_comprobante").style.display = "none";
+
+      // Eliminar cálculo de USD
+      const calculoDiv = document.getElementById("calculo-usd-remesa");
+      if (calculoDiv) {
+        calculoDiv.remove();
+      }
+
+      // Recargar los selects para restablecer valores por defecto
+      cargarMonedas();
+      cargarGestores();
+      cargarMetodosPago();
     }
-}
+  }
 
-function enviarRemesa() {
-    console.log('Función enviarRemesa llamada');
-    
+  function enviarRemesa() {
+    console.log("Función enviarRemesa llamada");
+
     // Referencias a elementos del botón
-    const boton = document.getElementById('btnGuardarRemesa');
-    const icono = document.getElementById('btnIcono');
-    const texto = document.getElementById('btnTexto');
-    
+    const boton = document.getElementById("btnGuardarRemesa");
+    const icono = document.getElementById("btnIcono");
+    const texto = document.getElementById("btnTexto");
+
     // PROTECCIÓN CONTRA ENVÍOS DUPLICADOS
-    if (boton.disabled || boton.dataset.enviando === 'true') {
-        console.log('Envío bloqueado: formulario ya está siendo enviado');
-        return;
+    if (boton.disabled || boton.dataset.enviando === "true") {
+      console.log("Envío bloqueado: formulario ya está siendo enviado");
+      return;
     }
-    
+
     // Marcar que se está enviando
-    boton.dataset.enviando = 'true';
-    
+    boton.dataset.enviando = "true";
+
     // Función para cambiar estado del botón
     function cambiarEstadoBoton(estado, textoBoton, iconoClass) {
-        boton.disabled = estado === 'loading';
-        texto.textContent = textoBoton;
-        icono.className = iconoClass;
-        
-        if (estado === 'loading') {
-            boton.classList.add('btn-warning');
-            boton.classList.remove('btn-success', 'btn-danger');
-        } else if (estado === 'success') {
-            boton.classList.add('btn-success');
-            boton.classList.remove('btn-warning', 'btn-danger');
-        } else if (estado === 'error') {
-            boton.classList.add('btn-danger');
-            boton.classList.remove('btn-success', 'btn-warning');
-            // Liberar el bloqueo después de mostrar el error
-            boton.dataset.enviando = 'false';
-            setTimeout(() => {
-                cambiarEstadoBoton('normal', 'Guardar Remesa', 'fas fa-save me-2');
-            }, 3000);
-        } else {
-            boton.classList.add('btn-primary');
-            boton.classList.remove('btn-warning', 'btn-danger', 'btn-success');
-            // Liberar el bloqueo en estado normal
-            boton.dataset.enviando = 'false';
-            boton.disabled = false;
-        }
+      boton.disabled = estado === "loading";
+      texto.textContent = textoBoton;
+      icono.className = iconoClass;
+
+      if (estado === "loading") {
+        boton.classList.add("btn-warning");
+        boton.classList.remove("btn-success", "btn-danger");
+      } else if (estado === "success") {
+        boton.classList.add("btn-success");
+        boton.classList.remove("btn-warning", "btn-danger");
+      } else if (estado === "error") {
+        boton.classList.add("btn-danger");
+        boton.classList.remove("btn-success", "btn-warning");
+        // Liberar el bloqueo después de mostrar el error
+        boton.dataset.enviando = "false";
+        setTimeout(() => {
+          cambiarEstadoBoton("normal", "Guardar Remesa", "fas fa-save me-2");
+        }, 3000);
+      } else {
+        boton.classList.add("btn-primary");
+        boton.classList.remove("btn-warning", "btn-danger", "btn-success");
+        // Liberar el bloqueo en estado normal
+        boton.dataset.enviando = "false";
+        boton.disabled = false;
+      }
     }
-    
+
     // Cambiar botón a estado de carga
-    cambiarEstadoBoton('loading', 'Guardando...', 'fas fa-spinner fa-spin me-2');
-    
+    cambiarEstadoBoton(
+      "loading",
+      "Guardando...",
+      "fas fa-spinner fa-spin me-2",
+    );
+
     // Usar FormData directamente del formulario completo
-    const form = document.getElementById('formRemesa');
+    const form = document.getElementById("formRemesa");
     const formData = new FormData(form);
-    
+
     // Validación básica de campos obligatorios
-    const receptorNombre = formData.get('receptor_nombre');
-    const importe = formData.get('importe');
-    
+    const receptorNombre = formData.get("receptor_nombre");
+    const importe = formData.get("importe");
+    const tipoPago = formData.get("tipo_pago");
+    const moneda = formData.get("moneda");
+
     // Validación básica
     if (!receptorNombre || !receptorNombre.trim()) {
-        cambiarEstadoBoton('error', 'Error: Falta remitente', 'fas fa-exclamation-triangle me-2');
-        Swal.fire({ title: 'Error', text: 'El nombre del remitente es obligatorio', icon: 'error' });
-        return;
+      cambiarEstadoBoton(
+        "error",
+        "Error: Falta remitente",
+        "fas fa-exclamation-triangle me-2",
+      );
+      Swal.fire({
+        title: "Error",
+        text: "El nombre del remitente es obligatorio",
+        icon: "error",
+      });
+      return;
+    }
+    if (!tipoPago || !String(tipoPago).trim()) {
+      cambiarEstadoBoton(
+        "error",
+        "Error: Falta tipo de pago",
+        "fas fa-exclamation-triangle me-2",
+      );
+      Swal.fire({
+        title: "Error",
+        text: "Seleccione un tipo de pago",
+        icon: "error",
+      });
+      return;
+    }
+    if (!moneda || !String(moneda).trim()) {
+      cambiarEstadoBoton(
+        "error",
+        "Error: Falta moneda",
+        "fas fa-exclamation-triangle me-2",
+      );
+      Swal.fire({
+        title: "Error",
+        text: "Seleccione una moneda",
+        icon: "error",
+      });
+      return;
     }
     if (!importe || parseFloat(importe) <= 0) {
-        cambiarEstadoBoton('error', 'Error: Importe inválido', 'fas fa-exclamation-triangle me-2');
-        Swal.fire({ title: 'Error', text: 'El importe es obligatorio y debe ser mayor a 0', icon: 'error' });
-        return;
+      cambiarEstadoBoton(
+        "error",
+        "Error: Importe inválido",
+        "fas fa-exclamation-triangle me-2",
+      );
+      Swal.fire({
+        title: "Error",
+        text: "El importe es obligatorio y debe ser mayor a 0",
+        icon: "error",
+      });
+      return;
     }
-    
+
     // Obtener CSRF token
-    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
-    
+    const csrfToken = document.querySelector("[name=csrfmiddlewaretoken]");
+
     // Enviar datos al servidor
     fetch(window.location.href, {
-        method: 'POST',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-CSRFToken': csrfToken ? csrfToken.value : '',
-        },
-        body: formData
+      method: "POST",
+      headers: {
+        "X-Requested-With": "XMLHttpRequest",
+        "X-CSRFToken": csrfToken ? csrfToken.value : "",
+      },
+      body: formData,
     })
-    .then(response => {
+      .then((response) => {
         if (!response.ok) {
-            return response.text().then(text => {
-                throw new Error(`Error del servidor (${response.status}): ${text}`);
-            });
+          return response.text().then((text) => {
+            throw new Error(`Error del servidor (${response.status}): ${text}`);
+          });
         }
-        
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-            return response.text().then(text => {
-                throw new Error('La respuesta del servidor no es JSON válido');
-            });
+
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          return response.text().then((text) => {
+            throw new Error("La respuesta del servidor no es JSON válido");
+          });
         }
-        
+
         return response.json();
-    })
-    .then(result => {
+      })
+      .then((result) => {
         if (result.success) {
-            cambiarEstadoBoton('success', '¡Guardado!', 'fas fa-check me-2');
-            
-            // Guardar el ID de la remesa creada
-            remesaCreada = {
-                id: result.remesa_pk,  // ID numérico
-                remesa_numero: result.remesa_id  // ID formato texto
-            };
-            
-            Swal.fire({
-                title: '¡Remesa creada exitosamente!',
-                text: '¿Desea agregar pagos a esta remesa?',
-                icon: 'success',
-                showCancelButton: true,
-                confirmButtonText: 'Sí, agregar pagos',
-                cancelButtonText: 'No, terminar',
-                confirmButtonColor: '#198754',
-                cancelButtonColor: '#6c757d',
-                background: '#212529',
-                color: '#fff',
-                allowOutsideClick: false,
-                allowEscapeKey: false
-            }).then((swalResult) => {
-                if (swalResult.isConfirmed) {
-                    // Mostrar sección de pagos
-                    mostrarSeccionPagos();
-                    // Deshabilitar el formulario de remesa
-                    document.getElementById('formRemesa').style.opacity = '0.5';
-                    document.getElementById('formRemesa').style.pointerEvents = 'none';
-                    // Scroll a la sección de pagos
-                    document.getElementById('seccionPagos').scrollIntoView({ behavior: 'smooth' });
-                } else {
-                    // Redirigir a la lista de transacciones
-                    window.location.href = '/remesas/registro/?tab=remesas';
-                }
-            });
+          cambiarEstadoBoton("success", "¡Guardado!", "fas fa-check me-2");
+
+          // Guardar el ID de la remesa creada
+          remesaCreada = {
+            id: result.remesa_pk, // ID numérico
+            remesa_numero: result.remesa_id, // ID formato texto
+          };
+
+          Swal.fire({
+            title: "¡Remesa creada exitosamente!",
+            text: "¿Desea agregar pagos a esta remesa?",
+            icon: "success",
+            showCancelButton: true,
+            confirmButtonText: "Sí, agregar pagos",
+            cancelButtonText: "No, terminar",
+            confirmButtonColor: "#198754",
+            cancelButtonColor: "#6c757d",
+            background: "#212529",
+            color: "#fff",
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+          }).then((swalResult) => {
+            if (swalResult.isConfirmed) {
+              // Mostrar sección de pagos
+              mostrarSeccionPagos();
+              // Deshabilitar el formulario de remesa
+              document.getElementById("formRemesa").style.opacity = "0.5";
+              document.getElementById("formRemesa").style.pointerEvents =
+                "none";
+              // Scroll a la sección de pagos
+              document
+                .getElementById("seccionPagos")
+                .scrollIntoView({ behavior: "smooth" });
+            } else {
+              // Redirigir a la lista de transacciones
+              window.location.href = "/remesas/registro/?tab=remesas";
+            }
+          });
         } else {
-            cambiarEstadoBoton('error', 'Error del servidor', 'fas fa-exclamation-triangle me-2');
-            Swal.fire({
-                title: 'Error',
-                text: result.message,
-                icon: 'error',
-                confirmButtonText: 'OK',
-                background: '#212529',
-                color: '#fff'
-            });
+          cambiarEstadoBoton(
+            "error",
+            "Error del servidor",
+            "fas fa-exclamation-triangle me-2",
+          );
+          Swal.fire({
+            title: "Error",
+            text: result.message,
+            icon: "error",
+            confirmButtonText: "OK",
+            background: "#212529",
+            color: "#fff",
+          });
         }
-    })
-    .catch(error => {
-        console.error('Error en fetch:', error);
-        cambiarEstadoBoton('error', 'Error de conexión', 'fas fa-exclamation-triangle me-2');
-        
-        let errorMessage = 'Error de conexión con el servidor';
-        if (error.name === 'SyntaxError') {
-            errorMessage = 'Error procesando respuesta del servidor';
+      })
+      .catch((error) => {
+        console.error("Error en fetch:", error);
+        cambiarEstadoBoton(
+          "error",
+          "Error de conexión",
+          "fas fa-exclamation-triangle me-2",
+        );
+
+        let errorMessage = "Error de conexión con el servidor";
+        if (error.name === "SyntaxError") {
+          errorMessage = "Error procesando respuesta del servidor";
         } else if (error.message) {
-            errorMessage = error.message;
+          errorMessage = error.message;
         }
-        
+
         Swal.fire({
-            title: 'Error',
-            text: errorMessage,
-            icon: 'error',
-            confirmButtonText: 'OK',
-            background: '#212529',
-            color: '#fff'
+          title: "Error",
+          text: errorMessage,
+          icon: "error",
+          confirmButtonText: "OK",
+          background: "#212529",
+          color: "#fff",
         }).then(() => {
-            // Asegurar que el botón vuelva al estado normal después del SweetAlert
-            cambiarEstadoBoton('normal', 'Enviar Remesa', 'fas fa-paper-plane me-2');
+          // Asegurar que el botón vuelva al estado normal después del SweetAlert
+          cambiarEstadoBoton(
+            "normal",
+            "Enviar Remesa",
+            "fas fa-paper-plane me-2",
+          );
         });
-    });
-}
+      });
+  }
 
-// ============ FUNCIONALIDAD DE PAGOS DE REMESA ============
+  // ============ FUNCIONALIDAD DE PAGOS DE REMESA ============
 
-// Variable para almacenar la remesa creada
-let remesaCreada = null;
-// Array para almacenar pagos temporales
-let pagosTemporales = [];
+  // Variable para almacenar la remesa creada
+  let remesaCreada = null;
+  // Array para almacenar pagos temporales
+  let pagosTemporales = [];
 
-function mostrarSeccionPagos() {
-    document.getElementById('seccionPagos').style.display = 'block';
+  function mostrarSeccionPagos() {
+    document.getElementById("seccionPagos").style.display = "block";
     // Cargar usuarios (solo si existe el select de admin)
     cargarUsuariosPagoRemesa();
     // Cargar monedas en el select de pagos
     cargarMonedasPago();
-}
+  }
 
-function cargarMonedasPago() {
-    const usuarioSelect = document.getElementById('pago_usuario_asignado');
-    const usuarioId = usuarioSelect ? (usuarioSelect.value || '') : '';
-    const tipoPagoSelect = document.getElementById('pago_tipo_pago');
-    const tipo = tipoPagoSelect ? (tipoPagoSelect.value || '') : '';
+  function cargarMonedasPago() {
+    const usuarioSelect = document.getElementById("pago_usuario_asignado");
+    const usuarioId = usuarioSelect ? usuarioSelect.value || "" : "";
+    const tipoPagoSelect = document.getElementById("pago_tipo_pago");
+    const tipo = tipoPagoSelect ? tipoPagoSelect.value || "" : "";
 
-    let url = '/remesas/api/monedas/';
+    let url = "/remesas/api/monedas/";
     const params = [];
     if (tipo) params.push(`tipo_moneda=${encodeURIComponent(tipo)}`);
     if (usuarioId) params.push(`usuario_id=${encodeURIComponent(usuarioId)}`);
-    if (params.length) url += `?${params.join('&')}`;
+    if (params.length) url += `?${params.join("&")}`;
 
     fetch(url)
-        .then(response => response.json())
-        .then(data => {
-            const select = document.getElementById('pago_tipo_moneda');
-            select.innerHTML = '<option value="">Seleccionar...</option>';
-            
-            data.forEach(moneda => {
-                const option = document.createElement('option');
-                option.value = moneda.id;
-                option.textContent = moneda.nombre;
-                select.appendChild(option);
-            });
-        })
-        .catch(error => {
-            console.error('Error cargando monedas:', error);
-        });
-}
+      .then((response) => response.json())
+      .then((data) => {
+        const select = document.getElementById("pago_tipo_moneda");
+        select.innerHTML = '<option value="">Seleccionar...</option>';
 
-function cargarUsuariosPagoRemesa() {
-    const select = document.getElementById('pago_usuario_asignado');
+        data.forEach((moneda) => {
+          const option = document.createElement("option");
+          option.value = moneda.id;
+          option.textContent = moneda.nombre;
+          select.appendChild(option);
+        });
+      })
+      .catch((error) => {
+        console.error("Error cargando monedas:", error);
+      });
+  }
+
+  function cargarUsuariosPagoRemesa() {
+    const select = document.getElementById("pago_usuario_asignado");
     if (!select) return;
 
-    fetch('/remesas/api/gestores/')
-        .then(r => r.json())
-        .then(data => {
-            select.innerHTML = '<option value="">Seleccionar usuario...</option>';
-            data.forEach(u => {
-                const option = document.createElement('option');
-                option.value = u.id;
-                option.textContent = u.nombre;
-                if (usuarioAutenticadoId && String(u.id) === String(usuarioAutenticadoId)) {
-                    option.selected = true;
-                }
-                select.appendChild(option);
-            });
+    fetch("/remesas/api/gestores/")
+      .then((r) => r.json())
+      .then((data) => {
+        select.innerHTML = '<option value="">Seleccionar usuario...</option>';
+        data.forEach((u) => {
+          const option = document.createElement("option");
+          option.value = u.id;
+          option.textContent = u.nombre;
+          if (
+            usuarioAutenticadoId &&
+            String(u.id) === String(usuarioAutenticadoId)
+          ) {
+            option.selected = true;
+          }
+          select.appendChild(option);
+        });
 
-            select.addEventListener('change', function() {
-                cargarMonedasPago();
-            });
-        })
-        .catch(err => console.error('Error cargando usuarios para pago remesa:', err));
-}
+        select.addEventListener("change", function () {
+          cargarMonedasPago();
+        });
+      })
+      .catch((err) =>
+        console.error("Error cargando usuarios para pago remesa:", err),
+      );
+  }
 
-// Mostrar/Ocultar formulario de pago
-const btnMostrarFormulario = document.getElementById('btnMostrarFormularioPago');
-const btnCerrarFormulario = document.getElementById('btnCerrarFormularioPago');
-const btnCancelarPago = document.getElementById('btnCancelarPago');
-const formularioPagoRemesa = document.getElementById('formularioPagoRemesa');
-const formPagoRemesa = document.getElementById('formPagoRemesa');
+  // Mostrar/Ocultar formulario de pago
+  const btnMostrarFormulario = document.getElementById(
+    "btnMostrarFormularioPago",
+  );
+  const btnCerrarFormulario = document.getElementById(
+    "btnCerrarFormularioPago",
+  );
+  const btnCancelarPago = document.getElementById("btnCancelarPago");
+  const formularioPagoRemesa = document.getElementById("formularioPagoRemesa");
+  const formPagoRemesa = document.getElementById("formPagoRemesa");
 
-if (btnMostrarFormulario) {
-    btnMostrarFormulario.addEventListener('click', function() {
-        formularioPagoRemesa.style.display = 'block';
-        this.style.display = 'none';
+  if (btnMostrarFormulario) {
+    btnMostrarFormulario.addEventListener("click", function () {
+      formularioPagoRemesa.style.display = "block";
+      this.style.display = "none";
     });
-}
+  }
 
-function ocultarFormularioPago() {
+  function ocultarFormularioPago() {
     if (formularioPagoRemesa) {
-        formularioPagoRemesa.style.display = 'none';
+      formularioPagoRemesa.style.display = "none";
     }
     if (btnMostrarFormulario) {
-        btnMostrarFormulario.style.display = 'inline-block';
+      btnMostrarFormulario.style.display = "inline-block";
     }
     if (formPagoRemesa) {
-        formPagoRemesa.reset();
-        // Limpiar mensajes de error
-        const invalidFeedbacks = formPagoRemesa.querySelectorAll('.invalid-feedback');
-        invalidFeedbacks.forEach(feedback => {
-            feedback.textContent = '';
-            feedback.style.display = 'none';
-        });
-        const inputs = formPagoRemesa.querySelectorAll('.is-invalid');
-        inputs.forEach(input => input.classList.remove('is-invalid'));
+      formPagoRemesa.reset();
+      // Limpiar mensajes de error
+      const invalidFeedbacks =
+        formPagoRemesa.querySelectorAll(".invalid-feedback");
+      invalidFeedbacks.forEach((feedback) => {
+        feedback.textContent = "";
+        feedback.style.display = "none";
+      });
+      const inputs = formPagoRemesa.querySelectorAll(".is-invalid");
+      inputs.forEach((input) => input.classList.remove("is-invalid"));
     }
-}
+  }
 
-if (btnCerrarFormulario) {
-    btnCerrarFormulario.addEventListener('click', ocultarFormularioPago);
-}
+  if (btnCerrarFormulario) {
+    btnCerrarFormulario.addEventListener("click", ocultarFormularioPago);
+  }
 
-if (btnCancelarPago) {
-    btnCancelarPago.addEventListener('click', ocultarFormularioPago);
-}
+  if (btnCancelarPago) {
+    btnCancelarPago.addEventListener("click", ocultarFormularioPago);
+  }
 
-// Manejar cambio de tipo de pago (mostrar/ocultar campos)
-const pagoTipoPagoSelect = document.getElementById('pago_tipo_pago');
-const pagoDivTarjeta = document.getElementById('pago_div_tarjeta');
+  // Manejar cambio de tipo de pago (mostrar/ocultar campos)
+  const pagoTipoPagoSelect = document.getElementById("pago_tipo_pago");
+  const pagoDivTarjeta = document.getElementById("pago_div_tarjeta");
 
-if (pagoTipoPagoSelect) {
-    pagoTipoPagoSelect.addEventListener('change', function() {
-        if (this.value === 'transferencia') {
-            pagoDivTarjeta.style.display = 'block';
-            document.getElementById('pago_telefono_required').style.display = 'none';
-            document.getElementById('pago_direccion_required').style.display = 'none';
-        } else if (this.value === 'efectivo') {
-            pagoDivTarjeta.style.display = 'none';
-            document.getElementById('pago_telefono_required').style.display = 'inline';
-            document.getElementById('pago_direccion_required').style.display = 'inline';
-        }
+  if (pagoTipoPagoSelect) {
+    pagoTipoPagoSelect.addEventListener("change", function () {
+      if (this.value === "transferencia") {
+        pagoDivTarjeta.style.display = "block";
+        document.getElementById("pago_telefono_required").style.display =
+          "none";
+        document.getElementById("pago_direccion_required").style.display =
+          "none";
+      } else if (this.value === "efectivo") {
+        pagoDivTarjeta.style.display = "none";
+        document.getElementById("pago_telefono_required").style.display =
+          "inline";
+        document.getElementById("pago_direccion_required").style.display =
+          "inline";
+      }
 
-        // Recargar monedas filtradas por tipo y usuario seleccionado
-        cargarMonedasPago();
+      // Recargar monedas filtradas por tipo y usuario seleccionado
+      cargarMonedasPago();
     });
-}
+  }
 
-// Enviar formulario de pago
-if (formPagoRemesa) {
-    formPagoRemesa.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        if (!remesaCreada) {
+  // Enviar formulario de pago
+  if (formPagoRemesa) {
+    formPagoRemesa.addEventListener("submit", function (e) {
+      e.preventDefault();
+
+      if (!remesaCreada) {
+        Swal.fire({
+          title: "Error",
+          text: "Primero debe crear la remesa",
+          icon: "error",
+          background: "#212529",
+          color: "#fff",
+        });
+        return;
+      }
+
+      const btnGuardar = document.getElementById("btnGuardarPago");
+      const originalText = btnGuardar.innerHTML;
+      btnGuardar.disabled = true;
+      btnGuardar.innerHTML =
+        '<i class="fas fa-spinner fa-spin me-2"></i>Guardando...';
+
+      // Crear FormData con los datos del formulario
+      const formData = new FormData(this);
+
+      // Enviar petición AJAX
+      fetch(`/remesas/pagos-remesa/crear/${remesaCreada.id}/`, {
+        method: "POST",
+        body: formData,
+        headers: {
+          "X-CSRFToken": getCSRFToken(),
+          "X-Requested-With": "XMLHttpRequest",
+        },
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          btnGuardar.disabled = false;
+          btnGuardar.innerHTML = originalText;
+
+          if (data.success) {
+            // Agregar pago a la lista temporal
+            const pagoData = {
+              pago_id: data.pago_id,
+              pago_pk: data.pago_pk,
+              destinatario: formData.get("destinatario"),
+              cantidad: formData.get("cantidad"),
+              tipo_pago: formData.get("tipo_pago"),
+              moneda_id: formData.get("tipo_moneda"),
+            };
+            pagosTemporales.push(pagoData);
+
+            // Actualizar la lista visual
+            actualizarListaPagos();
+
+            // Limpiar y ocultar formulario
+            ocultarFormularioPago();
+
             Swal.fire({
-                title: 'Error',
-                text: 'Primero debe crear la remesa',
-                icon: 'error',
-                background: '#212529',
-                color: '#fff'
+              title: "¡Éxito!",
+              text: data.message,
+              icon: "success",
+              background: "#212529",
+              color: "#fff",
+              confirmButtonColor: "#198754",
+              timer: 2000,
+              showConfirmButton: false,
             });
-            return;
-        }
-        
-        const btnGuardar = document.getElementById('btnGuardarPago');
-        const originalText = btnGuardar.innerHTML;
-        btnGuardar.disabled = true;
-        btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Guardando...';
-        
-        // Crear FormData con los datos del formulario
-        const formData = new FormData(this);
-        
-        // Enviar petición AJAX
-        fetch(`/remesas/pagos-remesa/crear/${remesaCreada.id}/`, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-CSRFToken': getCSRFToken(),
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            btnGuardar.disabled = false;
-            btnGuardar.innerHTML = originalText;
-            
-            if (data.success) {
-                // Agregar pago a la lista temporal
-                const pagoData = {
-                    pago_id: data.pago_id,
-                    pago_pk: data.pago_pk,
-                    destinatario: formData.get('destinatario'),
-                    cantidad: formData.get('cantidad'),
-                    tipo_pago: formData.get('tipo_pago'),
-                    moneda_id: formData.get('tipo_moneda')
-                };
-                pagosTemporales.push(pagoData);
-                
-                // Actualizar la lista visual
-                actualizarListaPagos();
-                
-                // Limpiar y ocultar formulario
-                ocultarFormularioPago();
-                
-                Swal.fire({
-                    title: '¡Éxito!',
-                    text: data.message,
-                    icon: 'success',
-                    background: '#212529',
-                    color: '#fff',
-                    confirmButtonColor: '#198754',
-                    timer: 2000,
-                    showConfirmButton: false
-                });
-            } else {
-                // Mostrar errores del formulario
-                if (data.errors) {
-                    for (const [field, errors] of Object.entries(data.errors)) {
-                        const input = document.getElementById(`pago_${field}`);
-                        if (input) {
-                            input.classList.add('is-invalid');
-                            const feedback = input.parentElement.querySelector('.invalid-feedback');
-                            if (feedback) {
-                                feedback.textContent = errors.join(', ');
-                                feedback.style.display = 'block';
-                            }
-                        }
-                    }
+          } else {
+            // Mostrar errores del formulario
+            if (data.errors) {
+              for (const [field, errors] of Object.entries(data.errors)) {
+                const input = document.getElementById(`pago_${field}`);
+                if (input) {
+                  input.classList.add("is-invalid");
+                  const feedback =
+                    input.parentElement.querySelector(".invalid-feedback");
+                  if (feedback) {
+                    feedback.textContent = errors.join(", ");
+                    feedback.style.display = "block";
+                  }
                 }
-                
-                Swal.fire({
-                    title: 'Error',
-                    text: data.message,
-                    icon: 'error',
-                    background: '#212529',
-                    color: '#fff',
-                    confirmButtonColor: '#dc3545'
-                });
+              }
             }
-        })
-        .catch(error => {
-            btnGuardar.disabled = false;
-            btnGuardar.innerHTML = originalText;
-            
+
             Swal.fire({
-                title: 'Error',
-                text: 'Error al enviar el formulario: ' + error.message,
-                icon: 'error',
-                background: '#212529',
-                color: '#fff',
-                confirmButtonColor: '#dc3545'
+              title: "Error",
+              text: data.message,
+              icon: "error",
+              background: "#212529",
+              color: "#fff",
+              confirmButtonColor: "#dc3545",
             });
+          }
+        })
+        .catch((error) => {
+          btnGuardar.disabled = false;
+          btnGuardar.innerHTML = originalText;
+
+          Swal.fire({
+            title: "Error",
+            text: "Error al enviar el formulario: " + error.message,
+            icon: "error",
+            background: "#212529",
+            color: "#fff",
+            confirmButtonColor: "#dc3545",
+          });
         });
     });
-}
+  }
 
-function actualizarListaPagos() {
-    const lista = document.getElementById('listaPagosTemporales');
-    
+  function actualizarListaPagos() {
+    const lista = document.getElementById("listaPagosTemporales");
+
     if (pagosTemporales.length === 0) {
-        lista.innerHTML = `
+      lista.innerHTML = `
             <div class="alert alert-info mb-0">
                 <i class="fas fa-info-circle me-2"></i>
                 No hay pagos agregados todavía. Use el botón "Agregar Pago" para añadir pagos a esta remesa.
             </div>
         `;
-        return;
+      return;
     }
-    
+
     let html = `
         <div class="table-responsive">
             <table class="table table-dark table-hover mb-0">
@@ -1657,12 +2067,13 @@ function actualizarListaPagos() {
                 </thead>
                 <tbody>
     `;
-    
+
     pagosTemporales.forEach((pago, index) => {
-        const tipoPagoTexto = pago.tipo_pago === 'transferencia' ? 'Transferencia' : 'Efectivo';
-        const tipoBadge = pago.tipo_pago === 'transferencia' ? 'info' : 'warning';
-        
-        html += `
+      const tipoPagoTexto =
+        pago.tipo_pago === "transferencia" ? "Transferencia" : "Efectivo";
+      const tipoBadge = pago.tipo_pago === "transferencia" ? "info" : "warning";
+
+      html += `
             <tr>
                 <td><small>${pago.pago_id}</small></td>
                 <td>${pago.destinatario}</td>
@@ -1676,7 +2087,7 @@ function actualizarListaPagos() {
             </tr>
         `;
     });
-    
+
     html += `
                 </tbody>
             </table>
@@ -1687,112 +2098,113 @@ function actualizarListaPagos() {
             </button>
         </div>
     `;
-    
+
     lista.innerHTML = html;
-}
+  }
 
-function eliminarPagoTemporal(pagoPk) {
+  function eliminarPagoTemporal(pagoPk) {
     Swal.fire({
-        title: '¿Eliminar Pago?',
-        text: '¿Está seguro que desea eliminar este pago?',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc3545',
-        cancelButtonColor: '#6c757d',
-        confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar',
-        background: '#212529',
-        color: '#fff'
+      title: "¿Eliminar Pago?",
+      text: "¿Está seguro que desea eliminar este pago?",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#dc3545",
+      cancelButtonColor: "#6c757d",
+      confirmButtonText: "Sí, eliminar",
+      cancelButtonText: "Cancelar",
+      background: "#212529",
+      color: "#fff",
     }).then((result) => {
-        if (result.isConfirmed) {
-            fetch(`/remesas/pagos-remesa/eliminar/${pagoPk}/`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': getCSRFToken(),
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Content-Type': 'application/json'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Eliminar del array temporal
-                    pagosTemporales = pagosTemporales.filter(p => p.pago_pk !== pagoPk);
-                    actualizarListaPagos();
-                    
-                    Swal.fire({
-                        title: '¡Eliminado!',
-                        text: data.message,
-                        icon: 'success',
-                        background: '#212529',
-                        color: '#fff',
-                        confirmButtonColor: '#198754',
-                        timer: 2000,
-                        showConfirmButton: false
-                    });
-                } else {
-                    Swal.fire({
-                        title: 'Error',
-                        text: data.message,
-                        icon: 'error',
-                        background: '#212529',
-                        color: '#fff',
-                        confirmButtonColor: '#dc3545'
-                    });
-                }
-            })
-            .catch(error => {
-                Swal.fire({
-                    title: 'Error',
-                    text: 'Error al eliminar el pago: ' + error.message,
-                    icon: 'error',
-                    background: '#212529',
-                    color: '#fff',
-                    confirmButtonColor: '#dc3545'
-                });
-            });
-        }
-    });
-}
+      if (result.isConfirmed) {
+        fetch(`/remesas/pagos-remesa/eliminar/${pagoPk}/`, {
+          method: "POST",
+          headers: {
+            "X-CSRFToken": getCSRFToken(),
+            "X-Requested-With": "XMLHttpRequest",
+            "Content-Type": "application/json",
+          },
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.success) {
+              // Eliminar del array temporal
+              pagosTemporales = pagosTemporales.filter(
+                (p) => p.pago_pk !== pagoPk,
+              );
+              actualizarListaPagos();
 
-function finalizarYVolver() {
-    Swal.fire({
-        title: 'Remesa Completada',
-        text: `Se ha creado la remesa con ${pagosTemporales.length} pago(s) enlazado(s).`,
-        icon: 'success',
-        confirmButtonText: 'Ver Remesa',
-        confirmButtonColor: '#198754',
-        background: '#212529',
-        color: '#fff'
-    }).then(() => {
-        if (remesaCreada && remesaCreada.id) {
-            window.location.href = `/remesas/detalle/${remesaCreada.id}/`;
-        } else {
-            window.location.href = '/remesas/registro/?tab=remesas';
-        }
-    });
-}
-
-function getCSRFToken() {
-    let csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
-    if (csrfToken) {
-        return csrfToken.value;
-    }
-    
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, 10) === 'csrftoken=') {
-                cookieValue = decodeURIComponent(cookie.substring(10));
-                break;
+              Swal.fire({
+                title: "¡Eliminado!",
+                text: data.message,
+                icon: "success",
+                background: "#212529",
+                color: "#fff",
+                confirmButtonColor: "#198754",
+                timer: 2000,
+                showConfirmButton: false,
+              });
+            } else {
+              Swal.fire({
+                title: "Error",
+                text: data.message,
+                icon: "error",
+                background: "#212529",
+                color: "#fff",
+                confirmButtonColor: "#dc3545",
+              });
             }
+          })
+          .catch((error) => {
+            Swal.fire({
+              title: "Error",
+              text: "Error al eliminar el pago: " + error.message,
+              icon: "error",
+              background: "#212529",
+              color: "#fff",
+              confirmButtonColor: "#dc3545",
+            });
+          });
+      }
+    });
+  }
+
+  function finalizarYVolver() {
+    Swal.fire({
+      title: "Remesa Completada",
+      text: `Se ha creado la remesa con ${pagosTemporales.length} pago(s) enlazado(s).`,
+      icon: "success",
+      confirmButtonText: "Ver Remesa",
+      confirmButtonColor: "#198754",
+      background: "#212529",
+      color: "#fff",
+    }).then(() => {
+      if (remesaCreada && remesaCreada.id) {
+        window.location.href = `/remesas/detalle/${remesaCreada.id}/`;
+      } else {
+        window.location.href = "/remesas/registro/?tab=remesas";
+      }
+    });
+  }
+
+  function getCSRFToken() {
+    let csrfToken = document.querySelector("[name=csrfmiddlewaretoken]");
+    if (csrfToken) {
+      return csrfToken.value;
+    }
+
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== "") {
+      const cookies = document.cookie.split(";");
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, 10) === "csrftoken=") {
+          cookieValue = decodeURIComponent(cookie.substring(10));
+          break;
         }
+      }
     }
     return cookieValue;
-}
-
+  }
 </script>
 
 {% endblock %}
