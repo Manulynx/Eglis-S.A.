@@ -7,6 +7,8 @@ from django.db.models import Q
 from .models import ConfiguracionNotificacion, DestinatarioNotificacion, LogNotificacion
 import logging
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+import time
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -83,11 +85,8 @@ class WhatsAppService:
             estado_anterior: Estado anterior para cambios de estado
             **kwargs: Argumentos adicionales para tipos específicos
         """
-        print(f"DEBUG: WhatsAppService.enviar_notificacion llamado con tipo='{tipo}', kwargs={kwargs}")
-        
         # Verificar si las notificaciones están habilitadas globalmente
         if not self.config.activo:
-            print(f"DEBUG: Notificaciones globalmente desactivadas")
             return
         
         # Verificar si debe enviar este tipo de notificación (flags globales)
@@ -95,36 +94,48 @@ class WhatsAppService:
             'remesa_nueva', 'remesa_estado', 'remesa_confirmada', 'remesa_completada', 'remesa_cancelada',
             'remesa_editada', 'remesa_eliminada'
         ] and not getattr(self.config, 'notificar_remesas', True):
-            print(f"DEBUG: Notificaciones de remesas desactivadas")
             return
         if tipo in [
             'pago_nuevo', 'pago_estado', 'pago_confirmado', 'pago_cancelado', 'pago_editado', 'pago_eliminado'
         ] and not getattr(self.config, 'notificar_pagos', True):
-            print(f"DEBUG: Notificaciones de pagos desactivadas")
             return
         if tipo in ['remesa_estado', 'remesa_confirmada', 'remesa_completada', 'remesa_cancelada', 'pago_estado', 'pago_confirmado', 'pago_cancelado'] and not getattr(self.config, 'notificar_cambios_estado', True):
-            print(f"DEBUG: Notificaciones de cambios de estado desactivadas")
             return
 
         if tipo in ['remesa_editada', 'pago_editado'] and not getattr(self.config, 'notificar_ediciones', True):
-            print("DEBUG: Notificaciones de ediciones desactivadas")
             return
         
         # Generar mensaje
-        print(f"DEBUG: Generando mensaje para tipo '{tipo}'")
         mensaje = self._generar_mensaje(tipo, remesa, pago, estado_anterior, **kwargs)
-        print(f"DEBUG: Mensaje generado: {mensaje[:100]}...")
         
         # Obtener destinatarios activos
         moneda_evento = self._resolver_moneda_evento(remesa=remesa, pago=pago)
-        print(f"DEBUG: Obteniendo destinatarios para tipo '{tipo}'")
         destinatarios = self._obtener_destinatarios(tipo, moneda_evento)
-        print(f"DEBUG: Destinatarios encontrados: {destinatarios.count()}")
         
         # Enviar a cada destinatario
         for destinatario in destinatarios:
-            print(f"DEBUG: Enviando a {destinatario.nombre}")
             self._enviar_mensaje_individual(destinatario, mensaje, tipo, remesa, pago)
+
+    @staticmethod
+    def _limpiar_telefono(telefono: str) -> str:
+        """Normaliza teléfono para gateways.
+
+        - Acepta formatos con '+', espacios, guiones.
+        - Devuelve solo dígitos.
+        """
+        if not telefono:
+            return ''
+        return re.sub(r'\D+', '', str(telefono))
+
+    @staticmethod
+    def _mensaje_callmebot_seguro(mensaje: str, limite: int = 1200) -> str:
+        """CallMeBot usa endpoint tipo querystring; evitar mensajes enormes."""
+        if mensaje is None:
+            return ''
+        mensaje = str(mensaje)
+        if len(mensaje) <= limite:
+            return mensaje
+        return mensaje[: (limite - 3)] + '...'
     
     def _generar_mensaje(self, tipo, remesa, pago, estado_anterior, **kwargs):
         """Genera el mensaje según el tipo de notificación"""
@@ -519,8 +530,6 @@ Sistema EGLIS - Notificacion automatica"""
     
     def _enviar_mensaje_individual(self, destinatario, mensaje, tipo, remesa, pago):
         """Envía mensaje a un destinatario específico"""
-        print(f"DEBUG: _enviar_mensaje_individual a {destinatario.nombre}")
-        
         # Crear log inicial
         log_data = {
             'tipo': tipo,
@@ -536,48 +545,47 @@ Sistema EGLIS - Notificacion automatica"""
             log_data['pago_id'] = pago.id
             
         log = LogNotificacion.objects.create(**log_data)
-        print(f"DEBUG: Log creado con ID {log.id}")
         
         try:
             # Intentar envío según la configuración
             if destinatario.callmebot_api_key:
-                print(f"DEBUG: Usando CallMeBot individual para {destinatario.nombre}")
                 exito, respuesta = self._enviar_con_callmebot_individual(destinatario, mensaje)
             elif hasattr(self.config, 'callmebot_api_key') and self.config.callmebot_api_key:
-                print(f"DEBUG: Usando CallMeBot global para {destinatario.nombre}")
                 exito, respuesta = self._enviar_con_callmebot_global(destinatario, mensaje)
             elif self.config.twilio_account_sid and self.config.twilio_auth_token:
-                print(f"DEBUG: Usando Twilio para {destinatario.nombre}")
                 exito, respuesta = self._enviar_con_twilio(destinatario, mensaje)
             elif self.config.whatsapp_business_token:
-                print(f"DEBUG: Usando WhatsApp Business para {destinatario.nombre}")
                 exito, respuesta = self._enviar_con_whatsapp_business(destinatario, mensaje)
             else:
                 exito = False
                 respuesta = "No hay configuración de API disponible"
             
             # Actualizar log
+            log.fecha_envio = timezone.now()
             if exito:
                 log.estado = 'enviado'
                 log.respuesta_api = respuesta
-                print(f"DEBUG: Mensaje enviado exitosamente a {destinatario.nombre}")
             else:
                 log.estado = 'fallido'
                 log.respuesta_api = respuesta
-                print(f"DEBUG: Error enviando mensaje a {destinatario.nombre}: {respuesta}")
+                log.error_mensaje = respuesta
+                logger.warning("WhatsApp falló (%s) para %s: %s", tipo, getattr(destinatario, 'telefono', ''), respuesta)
                 
         except Exception as e:
-            log.estado = 'error'
+            # Mantener estados dentro de choices (enviado/fallido/pendiente)
+            log.estado = 'fallido'
             log.respuesta_api = str(e)
-            print(f"DEBUG: Excepción enviando mensaje a {destinatario.nombre}: {e}")
+            log.error_mensaje = str(e)
+            log.fecha_envio = timezone.now()
+            logger.exception("Excepción enviando WhatsApp (%s) a %s", tipo, getattr(destinatario, 'telefono', ''))
         
         log.save()
     
     def _enviar_con_callmebot_global(self, destinatario, mensaje):
         """Envía mensaje usando la API Key global"""
         try:
-            # Limpiar número de teléfono
-            telefono_limpio = destinatario.telefono.replace('+', '').replace(' ', '').replace('-', '')
+            telefono_limpio = self._limpiar_telefono(destinatario.telefono)
+            mensaje = self._mensaje_callmebot_seguro(mensaje)
             
             # URL de CallMeBot
             url = "https://api.callmebot.com/whatsapp.php"
@@ -588,7 +596,15 @@ Sistema EGLIS - Notificacion automatica"""
                 'apikey': self.config.callmebot_api_key
             }
 
-            response = requests.get(url, params=params, timeout=15)
+            # Preferir POST (evita URLs enormes); fallback a GET si falla.
+            start = time.monotonic()
+            response = requests.post(url, data=params, timeout=(5, 15))
+            if response.status_code == 405:
+                response = requests.get(url, params=params, timeout=(5, 15))
+            elapsed = time.monotonic() - start
+
+            if elapsed > 5:
+                logger.warning("CallMeBot lento (%.2fs) para %s", elapsed, telefono_limpio)
 
             # CallMeBot puede responder 210 (queued). Tratar cualquier 2xx como éxito.
             if 200 <= response.status_code < 300:
@@ -602,8 +618,8 @@ Sistema EGLIS - Notificacion automatica"""
     def _enviar_con_callmebot_individual(self, destinatario, mensaje):
         """Envía mensaje usando la API Key individual del destinatario"""
         try:
-            # Limpiar número de teléfono
-            telefono_limpio = destinatario.telefono.replace('+', '').replace(' ', '').replace('-', '')
+            telefono_limpio = self._limpiar_telefono(destinatario.telefono)
+            mensaje = self._mensaje_callmebot_seguro(mensaje)
             
             # URL de CallMeBot
             url = "https://api.callmebot.com/whatsapp.php"
@@ -614,7 +630,14 @@ Sistema EGLIS - Notificacion automatica"""
                 'apikey': destinatario.callmebot_api_key
             }
 
-            response = requests.get(url, params=params, timeout=15)
+            start = time.monotonic()
+            response = requests.post(url, data=params, timeout=(5, 15))
+            if response.status_code == 405:
+                response = requests.get(url, params=params, timeout=(5, 15))
+            elapsed = time.monotonic() - start
+
+            if elapsed > 5:
+                logger.warning("CallMeBot lento (%.2fs) para %s", elapsed, telefono_limpio)
 
             # CallMeBot puede responder 210 (queued). Tratar cualquier 2xx como éxito.
             if 200 <= response.status_code < 300:
@@ -629,10 +652,14 @@ Sistema EGLIS - Notificacion automatica"""
         """Envía mensaje usando Twilio"""
         try:
             client = Client(self.config.twilio_account_sid, self.config.twilio_auth_token)
+
+            from_number = getattr(self.config, 'twilio_phone_number', None) or getattr(self.config, 'twilio_from_number', None)
+            if not from_number:
+                return False, 'Twilio no configurado: falta twilio_phone_number'
             
             message = client.messages.create(
                 body=mensaje,
-                from_=f'whatsapp:{self.config.twilio_from_number}',
+                from_=f'whatsapp:{from_number}',
                 to=f'whatsapp:{destinatario.telefono}'
             )
             
@@ -652,13 +679,13 @@ Sistema EGLIS - Notificacion automatica"""
             
             data = {
                 'messaging_product': 'whatsapp',
-                'to': destinatario.telefono.replace('+', ''),
+                'to': self._limpiar_telefono(destinatario.telefono),
                 'type': 'text',
                 'text': {'body': mensaje}
             }
             
 
-            response = requests.post(url, headers=headers, json=data, timeout=15)
+            response = requests.post(url, headers=headers, json=data, timeout=(5, 15))
 
             if 200 <= response.status_code < 300:
                 return True, response.text

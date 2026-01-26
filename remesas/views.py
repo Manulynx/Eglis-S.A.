@@ -206,29 +206,14 @@ def remesas(request):
             return request.user
 
     if request.method == 'POST':
-        # Debug: verificar que llegue el POST
-        print("=== DEBUG POST ===")
-        print("Headers:", dict(request.headers))
-        print("POST data completo:", dict(request.POST))
-        print("FILES:", dict(request.FILES))
-        
-        # Verificar específicamente los campos de clientes
-        print("\n=== CAMPOS DE CLIENTES ===")
-        for key in request.POST:
-            if 'receptor' in key or 'destinatario' in key:
-                print(f"{key}: '{request.POST.get(key)}'")
-        
         # Verificar si es AJAX
         is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
-        print(f"Es AJAX: {is_ajax}")
         
         if is_ajax:
             from django.db import transaction
             
             try:
                 with transaction.atomic():
-                    print("\n=== INICIANDO PROCESAMIENTO ===")
-                    
                     # Obtener datos básicos del formulario simplificado
                     receptor_nombre = request.POST.get('receptor_nombre', '').strip()
                     importe = request.POST.get('importe', '').strip()
@@ -237,21 +222,8 @@ def remesas(request):
                     observaciones = request.POST.get('observaciones', '').strip()
                     comprobante = request.FILES.get('comprobante')
                     
-                    print(f"\n=== DATOS EXTRAÍDOS ===")
-                    print(f"receptor_nombre: '{receptor_nombre}'")
-                    print(f"importe: '{importe}'")
-                    print(f"tipo_pago: '{tipo_pago}'")
-                    print(f"moneda_id: '{moneda_id}'")
-                    print(f"observaciones: '{observaciones}'")
-                    print(f"comprobante: {comprobante}")
-                    
                     # Validación de campos obligatorios
                     if not receptor_nombre or not importe or not tipo_pago or not moneda_id:
-                        print("=== ERROR: FALTAN CAMPOS OBLIGATORIOS ===")
-                        print(f"receptor_nombre válido: {bool(receptor_nombre)}")
-                        print(f"importe válido: {bool(importe)}")
-                        print(f"tipo_pago válido: {bool(tipo_pago)}")
-                        print(f"moneda_id válido: {bool(moneda_id)}")
                         return JsonResponse({
                             'success': False, 
                             'message': 'Faltan campos obligatorios: nombre del remitente, importe, tipo de pago y moneda son requeridos'
@@ -262,15 +234,13 @@ def remesas(request):
                         importe_decimal = _parse_decimal_input(importe)
                         if importe_decimal <= 0:
                             return JsonResponse({'success': False, 'message': 'El importe debe ser mayor a 0'})
-                        print(f"Importe convertido: {importe_decimal}")
                     except (ValueError, TypeError) as e:
-                        print(f"Error convirtiendo importe: {e}")
+                        logger.info("Importe inválido en remesa: %s", str(e))
                         return JsonResponse({'success': False, 'message': 'El importe debe ser un número válido'})
                     
                     # Obtener moneda
                     try:
                         moneda = models.Moneda.objects.get(id=moneda_id)
-                        print(f"Moneda encontrada: {moneda}")
                     except models.Moneda.DoesNotExist:
                         return JsonResponse({'success': False, 'message': 'La moneda seleccionada no existe'})
 
@@ -285,8 +255,6 @@ def remesas(request):
                         }, status=403)
                     
                     # Crear remesa con el modelo simplificado
-                    print(f"\n=== CREANDO REMESA ===")
-                    
                     remesa_data = {
                         'receptor_nombre': receptor_nombre,
                         'importe': importe_decimal,
@@ -312,41 +280,17 @@ def remesas(request):
 
                     remesa.save()
                     
-                    print(f"Remesa creada:")
-                    print(f"  ID: {remesa.id}")
-                    print(f"  RemesaID: '{remesa.remesa_id}'")
-                    print(f"  Importe: {remesa.importe}")
-                    print(f"  Receptor: '{remesa.receptor_nombre}'")
-                    print(f"  Tipo de pago: '{remesa.tipo_pago}'")
-                    print(f"  Moneda: {remesa.moneda}")
-                    
                     # El balance se actualiza automáticamente mediante cálculo dinámico
                     # No es necesario actualizar manualmente
                     
                     # Enviar notificación
                     try:
                         from notificaciones.services import WhatsAppService
-                        from notificaciones.models import LogNotificacion
-                        from django.utils import timezone
-                        
-                        # Crear registro de notificación interna
-                        LogNotificacion.objects.create(
-                            tipo='remesa_creada',
-                            mensaje=f"Se ha creado exitosamente la remesa {remesa.remesa_id} por un monto de {remesa.importe} {remesa.moneda.codigo}.",
-                            usuario=request.user,
-                            fecha_envio=timezone.now(),
-                            exitoso=True
-                        )
-                        
-                        # También intentar enviar por WhatsApp si está configurado
+                        # Enviar por WhatsApp
                         whatsapp_service = WhatsAppService()
-                        whatsapp_service.enviar_notificacion('remesa_creada', remesa=remesa)
-                        
-                        print(f"Notificación registrada para remesa {remesa.remesa_id}")
+                        whatsapp_service.enviar_notificacion('remesa_nueva', remesa=remesa)
                     except Exception as e:
-                        print(f"Error enviando notificación: {e}")
-                    
-                    print("\n=== ÉXITO ===")
+                        logger.exception("Error enviando notificación WhatsApp de remesa nueva")
                     from django.urls import reverse
                     detalle_url = reverse('remesas:detalle_remesa', kwargs={'remesa_id': remesa.id})
                     
@@ -360,17 +304,13 @@ def remesas(request):
                     
             except Exception as e:
                 import traceback
-                error_detail = traceback.format_exc()
-                print(f"\n=== ERROR COMPLETO ===")
-                print(error_detail)
+                logger.exception("Error en creación de remesa (AJAX)")
                 return JsonResponse({'success': False, 'message': f'Error: {str(e)}'})
         
         else:
-            print("No es una petición AJAX")
             return JsonResponse({'success': False, 'message': 'Petición no válida'})
     
     # GET request: renderizar template
-    print("GET request - renderizando template")
     import json
     
     # Obtener monedas para cálculos con valores específicos del usuario
@@ -411,7 +351,7 @@ def remesas(request):
                 balance_calculado = perfil.calcular_balance_real()
                 user_balance = float(balance_calculado)
         except Exception as e:
-            print(f"Error obteniendo balance del usuario: {e}")
+            logger.exception("Error obteniendo balance del usuario")
             user_balance = 0
     
     context = {
@@ -619,38 +559,9 @@ def eliminar_remesa(request, remesa_id):
             
             # Crear notificación
             try:
-                print(f"DEBUG: Iniciando creación de notificación para remesa eliminada #{remesa_info['id']}")
-                from notificaciones.models import LogNotificacion, DestinatarioNotificacion
                 from notificaciones.services import WhatsAppService
-                
-                # Mensaje de notificación
-                if balance_change is None:
-                    balance_change_str = "(recalculado)"
-                else:
-                    balance_change_str = f"{balance_change:+.2f} USD"
 
-                mensaje_notificacion = (
-                    f"🗑️ REMESA ELIMINADA: La remesa #{remesa_info['id']} por ${remesa_info['importe']} "
-                    f"{remesa_info['moneda'].codigo if remesa_info['moneda'] else 'USD'} ha sido eliminada por el administrador "
-                    f"{request.user.get_full_name() or request.user.username}. Balance actualizado: {balance_change_str}"
-                )
-                
-                # Crear logs de notificación para destinatarios activos
-                destinatarios = DestinatarioNotificacion.objects.filter(activo=True, recibir_remesas=True)
-                print(f"DEBUG: Destinatarios encontrados: {destinatarios.count()}")
-                
-                for destinatario in destinatarios:
-                    log_created = LogNotificacion.objects.create(
-                        tipo='remesa_eliminada',
-                        destinatario=destinatario,
-                        mensaje=mensaje_notificacion,
-                        remesa_id=remesa_info['id'],
-                        estado='pendiente'
-                    )
-                    print(f"DEBUG: Log creado ID {log_created.id} para {destinatario.nombre}")
-                
-                # Intentar enviar por WhatsApp
-                print(f"DEBUG: Iniciando envío de WhatsApp...")
+                # Enviar por WhatsApp (el servicio crea logs por destinatario)
                 whatsapp_service = WhatsAppService()
                 whatsapp_service.enviar_notificacion(
                     'remesa_eliminada',
@@ -662,12 +573,9 @@ def eliminar_remesa(request, remesa_id):
                     admin_name=request.user.get_full_name() or request.user.username,
                     balance_change=(f"{balance_change:+.2f} USD" if balance_change is not None else "(recalculado)")
                 )
-                print(f"DEBUG: Notificación WhatsApp completada")
                 
             except Exception as e:
-                print(f"Error enviando notificación de eliminación de remesa: {e}")
-                import traceback
-                traceback.print_exc()
+                logger.exception("Error enviando notificación WhatsApp de eliminación de remesa")
             
             return JsonResponse({
                 'success': True,
@@ -680,8 +588,7 @@ def eliminar_remesa(request, remesa_id):
         except Exception as e:
             import traceback
             error_detail = f'Error al eliminar la remesa: {str(e)}'
-            print(f"ERROR en eliminar_remesa: {error_detail}")
-            print(f"TRACEBACK: {traceback.format_exc()}")
+            logger.exception("ERROR en eliminar_remesa: %s", error_detail)
             return JsonResponse({
                 'success': False,
                 'message': error_detail
@@ -757,7 +664,6 @@ def eliminar_pago(request, pago_id):
                     pass
             
             # SIEMPRE enviar notificación
-            print(f"DEBUG: Enviando notificación para pago eliminado #{pago_info['id']}")
             try:
                 from notificaciones.services import WhatsAppService
                 
@@ -775,12 +681,9 @@ def eliminar_pago(request, pago_id):
                     admin_name=request.user.get_full_name() or request.user.username,
                     balance_change=(f"{balance_change:+.2f} USD" if balance_change is not None else "(recalculado)")
                 )
-                print(f"DEBUG: Notificación WhatsApp enviada exitosamente")
                 
             except Exception as e:
-                print(f"Error enviando notificación de eliminación de pago: {e}")
-                import traceback
-                traceback.print_exc()
+                logger.exception("Error enviando notificación WhatsApp de eliminación de pago")
             
             return JsonResponse({
                 'success': True,
@@ -793,8 +696,7 @@ def eliminar_pago(request, pago_id):
         except Exception as e:
             import traceback
             error_detail = f'Error al eliminar el pago: {str(e)}'
-            print(f"ERROR en eliminar_pago: {error_detail}")
-            print(f"TRACEBACK: {traceback.format_exc()}")
+            logger.exception("ERROR en eliminar_pago: %s", error_detail)
             return JsonResponse({
                 'success': False,
                 'message': error_detail
@@ -1585,7 +1487,7 @@ def crear_pago(request):
                 servicio = WhatsAppService()
                 servicio.enviar_notificacion('pago_nuevo', pago=pago)
             except Exception as e:
-                print(f"Error enviando notificación de nuevo pago: {e}")
+                logger.exception("Error enviando notificación WhatsApp de nuevo pago")
             
             # Mensaje informativo sobre el estado pendiente
             messages.success(request, f'Pago creado exitosamente. ID: {pago.pago_id}. Estado: Pendiente. El balance se descontará cuando se confirme el pago.')
@@ -1876,7 +1778,7 @@ def confirmar_pago(request, pago_id):
                     servicio = WhatsAppService()
                     servicio.enviar_notificacion('pago_estado', pago=pago, estado_anterior='pendiente')
                 except Exception as e:
-                    print(f"Error enviando notificación de cambio de estado: {e}")
+                    logger.exception("Error enviando notificación WhatsApp de cambio de estado (confirmar pago)")
                 
                 # Obtener balance actualizado dinámicamente
                 if hasattr(pago.usuario, 'perfil'):
@@ -1941,7 +1843,7 @@ def cancelar_pago(request, pago_id):
                     servicio = WhatsAppService()
                     servicio.enviar_notificacion('pago_estado', pago=pago, estado_anterior='pendiente')
                 except Exception as e:
-                    print(f"Error enviando notificación de cambio de estado: {e}")
+                    logger.exception("Error enviando notificación WhatsApp de cambio de estado (cancelar pago)")
                 
                 return JsonResponse({
                     'success': True,
@@ -2085,8 +1987,6 @@ def crear_tipo_valor(request):
             descripcion = request.POST.get('descripcion', '').strip()
             orden = request.POST.get('orden', 0)
             
-            print(f"Datos recibidos - Nombre: {nombre}, Descripción: {descripcion}, Orden: {orden}")  # Debug
-            
             if not nombre:
                 return JsonResponse({'success': False, 'message': 'El nombre es requerido'})
             
@@ -2102,18 +2002,13 @@ def crear_tipo_valor(request):
                 creado_por=request.user
             )
             
-            print(f"Tipo de valor creado exitosamente: {tipo_valor} (ID: {tipo_valor.id})")  # Debug
-            
             return JsonResponse({
                 'success': True, 
                 'message': f'Tipo de valor "{nombre}" creado exitosamente'
             })
             
         except Exception as e:
-            print(f"Error en crear_tipo_valor: {str(e)}")  # Debug
-            import traceback
-            traceback.print_exc()  # Debug completo
-            
+            logger.exception("Error en crear_tipo_valor")
             return JsonResponse({'success': False, 'message': f'Error al crear tipo de valor: {str(e)}'})
     
     return JsonResponse({'success': False, 'message': 'Método no permitido'})
@@ -2330,7 +2225,14 @@ def actualizar_valor_individual(request):
         
         # Log de la operación para auditoria
         action = 'creado' if created else 'actualizado'
-        print(f"Valor {action} - Usuario: {request.user.username}, Moneda: {moneda.codigo}, Tipo: {tipo_valor.nombre}, Valor: {nuevo_valor}")
+        logger.info(
+            "Valor %s - Usuario: %s, Moneda: %s, Tipo: %s, Valor: %s",
+            action,
+            request.user.username,
+            moneda.codigo,
+            tipo_valor.nombre,
+            str(nuevo_valor),
+        )
         
         return JsonResponse({
             'success': True,
@@ -2649,11 +2551,6 @@ def confirmar_pago_remesa(request, pago_id):
     """
     Vista para confirmar un pago de remesa (cuando la remesa ya está completada)
     """
-    print(f"=== CONFIRMAR PAGO REMESA ===")
-    print(f"Método: {request.method}")
-    print(f"Usuario: {request.user.username}")
-    print(f"Pago ID: {pago_id}")
-    
     if request.method != 'POST':
         return JsonResponse({
             'success': False,
@@ -2662,18 +2559,13 @@ def confirmar_pago_remesa(request, pago_id):
     
     try:
         pago = get_object_or_404(PagoRemesa, id=pago_id)
-        print(f"Pago encontrado: {pago.pago_id}")
-        print(f"Estado actual: {pago.estado}")
-        print(f"Remesa estado: {pago.remesa.estado}")
         
         # Verificar permisos
         user_tipo = 'admin' if request.user.is_superuser else (
             request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
         )
-        print(f"Tipo de usuario: {user_tipo}")
         
         if user_tipo not in ['admin', 'contable']:
-            print(f"Permiso denegado para usuario tipo: {user_tipo}")
             return JsonResponse({
                 'success': False,
                 'message': 'No tiene permisos para confirmar pagos'
@@ -2681,7 +2573,6 @@ def confirmar_pago_remesa(request, pago_id):
         
         # Verificar que la remesa esté completada
         if pago.remesa.estado != 'completada':
-            print(f"Remesa no está completada: {pago.remesa.estado}")
             return JsonResponse({
                 'success': False,
                 'message': 'La remesa debe estar completada para confirmar sus pagos manualmente'
@@ -2689,7 +2580,6 @@ def confirmar_pago_remesa(request, pago_id):
         
         # Verificar que el pago esté pendiente
         if pago.estado != 'pendiente':
-            print(f"Pago no está pendiente: {pago.estado}")
             return JsonResponse({
                 'success': False,
                 'message': f'El pago ya está en estado: {pago.get_estado_display()}'
@@ -2698,13 +2588,10 @@ def confirmar_pago_remesa(request, pago_id):
         # Obtener el usuario del pago (el que lo creó)
         usuario_pago = pago.usuario
         if not usuario_pago:
-            print("Pago sin usuario asignado")
             return JsonResponse({
                 'success': False,
                 'message': 'El pago no tiene un usuario asignado'
             })
-        
-        print(f"Usuario del pago: {usuario_pago.username}")
         
         # Calcular el monto en USD
         if pago.monto_usd_historico:
@@ -2718,7 +2605,6 @@ def confirmar_pago_remesa(request, pago_id):
                 if valor_moneda > 0:
                     monto_usd = pago.cantidad / Decimal(str(valor_moneda))
                 else:
-                    print("No se pudo calcular valor en USD")
                     return JsonResponse({
                         'success': False,
                         'message': 'No se pudo calcular el valor en USD'
@@ -2726,11 +2612,8 @@ def confirmar_pago_remesa(request, pago_id):
             else:
                 monto_usd = pago.cantidad
         
-        print(f"Monto en USD: {monto_usd}")
-        
         # Verificar que el usuario tenga perfil
         if not hasattr(usuario_pago, 'perfil'):
-            print("Usuario sin perfil")
             return JsonResponse({
                 'success': False,
                 'message': 'El usuario no tiene un perfil configurado'
@@ -2738,7 +2621,6 @@ def confirmar_pago_remesa(request, pago_id):
         
         # Balance dinámico: confirmar el pago y recalcular balance real.
         balance_anterior = usuario_pago.perfil.calcular_balance_real()
-        print(f"Balance anterior (calculado): {balance_anterior}")
 
         # Cambiar estado del pago
         pago.estado = 'confirmado'
@@ -2746,13 +2628,11 @@ def confirmar_pago_remesa(request, pago_id):
 
         # Sincronizar balance almacenado con el balance real (incluye PagoRemesa confirmado)
         balance_final = usuario_pago.perfil.actualizar_balance()
-        print(f"Balance final (calculado): {balance_final}")
         try:
             from remesas.context_processors import invalidate_user_balance_cache
             invalidate_user_balance_cache(usuario_pago.id)
         except Exception:
             pass
-        print(f"Pago confirmado exitosamente")
         
         mensaje = (
             f"Pago {pago.pago_id} confirmado exitosamente. "
@@ -2765,9 +2645,7 @@ def confirmar_pago_remesa(request, pago_id):
         })
         
     except Exception as e:
-        print(f"ERROR: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Error al confirmar pago remesa")
         return JsonResponse({
             'success': False,
             'message': f'Error al confirmar el pago: {str(e)}'
@@ -2779,11 +2657,6 @@ def cancelar_pago_remesa(request, pago_id):
     """
     Vista para cancelar un pago de remesa
     """
-    print(f"=== CANCELAR PAGO REMESA ===")
-    print(f"Método: {request.method}")
-    print(f"Usuario: {request.user.username}")
-    print(f"Pago ID: {pago_id}")
-    
     if request.method != 'POST':
         return JsonResponse({
             'success': False,
@@ -2792,18 +2665,13 @@ def cancelar_pago_remesa(request, pago_id):
     
     try:
         pago = get_object_or_404(PagoRemesa, id=pago_id)
-        print(f"Pago encontrado: {pago.pago_id}")
-        print(f"Estado actual: {pago.estado}")
-        print(f"Remesa estado: {pago.remesa.estado}")
         
         # Verificar permisos
         user_tipo = 'admin' if request.user.is_superuser else (
             request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
         )
-        print(f"Tipo de usuario: {user_tipo}")
         
         if user_tipo not in ['admin', 'contable']:
-            print(f"Permiso denegado para usuario tipo: {user_tipo}")
             return JsonResponse({
                 'success': False,
                 'message': 'No tiene permisos para cancelar pagos'
@@ -2811,7 +2679,6 @@ def cancelar_pago_remesa(request, pago_id):
         
         # Verificar que la remesa esté completada
         if pago.remesa.estado != 'completada':
-            print(f"Remesa no está completada: {pago.remesa.estado}")
             return JsonResponse({
                 'success': False,
                 'message': 'La remesa debe estar completada para gestionar sus pagos manualmente'
@@ -2819,7 +2686,6 @@ def cancelar_pago_remesa(request, pago_id):
         
         # Verificar que el pago esté pendiente
         if pago.estado != 'pendiente':
-            print(f"Pago no está pendiente: {pago.estado}")
             return JsonResponse({
                 'success': False,
                 'message': f'El pago ya está en estado: {pago.get_estado_display()}'
@@ -2831,17 +2697,13 @@ def cancelar_pago_remesa(request, pago_id):
         pago.estado = 'cancelado'
         pago.save()
         
-        print(f"Pago cancelado exitosamente")
-        
         return JsonResponse({
             'success': True,
             'message': f'Pago {pago_id_str} cancelado exitosamente'
         })
         
     except Exception as e:
-        print(f"ERROR: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Error al cancelar pago remesa")
         return JsonResponse({
             'success': False,
             'message': f'Error al cancelar el pago: {str(e)}'
@@ -2943,7 +2805,12 @@ def actualizar_fondo_caja(request):
         moneda.save()
         
         # Log de la operación para auditoria
-        print(f"Fondo de caja actualizado - Usuario: {request.user.username}, Moneda: {moneda.codigo}, Nuevo Fondo: {nuevo_fondo}")
+        logger.info(
+            "Fondo de caja actualizado - Usuario: %s, Moneda: %s, Nuevo Fondo: %s",
+            request.user.username,
+            moneda.codigo,
+            str(nuevo_fondo),
+        )
         
         return JsonResponse({
             'success': True,
@@ -2994,7 +2861,12 @@ def actualizar_alerta_minima(request):
         moneda.save()
         
         # Log de la operación para auditoria
-        print(f"Alerta mínima actualizada - Usuario: {request.user.username}, Moneda: {moneda.codigo}, Nueva Alerta: {alerta_minima}")
+        logger.info(
+            "Alerta mínima actualizada - Usuario: %s, Moneda: %s, Nueva Alerta: %s",
+            request.user.username,
+            moneda.codigo,
+            str(alerta_minima),
+        )
         
         return JsonResponse({
             'success': True,

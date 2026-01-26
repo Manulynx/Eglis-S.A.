@@ -10,6 +10,9 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.core.paginator import Paginator
 from .models import PerfilUsuario, SesionUsuario, HistorialAcciones
+import logging
+
+logger = logging.getLogger(__name__)
 
 def get_client_ip(request):
     """Obtener la IP del cliente"""
@@ -230,7 +233,7 @@ def administrar_usuarios(request):
                 if monto_usd is not None:
                     total_remesas_usd += Decimal(str(monto_usd))
             except Exception as e:
-                print(f"Error calculando monto USD para remesa {remesa.remesa_id}: {e}")
+                logger.exception("Error calculando monto USD para remesa %s", getattr(remesa, 'remesa_id', 'N/A'))
                 continue
         
         total_pagos_usd = Decimal('0.00')
@@ -241,7 +244,7 @@ def administrar_usuarios(request):
                 if monto_usd is not None:
                     total_pagos_usd += Decimal(str(monto_usd))
             except Exception as e:
-                print(f"Error calculando monto USD para pago {pago.pago_id}: {e}")
+                logger.exception("Error calculando monto USD para pago %s", getattr(pago, 'pago_id', 'N/A'))
                 continue
 
         for pago in pagos_remesa_usuario:
@@ -250,7 +253,7 @@ def administrar_usuarios(request):
                 if monto_usd is not None:
                     total_pagos_usd += Decimal(str(monto_usd))
             except Exception as e:
-                print(f"Error calculando monto USD para pago remesa {pago.pago_id}: {e}")
+                logger.exception("Error calculando monto USD para pago remesa %s", getattr(pago, 'pago_id', 'N/A'))
                 continue
 
         # Balance unificado: siempre RemesasUSD - PagosUSD (para el periodo seleccionado)
@@ -355,8 +358,6 @@ def crear_usuario(request):
         # Verificar si es AJAX
         is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         
-        print(f"DEBUG: crear_usuario - es AJAX: {is_ajax}")  # Debug log
-        
         try:
             # Obtener datos del formulario
             username = request.POST.get('username')
@@ -368,8 +369,6 @@ def crear_usuario(request):
             telefono = request.POST.get('telefono', '').strip()
             tipo_valor_moneda_id = request.POST.get('tipo_valor_moneda', '')
             monedas_asignadas = request.POST.getlist('monedas_asignadas')  # Lista de IDs de monedas
-            
-            print(f"DEBUG: Datos recibidos - username: {username}, telefono: {telefono}, monedas: {monedas_asignadas}")  # Debug log
             
             # Validar campos requeridos
             if not username or not password1:
@@ -393,8 +392,6 @@ def crear_usuario(request):
                 is_superuser=is_superuser
             )
             
-            print(f"DEBUG: Usuario creado con ID: {user.id}")  # Debug log
-            
             # Asignar tipo de usuario, teléfono y tipo de valor de moneda al perfil
             perfil = user.perfil
             perfil.tipo_usuario = tipo_usuario
@@ -402,7 +399,6 @@ def crear_usuario(request):
             # Asignar teléfono si se proporcionó
             if telefono:
                 perfil.telefono = telefono
-                print(f"DEBUG: Teléfono asignado: {telefono}")  # Debug log
             
             # Asignar tipo de valor de moneda
             if tipo_valor_moneda_id:
@@ -410,13 +406,10 @@ def crear_usuario(request):
                 try:
                     tipo_valor = TipoValorMoneda.objects.get(id=tipo_valor_moneda_id, activo=True)
                     perfil.tipo_valor_moneda = tipo_valor
-                    print(f"DEBUG: Tipo valor moneda asignado: {tipo_valor.nombre}")  # Debug log
                 except TipoValorMoneda.DoesNotExist:
-                    print("DEBUG: Tipo valor moneda no encontrado")  # Debug log
                     pass  # Mantener el valor por defecto
             
             perfil.save()
-            print(f"DEBUG: Perfil guardado exitosamente")  # Debug log
             
             # Asignar monedas si se proporcionaron (solo para gestor y domicilio)
             if monedas_asignadas and tipo_usuario in ['gestor', 'domicilio']:
@@ -424,9 +417,8 @@ def crear_usuario(request):
                 try:
                     monedas_objetos = Moneda.objects.filter(id__in=monedas_asignadas, activa=True)
                     perfil.monedas_asignadas.set(monedas_objetos)
-                    print(f"DEBUG: {len(monedas_objetos)} monedas asignadas al usuario")  # Debug log
                 except Exception as e:
-                    print(f"DEBUG: Error asignando monedas: {e}")  # Debug log
+                    logger.exception("Error asignando monedas al usuario %s", username)
             
             # Registrar acción si hay usuario autenticado
             if request.user.is_authenticated:
@@ -438,39 +430,32 @@ def crear_usuario(request):
             
             # SIEMPRE devolver JSON para AJAX
             if is_ajax:
-                print(f"DEBUG: Devolviendo JSON de éxito")  # Debug log
                 return JsonResponse({
                     'status': 'success',
                     'message': f'Usuario {username} creado exitosamente.'
                 })
-            
-            print(f"DEBUG: Devolviendo redirección (no AJAX)")  # Debug log
+
             messages.success(request, f'Usuario {username} creado exitosamente.')
             return redirect('login:administrar_usuarios')
             
         except Exception as e:
             # Manejo de errores
-            print(f"DEBUG: Error creando usuario: {e}")  # Debug log
+            logger.exception("Error creando usuario")
             if is_ajax:
-                print(f"DEBUG: Devolviendo JSON de error")  # Debug log
                 return JsonResponse({
                     'status': 'error',
                     'message': f'Error al crear usuario: {str(e)}'
                 })
-            print(f"DEBUG: Devolviendo redirección con mensaje de error")  # Debug log
             messages.error(request, f'Error al crear usuario: {str(e)}')
             return redirect('login:administrar_usuarios')
     
     # Para peticiones no POST o errores
-    print(f"DEBUG: Petición no POST, es AJAX: {request.headers.get('X-Requested-With') == 'XMLHttpRequest'}")  # Debug log
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        print(f"DEBUG: Devolviendo JSON para petición no POST")  # Debug log
         return JsonResponse({
             'status': 'error',
             'message': 'Solicitud no válida.'
         })
-    
-    print(f"DEBUG: Devolviendo redirección final")  # Debug log
+
     return redirect('login:administrar_usuarios')
 
 @login_required
@@ -1158,7 +1143,7 @@ def historial_usuario(request, user_id):
             if monto_usd is not None:
                 total_remesas_usd += Decimal(str(monto_usd))
         except Exception as e:
-            print(f"Error calculando monto USD para remesa {remesa.remesa_id}: {e}")
+            logger.exception("Error calculando monto USD para remesa %s", getattr(remesa, 'remesa_id', 'N/A'))
             continue
     
     # Estadísticas - Solo pagos confirmados para el total
@@ -1171,7 +1156,7 @@ def historial_usuario(request, user_id):
             if monto_usd is not None:
                 total_pagos_usd += Decimal(str(monto_usd))
         except Exception as e:
-            print(f"Error calculando monto USD para pago {pago.pago_id}: {e}")
+            logger.exception("Error calculando monto USD para pago %s", getattr(pago, 'pago_id', 'N/A'))
             continue
     
     # Obtener opciones para filtros
