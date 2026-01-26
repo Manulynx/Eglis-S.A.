@@ -851,7 +851,7 @@ class Remesa(models.Model):
     fecha = models.DateTimeField(default=timezone.now, help_text="Fecha de la remesa con zona horaria de Cuba")
     tipo_pago = models.CharField(max_length=20, choices=TIPO_PAGO_CHOICES, blank=True, null=True, help_text="Tipo de pago")
     moneda = models.ForeignKey(Moneda, on_delete=models.SET_NULL, blank=True, null=True, help_text="Moneda usada en la remesa")
-    importe = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, help_text="Importe")
+    importe = models.DecimalField(max_digits=15, decimal_places=2, blank=True, null=True, help_text="Importe")
     
     # Campos para valores históricos (inmutables una vez guardados)
     valor_moneda_historico = models.DecimalField(

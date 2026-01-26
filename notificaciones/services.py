@@ -6,6 +6,7 @@ from django.utils import timezone
 from django.db.models import Q
 from .models import ConfiguracionNotificacion, DestinatarioNotificacion, LogNotificacion
 import logging
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +16,61 @@ class WhatsAppService:
     
     def __init__(self):
         self.config = ConfiguracionNotificacion.get_config()
+
+    @staticmethod
+    def _format_money(value) -> str:
+        """Formatea montos monetarios de forma consistente.
+
+        Evita salidas tipo '1000.0'.
+        Importante: no usa separador de miles (coma) para evitar que algunos
+        gateways (p.ej. CallMeBot/WhatsApp) muestren/trunquen el prefijo.
+        """
+        if value is None:
+            return "0.00"
+
+        try:
+            if isinstance(value, str):
+                # Normaliza entradas comunes (p.ej. '1.234,56' o '1234,56')
+                normalized = value.strip().replace(' ', '')
+                if normalized.count(',') == 1 and normalized.count('.') >= 1:
+                    # Asumir formato ES: miles '.' y decimal ','
+                    normalized = normalized.replace('.', '').replace(',', '.')
+                else:
+                    normalized = normalized.replace(',', '.')
+                amount = Decimal(normalized)
+            else:
+                amount = Decimal(str(value))
+        except (InvalidOperation, ValueError, TypeError):
+            return "0.00"
+
+        amount = amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+        # Si es entero, mostrar sin decimales (ej: 1000 en vez de 1000.00)
+        if amount == amount.to_integral_value():
+            return str(int(amount))
+
+        return f"{amount:.2f}"
+
+    @staticmethod
+    def _moneda_codigo(moneda, default: str = 'USD') -> str:
+        """Normaliza el código de moneda para mensajes.
+
+        En la BD puede existir un "codigo" con espacios (p.ej. 'CUP TRANFE').
+        Para notificaciones se usa el primer token ('CUP') para evitar ruido.
+        """
+        try:
+            codigo = getattr(moneda, 'codigo', None)
+        except Exception:
+            codigo = None
+
+        if not codigo:
+            return default
+
+        codigo = str(codigo).strip()
+        if not codigo:
+            return default
+
+        return codigo.split()[0]
     
     def enviar_notificacion(self, tipo, remesa=None, pago=None, estado_anterior=None, **kwargs):
         """
@@ -86,10 +142,10 @@ class WhatsAppService:
             
             return f"""NUEVA REMESA
 
-Destinatario: {remesa.moneda.nombre if remesa.moneda else 'Dólar Americano'}
+Moneda: {(remesa.moneda.nombre or '').strip() if remesa.moneda else 'Dólar Americano'}
 
 
-Importe: ${remesa.importe} {remesa.moneda.codigo if remesa.moneda else 'USD'}
+Importe: {self._format_money(remesa.importe)} {self._moneda_codigo(remesa.moneda)}
 
 Remitente: {remesa.receptor_nombre or 'N/A'}
 
@@ -112,7 +168,7 @@ ID: {remesa_id_formateado}{observaciones_texto}"""
 
 ID: {remesa_id_formateado}
 Gestor: {remesa.gestor.get_full_name() if remesa.gestor else 'N/A'}
-Importe: ${remesa.importe} {remesa.moneda.codigo if remesa.moneda else 'USD'}
+Importe: {self._format_money(remesa.importe)} {self._moneda_codigo(remesa.moneda)}
 Receptor: {remesa.receptor_nombre or 'N/A'}
 Estado anterior: {estado_anterior or 'N/A'}
 Estado actual: {remesa.estado.title()}
@@ -139,7 +195,7 @@ Sistema EGLIS - Notificacion automatica"""
 
 ID: {remesa_id_formateado}
 Gestor: {remesa.gestor.get_full_name() if remesa.gestor else 'N/A'}
-Importe: ${remesa.importe} {remesa.moneda.codigo if remesa.moneda else 'USD'}
+Importe: {self._format_money(remesa.importe)} {self._moneda_codigo(remesa.moneda)}
 Receptor: {remesa.receptor_nombre or 'N/A'}
 Estado anterior: {estado_anterior or 'N/A'}
 Estado actual: {remesa.estado.title()}
@@ -163,7 +219,7 @@ Sistema EGLIS - Notificacion automatica"""
 
 ID: {remesa_id_formateado}
 Gestor: {remesa.gestor.get_full_name() if remesa.gestor else 'N/A'}
-Importe: ${remesa.importe} {remesa.moneda.codigo if remesa.moneda else 'USD'}
+Importe: {self._format_money(remesa.importe)} {self._moneda_codigo(remesa.moneda)}
 Receptor: {remesa.receptor_nombre or 'N/A'}
 Estado: {remesa.get_estado_display()}
 Editado por: {editor_nombre}
@@ -192,20 +248,20 @@ Sistema EGLIS - Notificacion automatica"""
                     mensaje += f"{pago.tarjeta}\n\n"
                 
                 # Formato simplificado
-                mensaje += f"""Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'} TRANSFERENCIA
+                mensaje += f"""Cantidad: {self._format_money(pago.cantidad)} {self._moneda_codigo(pago.tipo_moneda)} TRANSFERENCIA
 
 Destinatario: {pago.destinatario}
 
 Gestor: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
 
-{pago_id_formateado}{observaciones_texto}"""
+ID: {pago_id_formateado}{observaciones_texto}"""
                 
             elif pago.tipo_pago == 'efectivo':
                 # Mensaje para efectivo - formato simplificado
                 mensaje = f"""NUEVO PAGO CREADO
 
 
-Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'} EFECTIVO
+Cantidad: {self._format_money(pago.cantidad)} {self._moneda_codigo(pago.tipo_moneda)} EFECTIVO
 
 
 Tipo: Efectivo
@@ -223,7 +279,7 @@ ID: {pago_id_formateado}{observaciones_texto}"""
                 mensaje = f"""NUEVO PAGO CREADO
 
 ID: {pago_id_formateado}
-Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'}
+Cantidad: {self._format_money(pago.cantidad)} {self._moneda_codigo(pago.tipo_moneda)}
 Estado: {pago.get_estado_display()}
 
 Gestor: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
@@ -263,7 +319,7 @@ Sistema EGLIS - Notificacion automatica"""
 
 ID Pago: {pago_id_formateado}
 Gestor: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
-Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'}
+Cantidad: {self._format_money(pago.cantidad)} {self._moneda_codigo(pago.tipo_moneda)}
 Destinatario: {pago.destinatario}
 Tipo: {pago.get_tipo_pago_display()}
 
@@ -302,7 +358,7 @@ Sistema EGLIS - Notificacion automatica"""
 
 ID Pago: {pago_id_formateado}
 Gestor: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
-Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'}
+Cantidad: {self._format_money(pago.cantidad)} {self._moneda_codigo(pago.tipo_moneda)}
 Destinatario: {pago.destinatario}
 Tipo: {pago.get_tipo_pago_display()}
 
@@ -331,7 +387,7 @@ Sistema EGLIS - Notificacion automatica"""
 
 ID Pago: {pago_id_formateado}
 Gestor: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
-Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'}
+Cantidad: {self._format_money(pago.cantidad)} {self._moneda_codigo(pago.tipo_moneda)}
 Destinatario: {pago.destinatario}
 Tipo: {pago.get_tipo_pago_display()}
 Estado: {pago.get_estado_display()}
@@ -392,6 +448,24 @@ Sistema EGLIS - Notificacion automatica"""
             moneda = getattr(pago, 'tipo_moneda', None)
 
         if moneda is not None:
+            # Normalizar códigos defectuosos con espacios (p.ej. 'CUP TRANFE')
+            # a un código canónico ('CUP') si existe en la tabla de Monedas.
+            codigo_normalizado = self._moneda_codigo(moneda, default='')
+            try:
+                codigo_actual = (getattr(moneda, 'codigo', '') or '').strip()
+            except Exception:
+                codigo_actual = ''
+
+            if codigo_normalizado and codigo_actual and codigo_normalizado != codigo_actual:
+                try:
+                    from remesas.models import Moneda
+
+                    moneda_normalizada = Moneda.objects.filter(codigo=codigo_normalizado).first()
+                    if moneda_normalizada is not None:
+                        return moneda_normalizada
+                except Exception:
+                    pass
+
             return moneda
 
         # Fallback: si el modelo no trae moneda explícita, asumir USD si existe.
@@ -513,13 +587,14 @@ Sistema EGLIS - Notificacion automatica"""
                 'text': mensaje,
                 'apikey': self.config.callmebot_api_key
             }
-            
-            response = requests.get(url, params=params)
-            
-            if response.status_code == 200:
+
+            response = requests.get(url, params=params, timeout=15)
+
+            # CallMeBot puede responder 210 (queued). Tratar cualquier 2xx como éxito.
+            if 200 <= response.status_code < 300:
                 return True, response.text
-            else:
-                return False, f"HTTP {response.status_code}: {response.text}"
+
+            return False, f"HTTP {response.status_code}: {response.text}"
                 
         except Exception as e:
             return False, str(e)
@@ -538,13 +613,14 @@ Sistema EGLIS - Notificacion automatica"""
                 'text': mensaje,
                 'apikey': destinatario.callmebot_api_key
             }
-            
-            response = requests.get(url, params=params)
-            
-            if response.status_code == 200:
+
+            response = requests.get(url, params=params, timeout=15)
+
+            # CallMeBot puede responder 210 (queued). Tratar cualquier 2xx como éxito.
+            if 200 <= response.status_code < 300:
                 return True, response.text
-            else:
-                return False, f"HTTP {response.status_code}: {response.text}"
+
+            return False, f"HTTP {response.status_code}: {response.text}"
                 
         except Exception as e:
             return False, str(e)
@@ -581,12 +657,13 @@ Sistema EGLIS - Notificacion automatica"""
                 'text': {'body': mensaje}
             }
             
-            response = requests.post(url, headers=headers, json=data)
-            
-            if response.status_code == 200:
+
+            response = requests.post(url, headers=headers, json=data, timeout=15)
+
+            if 200 <= response.status_code < 300:
                 return True, response.text
-            else:
-                return False, f"HTTP {response.status_code}: {response.text}"
+
+            return False, f"HTTP {response.status_code}: {response.text}"
                 
         except Exception as e:
             return False, str(e)

@@ -15,10 +15,48 @@ import json
 import decimal
 from urllib.parse import quote
 from django.db.models import Sum
-from decimal import Decimal
+from django.core.exceptions import ValidationError
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from django.urls import reverse
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_decimal_input(raw_value) -> Decimal:
+    """Parsea un valor numérico del request (string) a Decimal.
+
+    Soporta formatos comunes: "1234.56", "1234,56", "1.234,56", "1,234.56".
+    """
+    if raw_value is None:
+        raise ValueError('Valor vacío')
+
+    value = str(raw_value).strip()
+    if not value:
+        raise ValueError('Valor vacío')
+
+    # Quitar espacios y símbolos típicos
+    value = value.replace(' ', '')
+    value = value.replace('$', '')
+
+    # Normalizar separadores de miles/decimales
+    if ',' in value and '.' in value:
+        # Tomar como separador decimal el último que aparezca
+        if value.rfind(',') > value.rfind('.'):
+            # 1.234,56 -> 1234.56
+            value = value.replace('.', '').replace(',', '.')
+        else:
+            # 1,234.56 -> 1234.56
+            value = value.replace(',', '')
+    elif ',' in value:
+        # 1234,56 -> 1234.56
+        value = value.replace(',', '.')
+
+    try:
+        amount = Decimal(value)
+    except (InvalidOperation, ValueError) as exc:
+        raise ValueError('Número inválido') from exc
+
+    return amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
 @login_required
 def registro_transacciones(request):
@@ -221,7 +259,7 @@ def remesas(request):
                     
                     # Validar importe
                     try:
-                        importe_decimal = float(importe)
+                        importe_decimal = _parse_decimal_input(importe)
                         if importe_decimal <= 0:
                             return JsonResponse({'success': False, 'message': 'El importe debe ser mayor a 0'})
                         print(f"Importe convertido: {importe_decimal}")
@@ -264,7 +302,15 @@ def remesas(request):
                     if comprobante:
                         remesa_data['comprobante'] = comprobante
                     
-                    remesa = models.Remesa.objects.create(**remesa_data)
+                    remesa = models.Remesa(**remesa_data)
+                    try:
+                        # remesa_id se genera en save(); se excluye para evitar validación de unique con valor vacío
+                        remesa.full_clean(exclude=['remesa_id'])
+                    except ValidationError as e:
+                        error_msg = '; '.join(e.messages) if hasattr(e, 'messages') else str(e)
+                        return JsonResponse({'success': False, 'message': error_msg})
+
+                    remesa.save()
                     
                     print(f"Remesa creada:")
                     print(f"  ID: {remesa.id}")
@@ -1085,7 +1131,7 @@ def editar_remesa(request, remesa_id):
                 
                 # Validar importe
                 try:
-                    importe_decimal = float(importe)
+                    importe_decimal = _parse_decimal_input(importe)
                     if importe_decimal <= 0:
                         raise ValueError("El importe debe ser mayor a 0")
                 except ValueError:
@@ -1136,6 +1182,15 @@ def editar_remesa(request, remesa_id):
                 if comprobante:
                     remesa.comprobante = comprobante
                 
+                try:
+                    remesa.full_clean()
+                except ValidationError as e:
+                    error_msg = '; '.join(e.messages) if hasattr(e, 'messages') else str(e)
+                    if is_ajax:
+                        return JsonResponse({'success': False, 'message': error_msg})
+                    messages.error(request, error_msg)
+                    return redirect(request.path)
+
                 # Guardar primero los cambios básicos
                 remesa.save()
                 
