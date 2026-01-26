@@ -19,7 +19,105 @@ from django.core.exceptions import ValidationError
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from django.urls import reverse
 
+from notificaciones.internal import create_internal_notification, get_admin_users_queryset
+from notificaciones.services import WhatsAppService
+
 logger = logging.getLogger(__name__)
+
+
+def _emitir_alerta_fondo_bajo_moneda(*, moneda: models.Moneda, actor=None) -> None:
+    """Emite alerta (campanita + WhatsApp) a administradores.
+
+    Se espera que el llamador aplique deduplicación (flag en `Moneda`).
+    """
+    admins = list(get_admin_users_queryset())
+    if not admins:
+        return
+
+    service = WhatsAppService()
+
+    codigo = getattr(moneda, 'codigo', '') or ''
+    fondo_txt = service._format_money(getattr(moneda, 'fondo_caja', 0))
+    minimo_txt = service._format_money(getattr(moneda, 'alerta_fondo_minimo', 0))
+
+    mensaje_interno = (
+        f"ALERTA Fondo de caja bajo: {codigo} "
+        f"(Fondo {fondo_txt} <= Mín {minimo_txt})"
+    )
+    link = ''
+    try:
+        link = reverse('remesas:lista_monedas')
+    except Exception:
+        link = ''
+
+    try:
+        create_internal_notification(
+            recipients=admins,
+            message=mensaje_interno,
+            actor=actor,
+            verb='Alerta fondo de caja',
+            link=link,
+            level='warning',
+        )
+    except Exception:
+        logger.exception("Error creando notificación interna de fondo bajo (%s)", codigo)
+
+    # WhatsApp (respetar flag global de activación)
+    if not getattr(service.config, 'activo', True):
+        return
+
+    mensaje_wsp = (
+        "ALERTA - FONDO DE CAJA BAJO\n\n"
+        f"Moneda: {codigo}\n"
+        f"Fondo actual: {fondo_txt}\n"
+        f"Mínimo: {minimo_txt}\n\n"
+        f"Fecha: {timezone.now().strftime('%d/%m/%Y %H:%M')}\n"
+        "Sistema EGLIS"
+    )
+
+    for admin in admins:
+        telefono = getattr(getattr(admin, 'perfil', None), 'telefono', None)
+        if not telefono:
+            continue
+
+        try:
+            ok, resp = service.enviar_mensaje(telefono, mensaje_wsp)
+            if not ok:
+                logger.warning(
+                    "WhatsApp fondo bajo falló para %s (%s): %s",
+                    getattr(admin, 'username', ''),
+                    codigo,
+                    resp,
+                )
+        except Exception:
+            logger.exception(
+                "Excepción enviando WhatsApp fondo bajo a %s (%s)",
+                getattr(admin, 'username', ''),
+                codigo,
+            )
+
+
+def _procesar_alerta_fondo_bajo(*, moneda: models.Moneda, actor=None) -> None:
+    """Dedup + disparo/reseteo de alerta de fondo bajo."""
+    try:
+        esta_bajo = moneda.fondo_esta_bajo()
+    except Exception:
+        logger.exception("No se pudo evaluar fondo_esta_bajo para %s", getattr(moneda, 'codigo', ''))
+        return
+
+    if esta_bajo:
+        if not getattr(moneda, 'alerta_fondo_bajo_enviada', False):
+            _emitir_alerta_fondo_bajo_moneda(moneda=moneda, actor=actor)
+            moneda.alerta_fondo_bajo_enviada = True
+            moneda.alerta_fondo_bajo_enviada_at = timezone.now()
+            moneda.save(update_fields=['alerta_fondo_bajo_enviada', 'alerta_fondo_bajo_enviada_at'])
+        return
+
+    # Si ya no está bajo, permitir nueva alerta cuando vuelva a caer
+    if getattr(moneda, 'alerta_fondo_bajo_enviada', False):
+        moneda.alerta_fondo_bajo_enviada = False
+        moneda.alerta_fondo_bajo_enviada_at = None
+        moneda.save(update_fields=['alerta_fondo_bajo_enviada', 'alerta_fondo_bajo_enviada_at'])
 
 
 def _parse_decimal_input(raw_value) -> Decimal:
@@ -2803,6 +2901,9 @@ def actualizar_fondo_caja(request):
         # Actualizar el fondo de caja
         moneda.fondo_caja = nuevo_fondo
         moneda.save()
+
+        # Alertas (campanita + WhatsApp) a administradores
+        _procesar_alerta_fondo_bajo(moneda=moneda, actor=request.user)
         
         # Log de la operación para auditoria
         logger.info(
@@ -2859,6 +2960,9 @@ def actualizar_alerta_minima(request):
         # Actualizar la alerta mínima
         moneda.alerta_fondo_minimo = alerta_minima
         moneda.save()
+
+        # Alertas (si el umbral hace que quede en/bajo el mínimo)
+        _procesar_alerta_fondo_bajo(moneda=moneda, actor=request.user)
         
         # Log de la operación para auditoria
         logger.info(

@@ -531,20 +531,20 @@ Sistema EGLIS - Notificacion automatica"""
     def _enviar_mensaje_individual(self, destinatario, mensaje, tipo, remesa, pago):
         """Envía mensaje a un destinatario específico"""
         # Crear log inicial
-        log_data = {
-            'tipo': tipo,
-            'destinatario': destinatario,
-            'mensaje': mensaje,
-            'estado': 'pendiente'
-        }
+        # log_data = {
+        #     'tipo': tipo,
+        #     'destinatario': destinatario,
+        #     'mensaje': mensaje,
+        #     'estado': 'pendiente'
+        # }
         
-        # Agregar referencia según el tipo
-        if remesa:
-            log_data['remesa_id'] = remesa.remesa_id
-        if pago:
-            log_data['pago_id'] = pago.id
+        # # Agregar referencia según el tipo
+        # if remesa:
+        #     log_data['remesa_id'] = remesa.remesa_id
+        # if pago:
+        #     log_data['pago_id'] = pago.id
             
-        log = LogNotificacion.objects.create(**log_data)
+        # log = LogNotificacion.objects.create(**log_data)
         
         try:
             # Intentar envío según la configuración
@@ -561,25 +561,25 @@ Sistema EGLIS - Notificacion automatica"""
                 respuesta = "No hay configuración de API disponible"
             
             # Actualizar log
-            log.fecha_envio = timezone.now()
-            if exito:
-                log.estado = 'enviado'
-                log.respuesta_api = respuesta
-            else:
-                log.estado = 'fallido'
-                log.respuesta_api = respuesta
-                log.error_mensaje = respuesta
-                logger.warning("WhatsApp falló (%s) para %s: %s", tipo, getattr(destinatario, 'telefono', ''), respuesta)
+            # log.fecha_envio = timezone.now()
+            # if exito:
+            #     log.estado = 'enviado'
+            #     log.respuesta_api = respuesta
+            # else:
+            #     log.estado = 'fallido'
+            #     log.respuesta_api = respuesta
+            #     log.error_mensaje = respuesta
+            #     logger.warning("WhatsApp falló (%s) para %s: %s", tipo, getattr(destinatario, 'telefono', ''), respuesta)
                 
         except Exception as e:
             # Mantener estados dentro de choices (enviado/fallido/pendiente)
-            log.estado = 'fallido'
-            log.respuesta_api = str(e)
-            log.error_mensaje = str(e)
-            log.fecha_envio = timezone.now()
+            # log.estado = 'fallido'
+            # log.respuesta_api = str(e)
+            # log.error_mensaje = str(e)
+            # log.fecha_envio = timezone.now()
             logger.exception("Excepción enviando WhatsApp (%s) a %s", tipo, getattr(destinatario, 'telefono', ''))
         
-        log.save()
+        # log.save()
     
     def _enviar_con_callmebot_global(self, destinatario, mensaje):
         """Envía mensaje usando la API Key global"""

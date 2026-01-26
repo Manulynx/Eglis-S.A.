@@ -166,7 +166,7 @@
                                                 </button>
                                             </td>
                                             <td>
-                                                <div class="d-flex gap-1">
+                                                <div class="d-flex flex-wrap gap-1">
                                                     {% if destinatario.recibir_remesas %}
                                                         <span class="badge bg-info" title="Recibe notificaciones de remesas">R</span>
                                                     {% endif %}
@@ -245,7 +245,7 @@
                                             {% endif %}
                                         </div>
                                         
-                                        <div class="d-flex gap-1 mb-2">
+                                        <div class="d-flex flex-wrap gap-1 mb-2">
                                             {% if destinatario.recibir_remesas %}
                                                 <span class="badge bg-info" title="Recibe notificaciones de remesas">Remesas</span>
                                             {% endif %}
@@ -308,14 +308,14 @@
 <!-- Modal para Agregar/Editar Destinatario -->
 <div class="modal fade" id="addDestinatarioModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
-        <div class="modal-content bg-dark">
+        <div class="modal-content bg-dark border border-secondary">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title text-white" id="destinatarioModalTitle">
                     <i class="fas fa-plus me-2"></i>Agregar Destinatario
                 </h5>
                 
             </div>
-            <div class="modal-body">
+            <div class="modal-body text-white">
                 <form id="destinatarioForm" method="post">
                     {% csrf_token %}
                     <input type="hidden" id="destinatario_id" name="destinatario_id">
@@ -323,23 +323,23 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label text-white">Nombre *</label>
-                            <input type="text" class="form-control" name="nombre" id="nombre" required>
+                            <input type="text" class="form-control bg-dark text-white border-secondary" name="nombre" id="nombre" required>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label text-white">Teléfono WhatsApp *</label>
-                            <input type="tel" class="form-control" name="telefono" id="telefono" placeholder="+1234567890" required>
-                            <small class="form-text text-muted">Incluye el código de país</small>
+                            <input type="tel" class="form-control bg-dark text-white border-secondary" name="telefono" id="telefono" placeholder="+1234567890" required>
+                            <small class="form-text text-secondary">Incluye el código de país</small>
                         </div>
                     </div>
                     
                     <div class="row">
                         <div class="col-12 mb-3">
                             <label class="form-label text-white">CallMeBot API Key</label>
-                            <input type="text" class="form-control" name="callmebot_api_key" id="callmebot_api_key" placeholder="Ingresa tu API Key de CallMeBot">
-                            <small class="form-text text-muted">
+                            <input type="text" class="form-control bg-dark text-white border-secondary" name="callmebot_api_key" id="callmebot_api_key" placeholder="Ingresa tu API Key de CallMeBot">
+                            <small class="form-text text-secondary">
                                 <i class="fas fa-info-circle me-1"></i>
                                 Opcional. Se usa para enviar mensajes vía CallMeBot API. 
-                                <a href="https://api.callmebot.com/start.php" target="_blank" class="text-info">Obtener API Key</a>
+                                <a href="https://api.callmebot.com/start.php" target="_blank" class="link-info">Obtener API Key</a>
                             </small>
                         </div>
                     </div>
@@ -351,7 +351,7 @@
                         <div class="col-md-3 mb-3">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="activo" id="activo" checked>
-                                <label class="form-check-label text-white">
+                                <label class="form-check-label text-white" for="activo">
                                     Destinatario Activo
                                 </label>
                             </div>
@@ -359,8 +359,8 @@
                         <div class="col-12 mb-2">
                             <div class="row g-2">
                                 <div class="col-12">
-                                    <div class="alert alert-secondary py-2 mb-0">
-                                        <strong>Remesas</strong>
+                                    <div class="border border-secondary rounded p-2 bg-secondary bg-opacity-10">
+                                        <strong class="text-white">Remesas</strong>
                                         <div class="d-flex flex-wrap gap-3 mt-2">
                                             <div class="form-check">
                                                 <input class="form-check-input" type="checkbox" name="recibir_remesa_nueva" id="recibir_remesa_nueva" checked>
@@ -390,8 +390,8 @@
                                     </div>
                                 </div>
                                 <div class="col-12">
-                                    <div class="alert alert-secondary py-2 mb-0">
-                                        <strong>Pagos</strong>
+                                    <div class="border border-secondary rounded p-2 bg-secondary bg-opacity-10">
+                                        <strong class="text-white">Pagos</strong>
                                         <div class="d-flex flex-wrap gap-3 mt-2">
                                             <div class="form-check">
                                                 <input class="form-check-input" type="checkbox" name="recibir_pago_nuevo" id="recibir_pago_nuevo" checked>
@@ -422,8 +422,8 @@
 
                     <div class="row mt-2">
                         <div class="col-12 mb-3">
-                            <label class="form-label text-white">Monedas Asignadas <span class="text-warning">(Opcional)</span></label>
-                            <div class="alert alert-info mb-2">
+                            <label class="form-label text-white">Monedas Asignadas <span class="text-secondary">(Opcional)</span></label>
+                            <div class="alert alert-secondary border-secondary text-white mb-2 bg-secondary bg-opacity-10">
                                 <i class="fas fa-info-circle me-2"></i>
                                 <strong>Sin selección:</strong> recibirá notificaciones para <strong>todas las monedas</strong>.
                             </div>
@@ -431,10 +431,10 @@
                                 <div id="checkboxMonedasDestinatarioContainer" class="row g-2">
                                     {% for m in monedas %}
                                     <div class="col-12 col-md-6">
-                                        <div class="form-check p-3 bg-secondary bg-opacity-10 rounded hover-highlight">
+                                        <div class="form-check p-3 bg-secondary bg-opacity-10 border border-secondary rounded">
                                             <input class="form-check-input" type="checkbox" name="monedas" value="{{ m.id }}" id="monedaDest{{ m.id }}">
                                             <label class="form-check-label w-100 cursor-pointer" for="monedaDest{{ m.id }}">
-                                                <strong class="text-warning">{{ m.codigo }}</strong> <span class="text-muted">-</span> {{ m.nombre }}
+                                                <strong class="text-info">{{ m.codigo }}</strong> <span class="text-secondary">-</span> <span class="text-white">{{ m.nombre }}</span>
                                             </label>
                                         </div>
                                     </div>
@@ -445,16 +445,16 @@
                                 <button type="button" class="btn btn-outline-secondary btn-sm" onclick="limpiarMonedasDestinatario()">
                                     <i class="fas fa-times me-1"></i>Limpiar
                                 </button>
-                                <small class="text-muted">
+                                <small class="text-secondary">
                                     <i class="fas fa-mouse-pointer me-1"></i>
                                     Marca/desmarca monedas
                                 </small>
                             </div>
                             <div id="monedasSeleccionadasDestinatarioDisplay" class="mt-2" style="display: none;">
-                                <small class="text-muted d-block mb-2">Monedas seleccionadas:</small>
+                                <small class="text-secondary d-block mb-2">Monedas seleccionadas:</small>
                                 <div id="monedasSeleccionadasDestinatarioList" class="d-flex flex-wrap gap-2"></div>
                             </div>
-                            <small class="form-text text-muted">Si seleccionas monedas, solo recibirá notificaciones cuando la operación use una de esas monedas.</small>
+                            <small class="form-text text-secondary">Si seleccionas monedas, solo recibirá notificaciones cuando la operación use una de esas monedas.</small>
                         </div>
                     </div>
                 </form>

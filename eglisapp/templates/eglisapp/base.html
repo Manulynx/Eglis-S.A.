@@ -389,6 +389,122 @@
             padding: 0.5em 0.75em;
         }
 
+        /* Notificaciones internas: botón inline en móvil (antes del toggler) */
+        /* La campanita móvil usa el mismo estilo que .navbar-toggler */
+        .mobile-notif-btn {
+          position: relative;
+        }
+
+        .mobile-notif-btn i {
+          font-size: 1.05rem;
+        }
+
+        .mobile-notif-panel {
+          position: fixed;
+          top: calc(var(--navbar-height-mobile) + 8px);
+          right: 12px;
+          width: min(92vw, 380px);
+          max-height: 60vh;
+          overflow: hidden;
+          display: none;
+          z-index: 2060;
+          background: rgba(0, 0, 0, 0.78);
+          border: 1px solid rgba(255, 255, 255, 0.16);
+          border-radius: 14px;
+          backdrop-filter: blur(12px);
+          box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
+        }
+
+        .mobile-notif-panel.show {
+          display: block;
+        }
+
+        .mobile-notif-panel-header {
+          padding: 10px 12px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .mobile-notif-panel-title {
+          color: rgba(255, 255, 255, 0.90);
+          font-weight: 700;
+          font-size: 0.95rem;
+        }
+
+        .mobile-notif-panel-body {
+          padding: 6px 10px;
+          max-height: calc(60vh - 110px);
+          overflow: auto;
+        }
+
+        .mobile-notif-panel-footer {
+          padding: 10px 12px;
+          border-top: 1px solid rgba(255, 255, 255, 0.10);
+          display: flex;
+          gap: 10px;
+        }
+
+        @media (min-width: 992px) {
+          .mobile-notif-btn,
+          .mobile-notif-panel {
+            display: none !important;
+          }
+        }
+
+        /* Igualar el look del botón hamburguesa en móvil */
+        @media (max-width: 991.98px) {
+          /* Unificar color/tamaño de iconos (campanita y hamburguesa) */
+          .navbar-toggler,
+          .mobile-notif-btn {
+            color: rgba(255, 255, 255, 0.9);
+          }
+
+          .navbar-toggler i,
+          .mobile-notif-btn i {
+            color: inherit;
+            font-size: 1.05rem;
+          }
+
+          .mobile-notif-btn {
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            background-color: transparent;
+            transition: all 0.2s ease;
+            line-height: 1;
+          }
+
+          .mobile-notif-btn:hover {
+            border-color: rgba(255, 255, 255, 0.4);
+            background-color: rgba(255, 255, 255, 0.1);
+          }
+
+          .mobile-notif-btn:focus {
+            box-shadow: 0 0 0 0.2rem rgba(255, 255, 255, 0.25);
+            outline: none;
+          }
+        }
+
+        .mobile-notif-badge {
+          position: absolute;
+          top: -6px;
+          right: -6px;
+          min-width: 22px;
+          height: 22px;
+          padding: 0 7px;
+          border-radius: 999px;
+          background: #dc3545;
+          color: #fff;
+          font-weight: 700;
+          font-size: 0.75rem;
+          line-height: 22px;
+          text-align: center;
+          border: 2px solid rgba(12, 18, 32, 0.85);
+          box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+        }
+
         @media (max-width: 991.98px) {
             .site-heading-lower {
                 font-size: 1.75rem;
@@ -416,40 +532,37 @@
             {% if user.is_authenticated %}
             <div class="d-flex flex-column align-items-start">
               <!-- Mensaje de bienvenida -->
-              <div class="text-white mb-1 px-2 py-1 rounded" style="background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05)); border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(10px);">
+              <a href="{% url 'home' %}" class="text-white mb-1 px-2 py-1 rounded text-decoration-none d-inline-block" style="background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05)); border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(10px);">
                 <div class="d-flex align-items-center gap-2">
                   <i class="fas fa-user-circle text-warning" style="font-size: 1.1rem;"></i>
                   <span style="font-size: 0.9rem; font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">
                     Bienvenido: <strong class="text-info">{{ user.first_name|default:user.username }}</strong>
                   </span>
                 </div>
-              </div>
+              </a>
               
               <!-- Balance del usuario -->
               {% if user.is_authenticated %}
               <div class="d-flex align-items-center">
                 <!-- Siempre mostrar el balance para usuarios autenticados -->
                 {% if user_balance is not None and user_balance >= 0 %}
-                <span class="badge bg-success rounded-pill fs-4" id="balance-badge" style="cursor: pointer;" title="Clic para actualizar balance">
+                <span class="badge bg-success rounded-pill fs-4" id="balance-badge">
                 <i class="fas fa-wallet me-1"></i>
                 <span class="fw-medium">Balance:</span>
                   <span id="balance-amount">{{ user_balance|floatformat:2 }}</span> <span id="balance-currency">{{ user_balance_moneda }}</span>
-                  <i class="fas fa-sync-alt ms-1" id="balance-refresh-icon" style="font-size: 0.8em;"></i>
                 </span>
                 {% elif user_balance is not None and user_balance < 0 %}
-                <span class="badge bg-danger rounded-pill fs-4" id="balance-badge" style="cursor: pointer;" title="Clic para actualizar balance">
+                <span class="badge bg-danger rounded-pill fs-4" id="balance-badge">
                 <i class="fas fa-exclamation-triangle me-1"></i>
                 <span class="fw-medium">Balance:</span>
                   <span id="balance-amount">{{ user_balance|floatformat:2 }}</span> <span id="balance-currency">{{ user_balance_moneda }}</span>
-                  <i class="fas fa-sync-alt ms-1" id="balance-refresh-icon" style="font-size: 0.8em;"></i>
                 </span>
                 {% else %}
                 <!-- Fallback si user_balance es None -->
-                <span class="badge bg-warning rounded-pill fs-4" id="balance-badge" style="cursor: pointer;" title="Clic para actualizar balance">
+                <span class="badge bg-warning rounded-pill fs-4" id="balance-badge">
                 <i class="fas fa-question-circle me-1"></i>
                 <span class="fw-medium">Balance:</span>
                   <span id="balance-amount">Cargando...</span> <span id="balance-currency">USD</span>
-                  <i class="fas fa-sync-alt ms-1" id="balance-refresh-icon" style="font-size: 0.8em;"></i>
                 </span>
                 {% endif %}
               </div>
@@ -457,12 +570,29 @@
             </div>
             {% endif %}
 
-            <!-- Botón de menú (ahora a la derecha) -->
-            <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#navbarResponsive"
-                    data-toggle="collapse" data-target="#navbarResponsive"
-                    aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
-                <i class="fas fa-bars"></i>
-            </button>
+            <!-- Acciones a la derecha (móvil): campanita + hamburguesa bien juntas -->
+            <div class="d-flex align-items-center ms-auto" style="gap: 6px;">
+              {% if user.is_authenticated %}
+                <button type="button"
+                        id="internalNotificationsMobileToggle"
+                  class="mobile-notif-btn d-lg-none"
+                        aria-label="Notificaciones" title="Notificaciones">
+                  <i class="fas fa-bell"></i>
+                  <span id="internal-notif-badge-mobile"
+                        class="mobile-notif-badge"
+                        style="display: {% if internal_unread_count %}inline-block{% else %}none{% endif %};">
+                    {{ internal_unread_count|default:0 }}
+                  </span>
+                </button>
+              {% endif %}
+
+              <!-- Botón de menú (hamburguesa) -->
+              <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarResponsive"
+                      data-toggle="collapse" data-target="#navbarResponsive"
+                      aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+                  <i class="fas fa-bars"></i>
+              </button>
+            </div>
       <div class="collapse navbar-collapse mt-2 mt-lg-0" id="navbarResponsive">
         <ul class="navbar-nav mx-auto">
           <li class="nav-item {% if request.resolver_match.url_name == 'home' %}active{% endif %}">
@@ -503,7 +633,7 @@
 
           <!-- Campanita de notificaciones internas -->
           {% if user.is_authenticated %}
-          <li class="nav-item dropdown">
+          <li class="nav-item dropdown d-none d-lg-block">
             <a class="nav-link d-flex align-items-center gap-2 dropdown-toggle" href="#" id="internalNotificationsDropdown"
                role="button" data-bs-toggle="dropdown" aria-expanded="false" title="Notificaciones">
               <span class="position-relative">
@@ -514,13 +644,12 @@
                   {{ internal_unread_count|default:0 }}
                 </span>
               </span>
-              <span class="d-lg-none">Notificaciones</span>
             </a>
             <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark" aria-labelledby="internalNotificationsDropdown" style="min-width: 340px;">
               <li class="dropdown-header text-white-50">Notificaciones</li>
               <li>
                 <div id="internal-notif-items" class="px-2" style="max-height: 320px; overflow:auto;">
-                  <div class="text-center text-white-50 py-2">Cargando…</div>
+                  <div class="text-center text-white py-2">Cargando…</div>
                 </div>
               </li>
               <li><hr class="dropdown-divider"></li>
@@ -541,11 +670,11 @@
                   <i class="fas fa-user-group me-2"></i>Destinatarios WhatsApp
                 </a>
               </li>
-              <li>
+              <!-- <li>
                 <a class="dropdown-item" href="{% url 'notificaciones:logs' %}">
                   <i class="fas fa-file-lines me-2"></i>Logs WhatsApp
                 </a>
-              </li>
+              </li> -->
               {% endif %}
             </ul>
           </li>
@@ -583,6 +712,29 @@
       </div>
     </div>
   </nav>
+
+  <!-- Panel de notificaciones (solo móvil) -->
+  {% if user.is_authenticated %}
+    <div id="internal-notif-panel-mobile" class="mobile-notif-panel" aria-hidden="true">
+      <div class="mobile-notif-panel-header">
+        <div class="mobile-notif-panel-title">
+          <i class="fas fa-bell me-2"></i>No leídas
+        </div>
+        <button class="btn btn-sm btn-outline-light" type="button" id="internal-notif-close-mobile">Cerrar</button>
+      </div>
+      <div id="internal-notif-items-mobile" class="mobile-notif-panel-body">
+        <div class="text-center text-white py-2">Cargando…</div>
+      </div>
+      <div class="mobile-notif-panel-footer">
+        <button class="btn btn-sm btn-outline-light flex-grow-1" type="button" id="internal-notif-mark-all-mobile">
+          <i class="fas fa-check-double me-2"></i>Marcar todas
+        </button>
+        <a class="btn btn-sm btn-outline-info flex-grow-1" href="{% url 'notificaciones:internas' %}">
+          <i class="fas fa-list me-2"></i>Ver todas
+        </a>
+      </div>
+    </div>
+  {% endif %}
 
   <!-- Pull to Refresh Elements -->
   <div class="pull-to-refresh-container">
@@ -709,7 +861,8 @@
         console.log('Bootstrap 5 detectado:', isBootstrap5);
         console.log('Bootstrap 4 detectado:', isBootstrap4);
         
-        const navbarToggler = document.querySelector('.navbar-toggler');
+        // Seleccionar el botón hamburguesa real (evita conflictos con otros botones)
+        const navbarToggler = document.querySelector('#mainNav .navbar-toggler[data-bs-target="#navbarResponsive"], #mainNav .navbar-toggler[data-target="#navbarResponsive"]');
         const navbarCollapse = document.querySelector('.navbar-collapse');
         const navLinks = document.querySelectorAll('.nav-link:not(.dropdown-toggle)');
         const dropdownToggles = document.querySelectorAll('.dropdown-toggle');
@@ -945,11 +1098,18 @@
     <script>
       document.addEventListener('DOMContentLoaded', function() {
         const dropdownToggle = document.getElementById('internalNotificationsDropdown');
-        const badge = document.getElementById('internal-notif-badge');
+        const badgeDesktop = document.getElementById('internal-notif-badge');
+        const badgeMobile = document.getElementById('internal-notif-badge-mobile');
         const itemsEl = document.getElementById('internal-notif-items');
         const markAllBtn = document.getElementById('internal-notif-mark-all');
 
-        if (!dropdownToggle || !badge || !itemsEl) return;
+        const mobileToggle = document.getElementById('internalNotificationsMobileToggle');
+        const mobilePanel = document.getElementById('internal-notif-panel-mobile');
+        const mobileCloseBtn = document.getElementById('internal-notif-close-mobile');
+        const itemsElMobile = document.getElementById('internal-notif-items-mobile');
+        const markAllBtnMobile = document.getElementById('internal-notif-mark-all-mobile');
+
+        if (!badgeDesktop && !badgeMobile) return;
 
         function getCookie(name) {
           const value = `; ${document.cookie}`;
@@ -958,19 +1118,26 @@
           return null;
         }
 
-        function setBadge(count) {
+        function applyBadge(el, count) {
+          if (!el) return;
           const c = Number(count || 0);
           if (c > 0) {
-            badge.textContent = c > 99 ? '99+' : String(c);
-            badge.style.display = 'inline-block';
+            el.textContent = c > 99 ? '99+' : String(c);
+            el.style.display = 'inline-block';
           } else {
-            badge.style.display = 'none';
+            el.style.display = 'none';
           }
         }
 
+        function setBadge(count) {
+          applyBadge(badgeDesktop, count);
+          applyBadge(badgeMobile, count);
+        }
+
         function renderItems(notifications) {
+          if (!itemsEl) return;
           if (!notifications || notifications.length === 0) {
-            itemsEl.innerHTML = '<div class="text-center text-white-50 py-2">No hay notificaciones.</div>';
+            itemsEl.innerHTML = '<div class="text-center text-white py-2">No hay notificaciones.</div>';
             return;
           }
 
@@ -989,8 +1156,8 @@
             const body = document.createElement('div');
             body.className = 'flex-grow-1';
             body.innerHTML = `
-              <div class="fw-semibold">${n.message}</div>
-              <div class="small text-white-50">${n.created_at_human}</div>
+              <div class="fw-semibold text-white">${n.message}</div>
+              <div class="small text-light">${n.created_at_human}</div>
             `;
 
             const actions = document.createElement('div');
@@ -1049,6 +1216,113 @@
           });
         }
 
+        function renderItemsMobile(notifications) {
+          if (!itemsElMobile) return;
+
+          const unread = (notifications || []).filter(n => !n.is_read);
+          if (unread.length === 0) {
+            itemsElMobile.innerHTML = '<div class="text-center text-white py-2">No tienes notificaciones sin leer.</div>';
+            return;
+          }
+
+          itemsElMobile.innerHTML = '';
+          unread.forEach(n => {
+            const row = document.createElement('div');
+            row.className = 'd-flex align-items-start gap-2 py-2 border-bottom border-secondary';
+
+            const dot = document.createElement('span');
+            dot.className = 'mt-1 rounded-circle';
+            dot.style.width = '10px';
+            dot.style.height = '10px';
+            dot.style.background = '#0dcaf0';
+
+            const body = document.createElement('div');
+            body.className = 'flex-grow-1';
+            body.innerHTML = `
+              <div class="fw-semibold text-white">${n.message}</div>
+              <div class="small text-light">${n.created_at_human}</div>
+            `;
+
+            const actions = document.createElement('div');
+            actions.className = 'd-flex gap-2';
+
+            if (n.link) {
+              const a = document.createElement('a');
+              a.className = 'btn btn-sm btn-outline-info';
+              a.href = n.link;
+              a.textContent = 'Ver';
+              a.addEventListener('click', () => {
+                if (n.mark_read_url) {
+                  fetch(n.mark_read_url, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'X-CSRFToken': getCookie('csrftoken'),
+                      'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({})
+                  }).catch(() => {});
+                }
+                // Cerrar panel al navegar
+                closeMobilePanel();
+              });
+              actions.appendChild(a);
+            }
+
+            if (n.mark_read_url) {
+              const b = document.createElement('button');
+              b.className = 'btn btn-sm btn-outline-light';
+              b.type = 'button';
+              b.textContent = 'Leída';
+              b.addEventListener('click', async () => {
+                try {
+                  const res = await fetch(n.mark_read_url, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'X-CSRFToken': getCookie('csrftoken'),
+                      'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({})
+                  });
+                  const data = await res.json();
+                  if (data && data.success) {
+                    await refreshList();
+                  }
+                } catch (e) {}
+              });
+              actions.appendChild(b);
+            }
+
+            row.appendChild(dot);
+            row.appendChild(body);
+            row.appendChild(actions);
+            itemsElMobile.appendChild(row);
+          });
+        }
+
+        function openMobilePanel() {
+          if (!mobilePanel) return;
+          mobilePanel.classList.add('show');
+          mobilePanel.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeMobilePanel() {
+          if (!mobilePanel) return;
+          mobilePanel.classList.remove('show');
+          mobilePanel.setAttribute('aria-hidden', 'true');
+        }
+
+        function toggleMobilePanel() {
+          if (!mobilePanel) return;
+          if (mobilePanel.classList.contains('show')) {
+            closeMobilePanel();
+          } else {
+            openMobilePanel();
+            refreshList();
+          }
+        }
+
         async function refreshList() {
           try {
             const url = `{% url 'notificaciones:internas_api_list' %}?limit=8&offset=0`;
@@ -1056,8 +1330,14 @@
             const data = await res.json();
             setBadge(data.unread_count);
             renderItems(data.notifications);
+            renderItemsMobile(data.notifications);
           } catch (e) {
-            itemsEl.innerHTML = '<div class="text-center text-white-50 py-2">Error cargando notificaciones.</div>';
+            if (itemsEl) {
+              itemsEl.innerHTML = '<div class="text-center text-white py-2">Error cargando notificaciones.</div>';
+            }
+            if (itemsElMobile) {
+              itemsElMobile.innerHTML = '<div class="text-center text-white py-2">Error cargando notificaciones.</div>';
+            }
           }
         }
 
@@ -1082,8 +1362,57 @@
           });
         }
 
-        // Refrescar al abrir el dropdown y cada 30s
-        dropdownToggle.addEventListener('show.bs.dropdown', refreshList);
+        if (markAllBtnMobile) {
+          markAllBtnMobile.addEventListener('click', async () => {
+            try {
+              const res = await fetch(`{% url 'notificaciones:internas_api_mark_all_read' %}`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-CSRFToken': getCookie('csrftoken'),
+                  'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({})
+              });
+              const data = await res.json();
+              if (data && data.success) {
+                setBadge(0);
+                await refreshList();
+              }
+            } catch (e) {}
+          });
+        }
+
+        if (mobileToggle) {
+          mobileToggle.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleMobilePanel();
+          });
+        }
+
+        if (mobileCloseBtn) {
+          mobileCloseBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            closeMobilePanel();
+          });
+        }
+
+        // Cerrar panel móvil tocando fuera
+        document.addEventListener('click', function(e) {
+          if (!mobilePanel || !mobilePanel.classList.contains('show')) return;
+          const clickedInside = mobilePanel.contains(e.target) || (mobileToggle && mobileToggle.contains(e.target));
+          if (!clickedInside) closeMobilePanel();
+        });
+
+        document.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape') closeMobilePanel();
+        });
+
+        // Refrescar al abrir el dropdown (solo si existe) y cada 30s
+        if (dropdownToggle) {
+          dropdownToggle.addEventListener('show.bs.dropdown', refreshList);
+        }
         refreshList();
         setInterval(refreshList, 30000);
       });
@@ -1461,99 +1790,7 @@
         console.log('Sistema de protección configurado exitosamente');
     });
     
-    // Sistema de actualización de balance
-    document.addEventListener('DOMContentLoaded', function() {
-        const balanceBadge = document.getElementById('balance-badge');
-        const balanceAmount = document.getElementById('balance-amount');
-        const balanceCurrency = document.getElementById('balance-currency');
-        const refreshIcon = document.getElementById('balance-refresh-icon');
-        
-        if (balanceBadge && balanceAmount && refreshIcon) {
-            let isUpdating = false;
-            
-            balanceBadge.addEventListener('click', async function() {
-                if (isUpdating) return;
-                
-                isUpdating = true;
-                
-                // Animación de carga
-                refreshIcon.classList.add('fa-spin');
-                balanceBadge.style.opacity = '0.7';
-                
-                try {
-                    const response = await fetch('/remesas/api/balance/', {
-                        method: 'GET',
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest',
-                        }
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        // Actualizar el balance en la interfaz
-                        balanceAmount.textContent = data.balance_formatted;
-                        
-                        // Cambiar color del badge según el balance
-                        if (data.balance >= 0) {
-                            balanceBadge.className = 'badge bg-success rounded-pill fs-4';
-                            balanceBadge.querySelector('i').className = 'fas fa-wallet me-1';
-                        } else {
-                            balanceBadge.className = 'badge bg-danger rounded-pill fs-4';
-                            balanceBadge.querySelector('i').className = 'fas fa-exclamation-triangle me-1';
-                        }
-                        
-                        // Feedback visual de éxito
-                        refreshIcon.className = 'fas fa-check ms-1';
-                        setTimeout(() => {
-                            refreshIcon.className = 'fas fa-sync-alt ms-1';
-                        }, 1500);
-                        
-                    } else {
-                        throw new Error(data.message || 'Error actualizando balance');
-                    }
-                    
-                } catch (error) {
-                    console.error('Error actualizando balance:', error);
-                    
-                    // Feedback visual de error
-                    refreshIcon.className = 'fas fa-exclamation-triangle ms-1';
-                    setTimeout(() => {
-                        refreshIcon.className = 'fas fa-sync-alt ms-1';
-                    }, 2000);
-                    
-                    // Mostrar notificación de error si SweetAlert está disponible
-                    if (typeof Swal !== 'undefined') {
-                        Swal.fire({
-                            title: 'Error',
-                            text: 'No se pudo actualizar el balance. Intenta de nuevo.',
-                            icon: 'error',
-                            timer: 3000,
-                            background: '#212529',
-                            color: '#fff'
-                        });
-                    }
-                } finally {
-                    // Restaurar estado
-                    refreshIcon.classList.remove('fa-spin');
-                    balanceBadge.style.opacity = '1';
-                    isUpdating = false;
-                }
-            });
-            
-            // Tooltip hover effect
-            balanceBadge.addEventListener('mouseenter', function() {
-                if (!isUpdating) {
-                    this.style.transform = 'scale(1.05)';
-                    this.style.transition = 'transform 0.2s ease';
-                }
-            });
-            
-            balanceBadge.addEventListener('mouseleave', function() {
-                this.style.transform = 'scale(1)';
-            });
-        }
-    });
+    // Nota: se desactivó la actualización de balance por click (solo visual).
     </script>
 
 </body>

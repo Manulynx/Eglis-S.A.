@@ -346,13 +346,13 @@ _Sistema de gestión de remesas Eglis_"""
             
             if exito:
                 # Registrar en log
-                LogNotificacion.objects.create(
-                    tipo='TEST',
-                    destinatario=destinatario,
-                    mensaje=mensaje,
-                    estado='enviado',
-                    respuesta_api=respuesta
-                )
+                # LogNotificacion.objects.create(
+                #     tipo='TEST',
+                #     destinatario=destinatario,
+                #     mensaje=mensaje,
+                #     estado='enviado',
+                #     respuesta_api=respuesta
+                # )
                 
                 return JsonResponse({
                     'success': True,
@@ -360,14 +360,14 @@ _Sistema de gestión de remesas Eglis_"""
                 })
             else:
                 # Registrar error en log
-                LogNotificacion.objects.create(
-                    tipo='TEST',
-                    destinatario=destinatario,
-                    mensaje=mensaje,
-                    estado='fallido',
-                    respuesta_api=respuesta,
-                    error_mensaje=respuesta
-                )
+                # LogNotificacion.objects.create(
+                #     tipo='TEST',
+                #     destinatario=destinatario,
+                #     mensaje=mensaje,
+                #     estado='fallido',
+                #     respuesta_api=respuesta,
+                #     error_mensaje=respuesta
+                # )
                 
                 return JsonResponse({
                     'success': False,

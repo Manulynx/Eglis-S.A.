@@ -164,6 +164,17 @@ class Moneda(models.Model):
         verbose_name='Alerta de Fondo Mínimo',
         help_text='Valor mínimo del fondo para emitir alerta'
     )
+    alerta_fondo_bajo_enviada = models.BooleanField(
+        default=False,
+        verbose_name='Alerta Fondo Bajo Enviada',
+        help_text='Evita enviar alertas repetidas mientras el fondo permanezca bajo el mínimo'
+    )
+    alerta_fondo_bajo_enviada_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Fecha Alerta Fondo Bajo',
+        help_text='Última fecha en la que se emitió la alerta de fondo bajo'
+    )
     activa = models.BooleanField(default=True, verbose_name='Activa')
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
@@ -238,7 +249,7 @@ class Moneda(models.Model):
         """
         Verifica si el fondo de caja está por debajo del umbral de alerta
         """
-        return self.fondo_caja < self.alerta_fondo_minimo if self.alerta_fondo_minimo > 0 else False
+        return self.fondo_caja <= self.alerta_fondo_minimo if self.alerta_fondo_minimo > 0 else False
     
     def porcentaje_fondo(self):
         """
