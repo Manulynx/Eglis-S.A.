@@ -1,13 +1,10 @@
 import requests
-import json
 from twilio.rest import Client
-from django.conf import settings
 from django.utils import timezone
 from django.db.models import Q
 from .models import ConfiguracionNotificacion, DestinatarioNotificacion, LogNotificacion
 import logging
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
-import time
 import re
 
 logger = logging.getLogger(__name__)
@@ -109,7 +106,7 @@ class WhatsAppService:
         mensaje = self._generar_mensaje(tipo, remesa, pago, estado_anterior, **kwargs)
         
         # Obtener destinatarios activos
-        moneda_evento = self._resolver_moneda_evento(remesa=remesa, pago=pago)
+        moneda_evento = self._resolver_moneda_evento(remesa=remesa, pago=pago, moneda=kwargs.get('moneda'))
         destinatarios = self._obtener_destinatarios(tipo, moneda_evento)
         
         # Enviar a cada destinatario
@@ -118,11 +115,18 @@ class WhatsAppService:
 
     @staticmethod
     def _limpiar_telefono(telefono: str) -> str:
-        """Normaliza teléfono para gateways.
+        """Normaliza teléfono para CallMeBot.
 
         - Acepta formatos con '+', espacios, guiones.
-        - Devuelve solo dígitos.
+        - Devuelve solo dígitos (CallMeBot espera sin '+').
         """
+        if not telefono:
+            return ''
+        return re.sub(r'\D+', '', str(telefono))
+
+    @staticmethod
+    def _telefono_normalizado(telefono: str) -> str:
+        """Normaliza teléfono para comparar en BD."""
         if not telefono:
             return ''
         return re.sub(r'\D+', '', str(telefono))
@@ -448,15 +452,30 @@ ATENCION: Este pago ha sido eliminado del sistema y el balance ha sido ajustado 
 
 Sistema EGLIS - Notificacion automatica"""
 
+        if tipo == 'alerta_fondo_bajo':
+            moneda = kwargs.get('moneda')
+            codigo = getattr(moneda, 'codigo', None) if moneda is not None else kwargs.get('codigo', 'N/A')
+            fondo_txt = self._format_money(getattr(moneda, 'fondo_caja', None) if moneda is not None else kwargs.get('fondo'))
+            minimo_txt = self._format_money(getattr(moneda, 'alerta_fondo_minimo', None) if moneda is not None else kwargs.get('minimo'))
+
+            return (
+                "ALERTA - FONDO DE CAJA BAJO\n\n"
+                f"Moneda: {codigo}\n"
+                f"Fondo actual: {fondo_txt}\n"
+                f"Mínimo: {minimo_txt}\n\n"
+                f"Fecha: {timezone.now().strftime('%d/%m/%Y %H:%M')}\n"
+                "Sistema EGLIS"
+            )
+
         return "Notificacion del sistema EGLIS"
     
-    def _resolver_moneda_evento(self, remesa=None, pago=None):
+    def _resolver_moneda_evento(self, remesa=None, pago=None, moneda=None):
         """Intenta resolver la moneda usada en la operación para filtrar destinatarios."""
-        moneda = None
-        if remesa is not None:
-            moneda = getattr(remesa, 'moneda', None)
-        elif pago is not None:
-            moneda = getattr(pago, 'tipo_moneda', None)
+        if moneda is None:
+            if remesa is not None:
+                moneda = getattr(remesa, 'moneda', None)
+            elif pago is not None:
+                moneda = getattr(pago, 'tipo_moneda', None)
 
         if moneda is not None:
             # Normalizar códigos defectuosos con espacios (p.ej. 'CUP TRANFE')
@@ -508,6 +527,8 @@ Sistema EGLIS - Notificacion automatica"""
             'pago_cancelado': 'recibir_pago_cancelado',
             'pago_editado': 'recibir_pago_editado',
             'pago_eliminado': 'recibir_pago_eliminado',
+
+            'alerta_fondo_bajo': 'recibir_alerta_fondo_bajo',
         }
 
         flag = tipo_to_flag.get(tipo)
@@ -530,24 +551,21 @@ Sistema EGLIS - Notificacion automatica"""
     
     def _enviar_mensaje_individual(self, destinatario, mensaje, tipo, remesa, pago):
         """Envía mensaje a un destinatario específico"""
-        # Crear log inicial
-        # log_data = {
-        #     'tipo': tipo,
-        #     'destinatario': destinatario,
-        #     'mensaje': mensaje,
-        #     'estado': 'pendiente'
-        # }
-        
-        # # Agregar referencia según el tipo
-        # if remesa:
-        #     log_data['remesa_id'] = remesa.remesa_id
-        # if pago:
-        #     log_data['pago_id'] = pago.id
-            
-        # log = LogNotificacion.objects.create(**log_data)
-        
+        log_data = {
+            'tipo': tipo,
+            'destinatario': destinatario,
+            'mensaje': mensaje,
+            'estado': 'pendiente'
+        }
+
+        if remesa:
+            log_data['remesa_id'] = remesa.remesa_id
+        if pago:
+            log_data['pago_id'] = pago.id
+
+        log = LogNotificacion.objects.create(**log_data)
+
         try:
-            # Intentar envío según la configuración
             if destinatario.callmebot_api_key:
                 exito, respuesta = self._enviar_con_callmebot_individual(destinatario, mensaje)
             elif hasattr(self.config, 'callmebot_api_key') and self.config.callmebot_api_key:
@@ -559,59 +577,46 @@ Sistema EGLIS - Notificacion automatica"""
             else:
                 exito = False
                 respuesta = "No hay configuración de API disponible"
-            
-            # Actualizar log
-            # log.fecha_envio = timezone.now()
-            # if exito:
-            #     log.estado = 'enviado'
-            #     log.respuesta_api = respuesta
-            # else:
-            #     log.estado = 'fallido'
-            #     log.respuesta_api = respuesta
-            #     log.error_mensaje = respuesta
-            #     logger.warning("WhatsApp falló (%s) para %s: %s", tipo, getattr(destinatario, 'telefono', ''), respuesta)
+
+            log.fecha_envio = timezone.now()
+            if exito:
+                log.estado = 'enviado'
+                log.respuesta_api = respuesta
+            else:
+                log.estado = 'fallido'
+                log.respuesta_api = respuesta
+                log.error_mensaje = respuesta
                 
         except Exception as e:
-            # Mantener estados dentro de choices (enviado/fallido/pendiente)
-            # log.estado = 'fallido'
-            # log.respuesta_api = str(e)
-            # log.error_mensaje = str(e)
-            # log.fecha_envio = timezone.now()
+            log.estado = 'fallido'
+            log.respuesta_api = str(e)
+            log.error_mensaje = str(e)
+            log.fecha_envio = timezone.now()
             logger.exception("Excepción enviando WhatsApp (%s) a %s", tipo, getattr(destinatario, 'telefono', ''))
-        
-        # log.save()
-    
+
+        log.save()
+
     def _enviar_con_callmebot_global(self, destinatario, mensaje):
         """Envía mensaje usando la API Key global"""
         try:
             telefono_limpio = self._limpiar_telefono(destinatario.telefono)
             mensaje = self._mensaje_callmebot_seguro(mensaje)
-            
-            # URL de CallMeBot
+
             url = "https://api.callmebot.com/whatsapp.php"
-            
+
             params = {
                 'phone': telefono_limpio,
                 'text': mensaje,
                 'apikey': self.config.callmebot_api_key
             }
 
-            # Preferir POST (evita URLs enormes); fallback a GET si falla.
-            start = time.monotonic()
-            response = requests.post(url, data=params, timeout=(5, 15))
-            if response.status_code == 405:
-                response = requests.get(url, params=params, timeout=(5, 15))
-            elapsed = time.monotonic() - start
+            response = requests.get(url, params=params, timeout=(5, 15))
 
-            if elapsed > 5:
-                logger.warning("CallMeBot lento (%.2fs) para %s", elapsed, telefono_limpio)
-
-            # CallMeBot puede responder 210 (queued). Tratar cualquier 2xx como éxito.
-            if 200 <= response.status_code < 300:
+            if response.status_code == 200:
                 return True, response.text
 
             return False, f"HTTP {response.status_code}: {response.text}"
-                
+
         except Exception as e:
             return False, str(e)
     
@@ -630,17 +635,9 @@ Sistema EGLIS - Notificacion automatica"""
                 'apikey': destinatario.callmebot_api_key
             }
 
-            start = time.monotonic()
-            response = requests.post(url, data=params, timeout=(5, 15))
-            if response.status_code == 405:
-                response = requests.get(url, params=params, timeout=(5, 15))
-            elapsed = time.monotonic() - start
+            response = requests.get(url, params=params, timeout=(5, 15))
 
-            if elapsed > 5:
-                logger.warning("CallMeBot lento (%.2fs) para %s", elapsed, telefono_limpio)
-
-            # CallMeBot puede responder 210 (queued). Tratar cualquier 2xx como éxito.
-            if 200 <= response.status_code < 300:
+            if response.status_code == 200:
                 return True, response.text
 
             return False, f"HTTP {response.status_code}: {response.text}"
@@ -701,29 +698,34 @@ Sistema EGLIS - Notificacion automatica"""
         Usado para mensajes de prueba y envíos directos
         """
         try:
-            # Buscar destinatario para usar su API Key individual si existe
+            # Buscar destinatario para usar su API Key individual
             destinatario = DestinatarioNotificacion.objects.filter(telefono=telefono).first()
-            
+            if not destinatario:
+                telefono_norm = self._telefono_normalizado(telefono)
+                for cand in DestinatarioNotificacion.objects.all():
+                    if self._telefono_normalizado(cand.telefono) == telefono_norm:
+                        destinatario = cand
+                        break
+
             if destinatario and destinatario.callmebot_api_key:
-                # Usar API Key individual
                 return self._enviar_con_callmebot_individual(destinatario, mensaje)
-            elif hasattr(self.config, 'callmebot_api_key') and self.config.callmebot_api_key:
-                # Usar API Key global - crear objeto temporal para compatibilidad
+
+            if hasattr(self.config, 'callmebot_api_key') and self.config.callmebot_api_key:
                 destinatario_temp = type('obj', (object,), {
                     'telefono': telefono,
                     'callmebot_api_key': self.config.callmebot_api_key
                 })
                 return self._enviar_con_callmebot_individual(destinatario_temp, mensaje)
-            elif self.config.twilio_account_sid and self.config.twilio_auth_token:
-                # Usar Twilio - crear objeto temporal
+
+            if self.config.twilio_account_sid and self.config.twilio_auth_token:
                 destinatario_temp = type('obj', (object,), {'telefono': telefono})
                 return self._enviar_con_twilio(destinatario_temp, mensaje)
-            elif self.config.whatsapp_business_token:
-                # Usar WhatsApp Business - crear objeto temporal
+
+            if self.config.whatsapp_business_token:
                 destinatario_temp = type('obj', (object,), {'telefono': telefono})
                 return self._enviar_con_whatsapp_business(destinatario_temp, mensaje)
-            else:
-                return False, "No hay configuración de API disponible"
+
+            return False, "No hay configuración de API disponible"
                 
         except Exception as e:
             return False, str(e)
@@ -733,18 +735,25 @@ Sistema EGLIS - Notificacion automatica"""
         Prueba la conexión con las APIs configuradas
         """
         try:
+            existe_destinatario = DestinatarioNotificacion.objects.filter(
+                activo=True,
+                callmebot_api_key__isnull=False,
+            ).exclude(callmebot_api_key='').exists()
+
+            if existe_destinatario:
+                return True, "CallMeBot configurado en destinatarios"
+
             if hasattr(self.config, 'callmebot_api_key') and self.config.callmebot_api_key:
-                # Test básico de CallMeBot (solo verificar que la API key existe)
                 return True, "CallMeBot API configurada correctamente"
-            elif self.config.twilio_account_sid and self.config.twilio_auth_token:
-                # Test de Twilio
+
+            if self.config.twilio_account_sid and self.config.twilio_auth_token:
                 client = Client(self.config.twilio_account_sid, self.config.twilio_auth_token)
                 account = client.api.accounts(self.config.twilio_account_sid).fetch()
                 return True, f"Twilio conectado: {account.friendly_name}"
-            elif self.config.whatsapp_business_token:
-                # Test básico de WhatsApp Business
+
+            if self.config.whatsapp_business_token:
                 return True, "WhatsApp Business API configurada"
-            else:
-                return False, "No hay configuración de API disponible"
+
+            return False, "No hay configuración de API disponible"
         except Exception as e:
             return False, str(e)

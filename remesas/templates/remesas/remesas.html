@@ -16,6 +16,7 @@
 
                     <form id="formRemesa" method="post" enctype="multipart/form-data">
                         {% csrf_token %}
+                        <input type="hidden" name="defer_notificaciones" value="true">
                         
                         <!-- Datos principales -->
                         <input type="hidden" id="remesa_id" name="remesa_id">
@@ -158,6 +159,7 @@
                             <div class="card-body">
                                 <form id="formPagoRemesa" enctype="multipart/form-data">
                                     {% csrf_token %}
+                                    <input type="hidden" name="defer_notificaciones" value="true">
                                     {% if is_admin_user %}
                                     <div class="row">
                                         <div class="col-12 mb-3">
@@ -1357,8 +1359,17 @@ function enviarRemesa() {
                     // Scroll a la sección de pagos
                     document.getElementById('seccionPagos').scrollIntoView({ behavior: 'smooth' });
                 } else {
-                    // Redirigir a la lista de transacciones
-                    window.location.href = '/remesas/registro/?tab=remesas';
+                    fetch(`/remesas/pagos-remesa/finalizar/${remesaCreada.id}/`, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': csrfToken ? csrfToken.value : '',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                    .catch(() => {})
+                    .finally(() => {
+                        window.location.href = '/remesas/registro/?tab=remesas';
+                    });
                 }
             });
         } else {
@@ -1535,6 +1546,29 @@ if (pagoTipoPagoSelect) {
 
 // Enviar formulario de pago
 if (formPagoRemesa) {
+    const limpiarErroresPago = () => {
+        const invalidFeedbacks = formPagoRemesa.querySelectorAll('.invalid-feedback');
+        invalidFeedbacks.forEach(feedback => {
+            feedback.textContent = '';
+            feedback.style.display = 'none';
+        });
+        const inputs = formPagoRemesa.querySelectorAll('.is-invalid');
+        inputs.forEach(input => input.classList.remove('is-invalid'));
+    };
+
+    formPagoRemesa.querySelectorAll('input, select, textarea').forEach(input => {
+        input.addEventListener('input', () => {
+            if (input.classList.contains('is-invalid')) {
+                input.classList.remove('is-invalid');
+                const feedback = input.parentElement.querySelector('.invalid-feedback');
+                if (feedback) {
+                    feedback.textContent = '';
+                    feedback.style.display = 'none';
+                }
+            }
+        });
+    });
+
     formPagoRemesa.addEventListener('submit', function(e) {
         e.preventDefault();
         
@@ -1553,6 +1587,8 @@ if (formPagoRemesa) {
         const originalText = btnGuardar.innerHTML;
         btnGuardar.disabled = true;
         btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Guardando...';
+
+        limpiarErroresPago();
         
         // Crear FormData con los datos del formulario
         const formData = new FormData(this);
@@ -1729,6 +1765,7 @@ function eliminarPagoTemporal(pagoPk) {
                 headers: {
                     'X-CSRFToken': getCSRFToken(),
                     'X-Requested-With': 'XMLHttpRequest',
+                    'X-Defer-Notificaciones': 'true',
                     'Content-Type': 'application/json'
                 }
             })
@@ -1785,7 +1822,17 @@ function finalizarYVolver() {
         color: '#fff'
     }).then(() => {
         if (remesaCreada && remesaCreada.id) {
-            window.location.href = `/remesas/detalle/${remesaCreada.id}/`;
+            fetch(`/remesas/pagos-remesa/finalizar/${remesaCreada.id}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCSRFToken(),
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .catch(() => {})
+            .finally(() => {
+                window.location.href = `/remesas/detalle/${remesaCreada.id}/`;
+            });
         } else {
             window.location.href = '/remesas/registro/?tab=remesas';
         }

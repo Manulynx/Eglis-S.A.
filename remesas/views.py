@@ -19,7 +19,7 @@ from django.core.exceptions import ValidationError
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from django.urls import reverse
 
-from notificaciones.internal import create_internal_notification, get_admin_users_queryset
+from notificaciones.internal import create_internal_notification, get_admin_users_queryset, notify_user_and_admins
 from notificaciones.services import WhatsAppService
 
 logger = logging.getLogger(__name__)
@@ -62,39 +62,11 @@ def _emitir_alerta_fondo_bajo_moneda(*, moneda: models.Moneda, actor=None) -> No
     except Exception:
         logger.exception("Error creando notificación interna de fondo bajo (%s)", codigo)
 
-    # WhatsApp (respetar flag global de activación)
-    if not getattr(service.config, 'activo', True):
-        return
-
-    mensaje_wsp = (
-        "ALERTA - FONDO DE CAJA BAJO\n\n"
-        f"Moneda: {codigo}\n"
-        f"Fondo actual: {fondo_txt}\n"
-        f"Mínimo: {minimo_txt}\n\n"
-        f"Fecha: {timezone.now().strftime('%d/%m/%Y %H:%M')}\n"
-        "Sistema EGLIS"
-    )
-
-    for admin in admins:
-        telefono = getattr(getattr(admin, 'perfil', None), 'telefono', None)
-        if not telefono:
-            continue
-
-        try:
-            ok, resp = service.enviar_mensaje(telefono, mensaje_wsp)
-            if not ok:
-                logger.warning(
-                    "WhatsApp fondo bajo falló para %s (%s): %s",
-                    getattr(admin, 'username', ''),
-                    codigo,
-                    resp,
-                )
-        except Exception:
-            logger.exception(
-                "Excepción enviando WhatsApp fondo bajo a %s (%s)",
-                getattr(admin, 'username', ''),
-                codigo,
-            )
+    # WhatsApp (según destinatarios configurados)
+    try:
+        service.enviar_notificacion('alerta_fondo_bajo', moneda=moneda)
+    except Exception:
+        logger.exception("Error enviando WhatsApp de fondo bajo (%s)", codigo)
 
 
 def _procesar_alerta_fondo_bajo(*, moneda: models.Moneda, actor=None) -> None:
@@ -369,6 +341,9 @@ def remesas(request):
                         remesa_data['comprobante'] = comprobante
                     
                     remesa = models.Remesa(**remesa_data)
+                    defer_notificaciones = str(request.POST.get('defer_notificaciones', '')).lower() == 'true'
+                    if defer_notificaciones:
+                        remesa._skip_notifications = True
                     try:
                         # remesa_id se genera en save(); se excluye para evitar validación de unique con valor vacío
                         remesa.full_clean(exclude=['remesa_id'])
@@ -381,14 +356,13 @@ def remesas(request):
                     # El balance se actualiza automáticamente mediante cálculo dinámico
                     # No es necesario actualizar manualmente
                     
-                    # Enviar notificación
-                    try:
-                        from notificaciones.services import WhatsAppService
-                        # Enviar por WhatsApp
-                        whatsapp_service = WhatsAppService()
-                        whatsapp_service.enviar_notificacion('remesa_nueva', remesa=remesa)
-                    except Exception as e:
-                        logger.exception("Error enviando notificación WhatsApp de remesa nueva")
+                    if not defer_notificaciones:
+                        try:
+                            from notificaciones.services import WhatsAppService
+                            whatsapp_service = WhatsAppService()
+                            whatsapp_service.enviar_notificacion('remesa_nueva', remesa=remesa)
+                        except Exception:
+                            logger.exception("Error enviando notificación WhatsApp de remesa nueva")
                     from django.urls import reverse
                     detalle_url = reverse('remesas:detalle_remesa', kwargs={'remesa_id': remesa.id})
                     
@@ -2450,6 +2424,8 @@ def crear_pago_remesa(request, remesa_id):
             pago = form.save(commit=False)
             pago.remesa = remesa
             pago.usuario = usuario_objetivo
+            if str(request.POST.get('defer_notificaciones', '')).lower() == 'true':
+                pago._skip_notifications = True
             pago.save()
             
             return JsonResponse({
@@ -2475,6 +2451,68 @@ def crear_pago_remesa(request, remesa_id):
             'success': False,
             'message': f'Error al crear el pago: {str(e)}'
         })
+
+
+@login_required
+@require_POST
+def finalizar_notificaciones_remesa(request, remesa_id):
+    """Dispara notificaciones diferidas de remesa y pagos enlazados."""
+    remesa = get_object_or_404(models.Remesa, id=remesa_id)
+
+    user_tipo = 'admin' if request.user.is_superuser else (
+        request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
+    )
+    if user_tipo not in ['admin', 'contable'] and remesa.gestor != request.user:
+        return JsonResponse({'success': False, 'message': 'No tiene permisos para finalizar notificaciones'}, status=403)
+
+    try:
+        servicio = WhatsAppService()
+        servicio.enviar_notificacion('remesa_nueva', remesa=remesa)
+    except Exception:
+        logger.exception("Error enviando notificación WhatsApp de remesa diferida")
+
+    try:
+        link = reverse('remesas:detalle_remesa', args=[remesa.id])
+        notify_user_and_admins(
+            recipient=remesa.gestor,
+            actor=remesa.gestor,
+            verb='remesa_creada',
+            message=f"Nueva remesa {remesa.remesa_id} creada",
+            link=link,
+            level='info',
+        )
+    except Exception:
+        logger.exception("Error creando notificación interna diferida de remesa")
+
+    for pago in remesa.pagos_enlazados.all():
+        try:
+            servicio.enviar_notificacion('pago_nuevo', pago=pago)
+        except Exception:
+            logger.exception("Error enviando notificación WhatsApp diferida de pago remesa")
+
+        try:
+            link = reverse('remesas:detalle_remesa', args=[remesa.id])
+            actor = getattr(pago, 'usuario_editor', None) or getattr(pago, 'usuario', None)
+            recipients = []
+            if getattr(pago, 'usuario', None):
+                recipients.append(pago.usuario)
+            if getattr(remesa, 'gestor', None):
+                recipients.append(remesa.gestor)
+            recipients.extend(list(get_admin_users_queryset()))
+
+            msg = f"Pago {pago.pago_id} agregado a remesa {remesa.remesa_id}".strip()
+            create_internal_notification(
+                recipients=recipients,
+                actor=actor,
+                verb='pago_remesa_creado',
+                message=msg,
+                link=link,
+                level='info',
+            )
+        except Exception:
+            logger.exception("Error creando notificación interna diferida de pago remesa")
+
+    return JsonResponse({'success': True})
 
 
 @login_required
@@ -2628,8 +2666,61 @@ def eliminar_pago_remesa(request, pago_id):
                 'message': f'No se puede eliminar el pago porque está en estado: {pago.get_estado_display()}'
             })
         
+        defer_notificaciones = str(request.headers.get('X-Defer-Notificaciones', '')).lower() == 'true'
+
+        pago_info = {
+            'id': pago.pago_id,
+            'cantidad': pago.cantidad,
+            'moneda': pago.tipo_moneda,
+            'destinatario': pago.destinatario,
+        }
+
         pago_id_str = pago.pago_id
         pago.delete()
+
+        if not defer_notificaciones:
+            try:
+                remesa = getattr(pago, 'remesa', None)
+                link = (
+                    reverse('remesas:detalle_remesa', args=[remesa.id])
+                    if remesa is not None
+                    else reverse('remesas:registro_transacciones')
+                )
+                recipients = []
+                if getattr(pago, 'usuario', None):
+                    recipients.append(pago.usuario)
+                if remesa and getattr(remesa, 'gestor', None):
+                    recipients.append(remesa.gestor)
+                recipients.extend(list(get_admin_users_queryset()))
+
+                msg = f"Pago {pago_info['id']} eliminado en remesa {remesa.remesa_id if remesa else ''}".strip()
+                create_internal_notification(
+                    recipients=recipients,
+                    actor=request.user,
+                    verb='pago_remesa_eliminado',
+                    message=msg,
+                    link=link,
+                    level='warning',
+                )
+            except Exception:
+                logger.exception("Error creando notificación interna de eliminación de pago remesa")
+
+            try:
+                from notificaciones.services import WhatsAppService
+
+                moneda_codigo = pago_info['moneda'].codigo if pago_info['moneda'] else 'USD'
+                whatsapp_service = WhatsAppService()
+                monto_str = f"{pago_info['cantidad']} {moneda_codigo}"
+                whatsapp_service.enviar_notificacion(
+                    'pago_eliminado',
+                    pago_id=pago_info['id'],
+                    monto=monto_str,
+                    destinatario=pago_info['destinatario'],
+                    admin_name=request.user.get_full_name() or request.user.username,
+                    balance_change="(no aplica)",
+                )
+            except Exception:
+                logger.exception("Error enviando notificación WhatsApp de eliminación de pago remesa")
         
         return JsonResponse({
             'success': True,

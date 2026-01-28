@@ -71,6 +71,7 @@ class DestinatarioForm(forms.ModelForm):
             'recibir_pago_cancelado',
             'recibir_pago_editado',
             'recibir_pago_eliminado',
+            'recibir_alerta_fondo_bajo',
             'monedas',
         ]
         widgets = {
@@ -91,5 +92,6 @@ class DestinatarioForm(forms.ModelForm):
             'recibir_pago_cancelado': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'recibir_pago_editado': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'recibir_pago_eliminado': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'recibir_alerta_fondo_bajo': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'monedas': forms.SelectMultiple(attrs={'class': 'form-select'}),
         }

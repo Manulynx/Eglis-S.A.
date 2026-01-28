@@ -143,6 +143,11 @@ class DestinatarioNotificacion(models.Model):
     recibir_pago_editado = models.BooleanField(default=True, help_text='Recibir notificación de pago editado')
     recibir_pago_eliminado = models.BooleanField(default=True, help_text='Recibir notificación de pago eliminado')
 
+    recibir_alerta_fondo_bajo = models.BooleanField(
+        default=True,
+        help_text='Recibir notificación de alerta de fondo de caja bajo'
+    )
+
     monedas = models.ManyToManyField(
         'remesas.Moneda',
         blank=True,
@@ -181,6 +186,7 @@ class LogNotificacion(models.Model):
         ('pago_cancelado', 'Pago Cancelado'),
         ('pago_eliminado', 'Pago Eliminado'),
         ('pago_editado', 'Pago Editado'),
+        ('alerta_fondo_bajo', 'Alerta Fondo de Caja Bajo'),
         ('TEST', 'Mensaje de Prueba'),
     ]
     

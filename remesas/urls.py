@@ -69,6 +69,7 @@ urlpatterns = [
     
     # URLs para Pagos de Remesas
     path('pagos-remesa/crear/<int:remesa_id>/', views.crear_pago_remesa, name='crear_pago_remesa'),
+    path('pagos-remesa/finalizar/<int:remesa_id>/', views.finalizar_notificaciones_remesa, name='finalizar_notificaciones_remesa'),
     path('pagos-remesa/listar/<int:remesa_id>/', views.listar_pagos_remesa, name='listar_pagos_remesa'),
     path('pagos-remesa/editar/<int:pago_id>/', views.editar_pago_remesa, name='editar_pago_remesa'),
     path('pagos-remesa/eliminar/<int:pago_id>/', views.eliminar_pago_remesa, name='eliminar_pago_remesa'),

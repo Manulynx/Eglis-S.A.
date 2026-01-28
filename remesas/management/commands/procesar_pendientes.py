@@ -14,7 +14,7 @@ from notificaciones.internal import create_internal_notification, get_admin_user
 
 class Command(BaseCommand):
     help = (
-        "Notifica a admins a las 23h si sigue pendiente y cancela automáticamente a las 24h "
+        "Notifica a admins a las 30h si sigue pendiente "
         "(Remesa, Pago y PagoRemesa)."
     )
 
@@ -51,25 +51,18 @@ class Command(BaseCommand):
 
     def _run_once(self, *, dry_run: bool) -> None:
         now = timezone.now()
-        threshold_23h = now - timedelta(hours=23)
-        threshold_24h = now - timedelta(hours=24)
+        threshold_30h = now - timedelta(hours=30)
 
         total_notificados = 0
-        total_cancelados = 0
 
-        # 1) Cancelaciones (24h)
-        total_cancelados += self._cancelar_remesas(threshold_24h, dry_run=dry_run)
-        total_cancelados += self._cancelar_pagos(threshold_24h, dry_run=dry_run)
-        total_cancelados += self._cancelar_pagos_remesa(threshold_24h, dry_run=dry_run)
-
-        # 2) Notificaciones (23h) para los que siguen pendientes
-        total_notificados += self._notificar_remesas(threshold_23h, dry_run=dry_run)
-        total_notificados += self._notificar_pagos(threshold_23h, dry_run=dry_run)
-        total_notificados += self._notificar_pagos_remesa(threshold_23h, dry_run=dry_run)
+        # Notificaciones (30h) para los que siguen pendientes
+        total_notificados += self._notificar_remesas(threshold_30h, dry_run=dry_run)
+        total_notificados += self._notificar_pagos(threshold_30h, dry_run=dry_run)
+        total_notificados += self._notificar_pagos_remesa(threshold_30h, dry_run=dry_run)
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"procesar_pendientes: notificados={total_notificados}, cancelados={total_cancelados}, dry_run={dry_run}"
+                f"procesar_pendientes: notificados={total_notificados}, dry_run={dry_run}"
             )
         )
 
@@ -137,10 +130,10 @@ class Command(BaseCommand):
                     count += 1
         return count
 
-    def _notificar_remesas(self, threshold_23h, *, dry_run: bool) -> int:
+    def _notificar_remesas(self, threshold_30h, *, dry_run: bool) -> int:
         qs = Remesa.objects.filter(
             estado="pendiente",
-            fecha__lte=threshold_23h,
+            fecha__lte=threshold_30h,
             notificado_pendiente_23h_en__isnull=True,
         )
         admins = self._admins()
@@ -151,12 +144,11 @@ class Command(BaseCommand):
         for remesa in qs.iterator():
             link = reverse("remesas:detalle_remesa", args=[remesa.id])
             msg = (
-                f"Remesa {remesa.remesa_id} lleva ~23h pendiente. "
-                "Se cancelará automáticamente a las 24h si continúa pendiente."
+                f"Remesa {remesa.remesa_id} lleva ~30h pendiente."
             )
 
             if dry_run:
-                self.stdout.write(f"[dry-run] Notificaría remesa 23h: {remesa.remesa_id}")
+                self.stdout.write(f"[dry-run] Notificaría remesa 30h: {remesa.remesa_id}")
                 count += 1
                 continue
 
@@ -178,10 +170,10 @@ class Command(BaseCommand):
                 count += 1
         return count
 
-    def _notificar_pagos(self, threshold_23h, *, dry_run: bool) -> int:
+    def _notificar_pagos(self, threshold_30h, *, dry_run: bool) -> int:
         qs = Pago.objects.filter(
             estado="pendiente",
-            fecha_creacion__lte=threshold_23h,
+            fecha_creacion__lte=threshold_30h,
             notificado_pendiente_23h_en__isnull=True,
         )
         admins = self._admins()
@@ -192,12 +184,11 @@ class Command(BaseCommand):
         for pago in qs.iterator():
             link = reverse("remesas:detalle_pago", args=[pago.id])
             msg = (
-                f"Pago {pago.pago_id} lleva ~23h pendiente. "
-                "Se cancelará automáticamente a las 24h si continúa pendiente."
+                f"Pago {pago.pago_id} lleva ~30h pendiente."
             )
 
             if dry_run:
-                self.stdout.write(f"[dry-run] Notificaría pago 23h: {pago.pago_id}")
+                self.stdout.write(f"[dry-run] Notificaría pago 30h: {pago.pago_id}")
                 count += 1
                 continue
 
@@ -219,10 +210,10 @@ class Command(BaseCommand):
                 count += 1
         return count
 
-    def _notificar_pagos_remesa(self, threshold_23h, *, dry_run: bool) -> int:
+    def _notificar_pagos_remesa(self, threshold_30h, *, dry_run: bool) -> int:
         qs = PagoRemesa.objects.select_related("remesa").filter(
             estado="pendiente",
-            fecha_creacion__lte=threshold_23h,
+            fecha_creacion__lte=threshold_30h,
             notificado_pendiente_23h_en__isnull=True,
         )
         admins = self._admins()
@@ -238,12 +229,11 @@ class Command(BaseCommand):
                 else reverse("remesas:registro_transacciones")
             )
             msg = (
-                f"Pago {pago.pago_id} (en remesa {remesa.remesa_id if remesa else ''}) lleva ~23h pendiente. "
-                "Se cancelará automáticamente a las 24h si continúa pendiente."
+                f"Pago {pago.pago_id} (en remesa {remesa.remesa_id if remesa else ''}) lleva ~30h pendiente."
             ).strip()
 
             if dry_run:
-                self.stdout.write(f"[dry-run] Notificaría pago remesa 23h: {pago.pago_id}")
+                self.stdout.write(f"[dry-run] Notificaría pago remesa 30h: {pago.pago_id}")
                 count += 1
                 continue
 

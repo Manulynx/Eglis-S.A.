@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Script independiente para PythonAnywhere/cron.
 
-- Notifica a admins cuando Remesa/Pago/PagoRemesa lleva ~23h en estado pendiente.
-- Cancela automáticamente cuando cumple 24h y sigue pendiente.
+- Notifica a admins cuando Remesa/Pago/PagoRemesa lleva ~30h en estado pendiente.
 
 Cómo usar (ejemplo PythonAnywhere Tasks):
   python3 /home/TU_USUARIO/tu_proyecto/procesar_pendientes_script.py
@@ -42,11 +41,10 @@ from remesas.models import Pago, PagoRemesa, Remesa
 
 
 def procesar_pendientes() -> dict:
-    """Ejecuta una pasada de notificaciones/cancelaciones."""
+    """Ejecuta una pasada de notificaciones."""
 
     ahora = timezone.now()
-    limite_notificar = ahora - timedelta(hours=23)
-    limite_cancelar = ahora - timedelta(hours=24)
+    limite_notificar = ahora - timedelta(hours=30)
 
     admins = list(get_admin_users_queryset())
 
@@ -60,53 +58,7 @@ def procesar_pendientes() -> dict:
         "admins": len(admins),
     }
 
-    # 1) Cancelar primero (24h)
-    # Remesas
-    for remesa in Remesa.objects.filter(estado="pendiente", fecha__lte=limite_cancelar).iterator():
-        try:
-            with transaction.atomic():
-                r = Remesa.objects.select_for_update().get(pk=remesa.pk)
-                if r.estado != "pendiente":
-                    continue
-                r._skip_whatsapp = True
-                r.cancelado_por_tiempo = True
-                r.cancelado_por_tiempo_en = timezone.now()
-                if r.cancelar():
-                    stats["remesas_canceladas"] += 1
-        except Exception as e:
-            print(f"Error cancelando remesa {remesa.remesa_id}: {e}")
-
-    # Pagos
-    for pago in Pago.objects.filter(estado="pendiente", fecha_creacion__lte=limite_cancelar).iterator():
-        try:
-            with transaction.atomic():
-                p = Pago.objects.select_for_update().get(pk=pago.pk)
-                if p.estado != "pendiente":
-                    continue
-                p._skip_whatsapp = True
-                p.cancelado_por_tiempo = True
-                p.cancelado_por_tiempo_en = timezone.now()
-                if p.cancelar():
-                    stats["pagos_cancelados"] += 1
-        except Exception as e:
-            print(f"Error cancelando pago {pago.pago_id}: {e}")
-
-    # Pagos remesa
-    for pago in PagoRemesa.objects.filter(estado="pendiente", fecha_creacion__lte=limite_cancelar).iterator():
-        try:
-            with transaction.atomic():
-                pr = PagoRemesa.objects.select_for_update().select_related("remesa").get(pk=pago.pk)
-                if pr.estado != "pendiente":
-                    continue
-                pr._skip_whatsapp = True
-                pr.cancelado_por_tiempo = True
-                pr.cancelado_por_tiempo_en = timezone.now()
-                if pr.cancelar():
-                    stats["pagos_remesa_cancelados"] += 1
-        except Exception as e:
-            print(f"Error cancelando pago remesa {pago.pago_id}: {e}")
-
-    # 2) Notificar (23h) solo una vez
+    # Notificar (30h) solo una vez
     if not admins:
         return stats
 
@@ -119,8 +71,7 @@ def procesar_pendientes() -> dict:
         try:
             link = reverse("remesas:detalle_remesa", args=[remesa.id])
             msg = (
-                f"Remesa {remesa.remesa_id} lleva ~23h pendiente. "
-                "Se cancelará automáticamente a las 24h si continúa pendiente."
+                f"Remesa {remesa.remesa_id} lleva ~30h pendiente."
             )
 
             with transaction.atomic():
@@ -151,8 +102,7 @@ def procesar_pendientes() -> dict:
         try:
             link = reverse("remesas:detalle_pago", args=[pago.id])
             msg = (
-                f"Pago {pago.pago_id} lleva ~23h pendiente. "
-                "Se cancelará automáticamente a las 24h si continúa pendiente."
+                f"Pago {pago.pago_id} lleva ~30h pendiente."
             )
 
             with transaction.atomic():
@@ -188,8 +138,7 @@ def procesar_pendientes() -> dict:
                 else reverse("remesas:registro_transacciones")
             )
             msg = (
-                f"Pago {pago.pago_id} (en remesa {remesa.remesa_id if remesa else ''}) lleva ~23h pendiente. "
-                "Se cancelará automáticamente a las 24h si continúa pendiente."
+                f"Pago {pago.pago_id} (en remesa {remesa.remesa_id if remesa else ''}) lleva ~30h pendiente."
             ).strip()
 
             with transaction.atomic():
