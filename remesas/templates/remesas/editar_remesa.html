@@ -155,7 +155,7 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('/remesas/api/gestores/')
             .then(r => r.json())
             .then(data => {
-                gestorSelect.innerHTML = '<option value="">Seleccionar usuario...</option>';
+                gestorSelect.innerHTML = '<option value="">Elegir</option>';
                 data.forEach(u => {
                     const option = document.createElement('option');
                     option.value = u.id;

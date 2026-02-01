@@ -61,8 +61,10 @@
 
       const body = document.createElement('div');
       body.className = 'flex-grow-1';
+      const actorLine = n.actor_name ? `<div class="small text-white-50">Usuario: ${n.actor_name}</div>` : '';
       body.innerHTML = `
         <div class="fw-semibold text-white">${n.message}</div>
+        ${actorLine}
         <div class="small text-light">${n.created_at_human}</div>
       `;
 

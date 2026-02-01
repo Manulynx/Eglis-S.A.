@@ -807,7 +807,7 @@ def toggle_usuario(request, user_id):
 @login_required
 def historial_usuario(request, user_id):
     """Vista para ver el historial de un usuario"""
-    from remesas.models import Remesa, Pago, Moneda
+    from remesas.models import Remesa, Pago, Moneda, PagoRemesa
     from decimal import Decimal
     from datetime import datetime, timedelta
     from django.db.models import Q
@@ -839,6 +839,7 @@ def historial_usuario(request, user_id):
     
     # Filtros específicos para pagos  
     search_pagos = request.GET.get('search_pagos', '')
+    tipo_pago_pagos = request.GET.get('tipo_pago_pagos', '')
     estado_pagos = request.GET.get('estado_pagos', '')
     moneda_pagos = request.GET.get('moneda_pagos', '')
     fecha_desde_pagos = request.GET.get('fecha_desde_pagos', '')
@@ -849,11 +850,14 @@ def historial_usuario(request, user_id):
     
     # Filtros específicos para vista total
     search_total = request.GET.get('search_total', '')
+    tipo_operacion = request.GET.get('tipo_operacion', '')
     moneda_total = request.GET.get('moneda_total', '')
     fecha_desde_total = request.GET.get('fecha_desde_total', '')
     fecha_hasta_total = request.GET.get('fecha_hasta_total', '')
     importe_min_total = request.GET.get('importe_min_total', '')
     importe_max_total = request.GET.get('importe_max_total', '')
+    cantidad_min_total = request.GET.get('cantidad_min_total', '') or importe_min_total
+    cantidad_max_total = request.GET.get('cantidad_max_total', '') or importe_max_total
     rango_usd = request.GET.get('rango_usd', '')
     
     # Obtener remesas del usuario
@@ -916,16 +920,27 @@ def historial_usuario(request, user_id):
                 remesas_queryset = remesas_queryset.filter(fecha__lt=fecha_hasta_dt)
             except ValueError:
                 pass
-        if importe_min_total:
+        if cantidad_min_total:
             try:
-                remesas_queryset = remesas_queryset.filter(importe__gte=float(importe_min_total))
+                remesas_queryset = remesas_queryset.filter(importe__gte=float(cantidad_min_total))
             except ValueError:
                 pass
-        if importe_max_total:
+        if cantidad_max_total:
             try:
-                remesas_queryset = remesas_queryset.filter(importe__lte=float(importe_max_total))
+                remesas_queryset = remesas_queryset.filter(importe__lte=float(cantidad_max_total))
             except ValueError:
                 pass
+        if rango_usd:
+            if rango_usd == '0-100':
+                remesas_queryset = remesas_queryset.filter(monto_usd_historico__gte=0, monto_usd_historico__lte=100)
+            elif rango_usd == '100-500':
+                remesas_queryset = remesas_queryset.filter(monto_usd_historico__gt=100, monto_usd_historico__lte=500)
+            elif rango_usd == '500-1000':
+                remesas_queryset = remesas_queryset.filter(monto_usd_historico__gt=500, monto_usd_historico__lte=1000)
+            elif rango_usd == '1000-5000':
+                remesas_queryset = remesas_queryset.filter(monto_usd_historico__gt=1000, monto_usd_historico__lte=5000)
+            elif rango_usd == '5000+':
+                remesas_queryset = remesas_queryset.filter(monto_usd_historico__gt=5000)
     # Si no es vista específica, usar filtros generales como fallback
     else:
         if search_query:
@@ -950,12 +965,20 @@ def historial_usuario(request, user_id):
             except ValueError:
                 pass
     
-    remesas = remesas_queryset.order_by('-fecha')
+    remesas_list = remesas_queryset.order_by('-fecha')
     
     # Obtener pagos del usuario
     pagos_queryset = Pago.objects.filter(usuario=usuario).select_related('tipo_moneda')
+    pagos_remesa_queryset = PagoRemesa.objects.filter(usuario=usuario).select_related('tipo_moneda', 'remesa')
     
     # Aplicar filtros a pagos según la vista
+    if vista == 'total' and tipo_operacion:
+        if tipo_operacion == 'remesa':
+            pagos_queryset = pagos_queryset.none()
+            pagos_remesa_queryset = pagos_remesa_queryset.none()
+        elif tipo_operacion == 'pago':
+            remesas_queryset = remesas_queryset.none()
+
     if vista == 'pagos':
         # Filtros específicos para vista de pagos
         if search_pagos:
@@ -964,32 +987,47 @@ def historial_usuario(request, user_id):
                 Q(destinatario__icontains=search_pagos) |
                 Q(telefono__icontains=search_pagos)
             )
+            pagos_remesa_queryset = pagos_remesa_queryset.filter(
+                Q(pago_id__icontains=search_pagos) |
+                Q(destinatario__icontains=search_pagos) |
+                Q(telefono__icontains=search_pagos)
+            )
         if destinatario_pagos:
             pagos_queryset = pagos_queryset.filter(destinatario__icontains=destinatario_pagos)
+            pagos_remesa_queryset = pagos_remesa_queryset.filter(destinatario__icontains=destinatario_pagos)
+        if tipo_pago_pagos:
+            pagos_queryset = pagos_queryset.filter(tipo_pago=tipo_pago_pagos)
+            pagos_remesa_queryset = pagos_remesa_queryset.filter(tipo_pago=tipo_pago_pagos)
         if estado_pagos:
             pagos_queryset = pagos_queryset.filter(estado=estado_pagos)
+            pagos_remesa_queryset = pagos_remesa_queryset.filter(estado=estado_pagos)
         if moneda_pagos:
             pagos_queryset = pagos_queryset.filter(tipo_moneda_id=moneda_pagos)
+            pagos_remesa_queryset = pagos_remesa_queryset.filter(tipo_moneda_id=moneda_pagos)
         if cantidad_min_pagos:
             try:
                 pagos_queryset = pagos_queryset.filter(cantidad__gte=float(cantidad_min_pagos))
+                pagos_remesa_queryset = pagos_remesa_queryset.filter(cantidad__gte=float(cantidad_min_pagos))
             except ValueError:
                 pass
         if cantidad_max_pagos:
             try:
                 pagos_queryset = pagos_queryset.filter(cantidad__lte=float(cantidad_max_pagos))
+                pagos_remesa_queryset = pagos_remesa_queryset.filter(cantidad__lte=float(cantidad_max_pagos))
             except ValueError:
                 pass
         if fecha_desde_pagos:
             try:
                 fecha_desde_dt = datetime.strptime(fecha_desde_pagos, '%Y-%m-%d')
                 pagos_queryset = pagos_queryset.filter(fecha_creacion__gte=fecha_desde_dt)
+                pagos_remesa_queryset = pagos_remesa_queryset.filter(fecha_creacion__gte=fecha_desde_dt)
             except ValueError:
                 pass
         if fecha_hasta_pagos:
             try:
                 fecha_hasta_dt = datetime.strptime(fecha_hasta_pagos, '%Y-%m-%d') + timedelta(days=1)
                 pagos_queryset = pagos_queryset.filter(fecha_creacion__lt=fecha_hasta_dt)
+                pagos_remesa_queryset = pagos_remesa_queryset.filter(fecha_creacion__lt=fecha_hasta_dt)
             except ValueError:
                 pass
     elif vista == 'total':
@@ -1000,30 +1038,56 @@ def historial_usuario(request, user_id):
                 Q(destinatario__icontains=search_total) |
                 Q(telefono__icontains=search_total)
             )
+            pagos_remesa_queryset = pagos_remesa_queryset.filter(
+                Q(pago_id__icontains=search_total) |
+                Q(destinatario__icontains=search_total) |
+                Q(telefono__icontains=search_total)
+            )
         if moneda_total:
             pagos_queryset = pagos_queryset.filter(tipo_moneda_id=moneda_total)
+            pagos_remesa_queryset = pagos_remesa_queryset.filter(tipo_moneda_id=moneda_total)
         if fecha_desde_total:
             try:
                 fecha_desde_dt = datetime.strptime(fecha_desde_total, '%Y-%m-%d')
                 pagos_queryset = pagos_queryset.filter(fecha_creacion__gte=fecha_desde_dt)
+                pagos_remesa_queryset = pagos_remesa_queryset.filter(fecha_creacion__gte=fecha_desde_dt)
             except ValueError:
                 pass
         if fecha_hasta_total:
             try:
                 fecha_hasta_dt = datetime.strptime(fecha_hasta_total, '%Y-%m-%d') + timedelta(days=1)
                 pagos_queryset = pagos_queryset.filter(fecha_creacion__lt=fecha_hasta_dt)
+                pagos_remesa_queryset = pagos_remesa_queryset.filter(fecha_creacion__lt=fecha_hasta_dt)
             except ValueError:
                 pass
-        if importe_min_total:
+        if cantidad_min_total:
             try:
-                pagos_queryset = pagos_queryset.filter(cantidad__gte=float(importe_min_total))
+                pagos_queryset = pagos_queryset.filter(cantidad__gte=float(cantidad_min_total))
+                pagos_remesa_queryset = pagos_remesa_queryset.filter(cantidad__gte=float(cantidad_min_total))
             except ValueError:
                 pass
-        if importe_max_total:
+        if cantidad_max_total:
             try:
-                pagos_queryset = pagos_queryset.filter(cantidad__lte=float(importe_max_total))
+                pagos_queryset = pagos_queryset.filter(cantidad__lte=float(cantidad_max_total))
+                pagos_remesa_queryset = pagos_remesa_queryset.filter(cantidad__lte=float(cantidad_max_total))
             except ValueError:
                 pass
+        if rango_usd:
+            if rango_usd == '0-100':
+                pagos_queryset = pagos_queryset.filter(monto_usd_historico__gte=0, monto_usd_historico__lte=100)
+                pagos_remesa_queryset = pagos_remesa_queryset.filter(monto_usd_historico__gte=0, monto_usd_historico__lte=100)
+            elif rango_usd == '100-500':
+                pagos_queryset = pagos_queryset.filter(monto_usd_historico__gt=100, monto_usd_historico__lte=500)
+                pagos_remesa_queryset = pagos_remesa_queryset.filter(monto_usd_historico__gt=100, monto_usd_historico__lte=500)
+            elif rango_usd == '500-1000':
+                pagos_queryset = pagos_queryset.filter(monto_usd_historico__gt=500, monto_usd_historico__lte=1000)
+                pagos_remesa_queryset = pagos_remesa_queryset.filter(monto_usd_historico__gt=500, monto_usd_historico__lte=1000)
+            elif rango_usd == '1000-5000':
+                pagos_queryset = pagos_queryset.filter(monto_usd_historico__gt=1000, monto_usd_historico__lte=5000)
+                pagos_remesa_queryset = pagos_remesa_queryset.filter(monto_usd_historico__gt=1000, monto_usd_historico__lte=5000)
+            elif rango_usd == '5000+':
+                pagos_queryset = pagos_queryset.filter(monto_usd_historico__gt=5000)
+                pagos_remesa_queryset = pagos_remesa_queryset.filter(monto_usd_historico__gt=5000)
     # Si no es vista específica, usar filtros generales como fallback
     else:
         if search_query:
@@ -1032,20 +1096,29 @@ def historial_usuario(request, user_id):
                 Q(destinatario__icontains=search_query) |
                 Q(telefono__icontains=search_query)
             )
+            pagos_remesa_queryset = pagos_remesa_queryset.filter(
+                Q(pago_id__icontains=search_query) |
+                Q(destinatario__icontains=search_query) |
+                Q(telefono__icontains=search_query)
+            )
         if estado_filter:
             pagos_queryset = pagos_queryset.filter(estado=estado_filter)
+            pagos_remesa_queryset = pagos_remesa_queryset.filter(estado=estado_filter)
         if moneda_filter:
             pagos_queryset = pagos_queryset.filter(tipo_moneda_id=moneda_filter)
+            pagos_remesa_queryset = pagos_remesa_queryset.filter(tipo_moneda_id=moneda_filter)
         if fecha_desde:
             try:
                 fecha_desde_dt = datetime.strptime(fecha_desde, '%Y-%m-%d')
                 pagos_queryset = pagos_queryset.filter(fecha_creacion__gte=fecha_desde_dt)
+                pagos_remesa_queryset = pagos_remesa_queryset.filter(fecha_creacion__gte=fecha_desde_dt)
             except ValueError:
                 pass
         if fecha_hasta:
             try:
                 fecha_hasta_dt = datetime.strptime(fecha_hasta, '%Y-%m-%d') + timedelta(days=1)
                 pagos_queryset = pagos_queryset.filter(fecha_creacion__lt=fecha_hasta_dt)
+                pagos_remesa_queryset = pagos_remesa_queryset.filter(fecha_creacion__lt=fecha_hasta_dt)
             except ValueError:
                 pass
     
@@ -1054,6 +1127,7 @@ def historial_usuario(request, user_id):
         try:
             fecha_desde_dt = datetime.strptime(fecha_desde_term, '%Y-%m-%d')
             pagos_queryset = pagos_queryset.filter(fecha_creacion__gte=fecha_desde_dt)
+            pagos_remesa_queryset = pagos_remesa_queryset.filter(fecha_creacion__gte=fecha_desde_dt)
         except ValueError:
             pass
     
@@ -1062,18 +1136,20 @@ def historial_usuario(request, user_id):
         try:
             fecha_hasta_dt = datetime.strptime(fecha_hasta_term, '%Y-%m-%d') + timedelta(days=1)
             pagos_queryset = pagos_queryset.filter(fecha_creacion__lt=fecha_hasta_dt)
+            pagos_remesa_queryset = pagos_remesa_queryset.filter(fecha_creacion__lt=fecha_hasta_dt)
         except ValueError:
             pass
     
-    pagos = pagos_queryset.order_by('-fecha_creacion')
+    pagos_list = pagos_queryset.order_by('-fecha_creacion')
+    pagos_remesa_list = pagos_remesa_queryset.order_by('-fecha_creacion')
     
     # Agregar campos calculados a remesas usando valores históricos
-    for remesa in remesas:
+    for remesa in remesas_list:
         # Usar el método que prioriza valores históricos guardados
         remesa.importe_usd = remesa.calcular_monto_en_usd()
     
     # Agregar campos calculados a pagos usando valores históricos
-    for pago in pagos:
+    for pago in pagos_list:
         # Campos que el template espera
         pago.numero_pago = pago.pago_id
         pago.destinatario_nombre = pago.destinatario
@@ -1082,12 +1158,19 @@ def historial_usuario(request, user_id):
         
         # Usar el método que prioriza valores históricos guardados
         pago.cantidad_usd = pago.calcular_monto_en_usd()
+
+    # Agregar campos calculados a pagos de remesa
+    for pago_remesa in pagos_remesa_list:
+        pago_remesa.numero_pago = pago_remesa.pago_id
+        pago_remesa.destinatario_nombre = pago_remesa.destinatario
+        pago_remesa.moneda = pago_remesa.tipo_moneda
+        pago_remesa.cantidad_usd = pago_remesa.calcular_monto_en_usd()
     
     # Crear lista de transacciones combinadas
     total_transacciones = []
     
     # Agregar remesas
-    for remesa in remesas:
+    for remesa in remesas_list:
         transaccion = type('Transaccion', (), {
             'tipo': 'remesa',
             'pk': remesa.pk,
@@ -1102,7 +1185,7 @@ def historial_usuario(request, user_id):
         total_transacciones.append(transaccion)
     
     # Agregar pagos
-    for pago in pagos:
+    for pago in pagos_list:
         transaccion = type('Transaccion', (), {
             'tipo': 'pago',
             'pk': pago.pk,
@@ -1115,13 +1198,43 @@ def historial_usuario(request, user_id):
             'fecha_creacion': pago.fecha_creacion,
         })()
         total_transacciones.append(transaccion)
+
+    # Agregar pagos de remesa
+    for pago_remesa in pagos_remesa_list:
+        transaccion = type('Transaccion', (), {
+            'tipo': 'pago_remesa',
+            'pk': pago_remesa.pk,
+            'numero_pago': pago_remesa.pago_id,
+            'destinatario_nombre': pago_remesa.destinatario,
+            'estado': pago_remesa.estado,
+            'cantidad': pago_remesa.cantidad,
+            'cantidad_usd': getattr(pago_remesa, 'cantidad_usd', Decimal('0.00')),
+            'moneda': pago_remesa.tipo_moneda,
+            'fecha_creacion': pago_remesa.fecha_creacion,
+            'remesa': pago_remesa.remesa,
+        })()
+        total_transacciones.append(transaccion)
     
     # Ordenar por fecha
     total_transacciones.sort(key=lambda x: x.fecha_creacion, reverse=True)
+
+    # Paginación (igual que registro_transacciones)
+    items_per_page = 20
+    remesas_paginator = Paginator(remesas_list, items_per_page)
+    pagos_paginator = Paginator(pagos_list, items_per_page)
+    total_paginator = Paginator(total_transacciones, items_per_page)
+
+    remesas_page_num = request.GET.get('remesas_page', 1)
+    pagos_page_num = request.GET.get('pagos_page', 1)
+    total_page_num = request.GET.get('total_page', 1)
+
+    remesas = remesas_paginator.get_page(remesas_page_num)
+    pagos = pagos_paginator.get_page(pagos_page_num)
+    total_transacciones_page = total_paginator.get_page(total_page_num)
     
     # Estadísticas de elementos totales vs filtrados
     total_remesas_count = Remesa.objects.filter(gestor=usuario).count()
-    total_pagos_count = Pago.objects.filter(usuario=usuario).count()
+    total_pagos_count = Pago.objects.filter(usuario=usuario).count() + PagoRemesa.objects.filter(usuario=usuario).count()
     
     # Obtener balance calculado dinámicamente de las transacciones reales
     balance_calculado = usuario.perfil.calcular_balance_real() if hasattr(usuario, 'perfil') else Decimal('0.00')
@@ -1133,7 +1246,7 @@ def historial_usuario(request, user_id):
     balance = balance_calculado
     
     # Estadísticas - Solo remesas confirmadas y completadas para el total
-    remesas_confirmadas_completadas = [r for r in remesas if r.estado in ['confirmada', 'completada']]
+    remesas_confirmadas_completadas = [r for r in remesas_list if r.estado in ['confirmada', 'completada']]
     
     # Calcular totales con manejo de errores
     total_remesas_usd = Decimal('0.00')
@@ -1147,7 +1260,8 @@ def historial_usuario(request, user_id):
             continue
     
     # Estadísticas - Solo pagos confirmados para el total
-    pagos_confirmados = [p for p in pagos if p.estado == 'confirmado']
+    pagos_confirmados = [p for p in pagos_list if p.estado == 'confirmado']
+    pagos_remesa_confirmados = [p for p in pagos_remesa_list if p.estado == 'confirmado']
     
     total_pagos_usd = Decimal('0.00')
     for pago in pagos_confirmados:
@@ -1157,6 +1271,15 @@ def historial_usuario(request, user_id):
                 total_pagos_usd += Decimal(str(monto_usd))
         except Exception as e:
             logger.exception("Error calculando monto USD para pago %s", getattr(pago, 'pago_id', 'N/A'))
+            continue
+
+    for pago in pagos_remesa_confirmados:
+        try:
+            monto_usd = pago.calcular_monto_en_usd()
+            if monto_usd is not None:
+                total_pagos_usd += Decimal(str(monto_usd))
+        except Exception as e:
+            logger.exception("Error calculando monto USD para pago remesa %s", getattr(pago, 'pago_id', 'N/A'))
             continue
     
     # Obtener opciones para filtros
@@ -1180,10 +1303,12 @@ def historial_usuario(request, user_id):
         'sesion': sesion,
         'remesas': remesas,
         'pagos': pagos,
-        'total_transacciones': total_transacciones,
-        'remesas_count': len(remesas),
+        'pagos_remesa': pagos_remesa_list,
+        'total_transacciones': total_transacciones_page,
+        'total_transacciones_count': len(total_transacciones),
+        'remesas_count': remesas_list.count(),
         'total_remesas': total_remesas_usd,
-        'pagos_count': len(pagos),
+        'pagos_count': pagos_list.count() + pagos_remesa_list.count(),
         'total_pagos': total_pagos_usd,
         'balance': balance,
         'total_remesas_count': total_remesas_count,
@@ -1208,6 +1333,7 @@ def historial_usuario(request, user_id):
         'tipo_pago_remesas': tipo_pago_remesas,
         # Filtros específicos de pagos
         'search_pagos': search_pagos,
+        'tipo_pago_pagos': tipo_pago_pagos,
         'estado_pagos': estado_pagos,
         'moneda_pagos': moneda_pagos,
         'fecha_desde_pagos': fecha_desde_pagos,
@@ -1217,13 +1343,31 @@ def historial_usuario(request, user_id):
         'destinatario_pagos': destinatario_pagos,
         # Filtros específicos de total
         'search_total': search_total,
+        'tipo_operacion': tipo_operacion,
         'moneda_total': moneda_total,
         'fecha_desde_total': fecha_desde_total,
         'fecha_hasta_total': fecha_hasta_total,
         'importe_min_total': importe_min_total,
         'importe_max_total': importe_max_total,
+        'cantidad_min_total': cantidad_min_total,
+        'cantidad_max_total': cantidad_max_total,
         'rango_usd': rango_usd,
     }
+
+    # Querystrings para paginación
+    def _build_qs(extra_params):
+        params = request.GET.copy()
+        for key in ['remesas_page', 'pagos_page', 'total_page']:
+            params.pop(key, None)
+        for key, value in extra_params.items():
+            params[key] = value
+        return params.urlencode()
+
+    context.update({
+        'querystring_remesas': _build_qs({'vista': 'remesas'}),
+        'querystring_pagos': _build_qs({'vista': 'pagos'}),
+        'querystring_total': _build_qs({'vista': 'total'}),
+    })
     
     # Verificar si es una petición de exportación a Excel
     if request.GET.get('export') == 'excel':
@@ -1244,7 +1388,7 @@ def historial_usuario(request, user_id):
             writer.writerow(['ID', 'Receptor', 'Estado', 'Importe', 'Moneda', 'USD', 'Fecha'])
             
             # Datos
-            for remesa in remesas:
+            for remesa in remesas_list:
                 writer.writerow([
                     remesa.remesa_id,
                     getattr(remesa, 'receptor_nombre', ''),
@@ -1257,7 +1401,7 @@ def historial_usuario(request, user_id):
         elif vista == 'pagos':
             writer.writerow(['ID', 'Destinatario', 'Cantidad', 'Moneda', 'USD', 'Fecha'])
             
-            for pago in pagos:
+            for pago in pagos_list:
                 writer.writerow([
                     pago.pago_id,
                     pago.destinatario,

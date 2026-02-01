@@ -396,12 +396,32 @@ def internas_api_unread_count(request):
 
 def _serialize_notificacion(request, n: NotificacionInterna):
     created_local = timezone.localtime(n.created_at)
+    actor_name = ''
+    if n.actor:
+        actor_name = n.actor.get_full_name() or n.actor.username
+    link = n.link
+    content_object = getattr(n, 'content_object', None)
+    if content_object is not None:
+        try:
+            from remesas.models import Remesa, Pago, PagoRemesa
+
+            if isinstance(content_object, Remesa):
+                link = reverse('remesas:detalle_remesa', args=[content_object.id])
+            elif isinstance(content_object, Pago):
+                link = reverse('remesas:detalle_pago', args=[content_object.id])
+            elif isinstance(content_object, PagoRemesa):
+                remesa = getattr(content_object, 'remesa', None)
+                if remesa:
+                    link = reverse('remesas:detalle_remesa', args=[remesa.id])
+        except Exception:
+            link = n.link
     return {
         'id': n.id,
         'message': n.message,
         'level': n.level,
-        'link': n.link,
+        'link': link,
         'is_read': n.is_read,
+        'actor_name': actor_name,
         'created_at': n.created_at.isoformat(),
         'created_at_human': created_local.strftime('%d/%m/%Y %H:%M'),
         'mark_read_url': reverse('notificaciones:internas_api_mark_read', args=[n.id]),

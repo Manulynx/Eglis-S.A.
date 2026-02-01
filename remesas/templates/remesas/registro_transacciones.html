@@ -1095,25 +1095,14 @@
                                 
                                 <!-- Pagos de Remesa -->
                                 {% for pago in pagos_remesa %}
-                                <tr class="table-success">
+                                <tr>
                                     <td>
-                                        <div class="d-flex flex-column gap-1">
-                                            <span class="text-info fw-bold">{{ pago.pago_id }}</span>
-                                            <a href="{% url 'remesas:detalle_remesa' pago.remesa.id %}#pagos" 
-                                               class="badge bg-warning text-dark text-decoration-none d-inline-flex align-items-center gap-1" 
-                                               style="width: fit-content; font-size: 0.75rem; padding: 0.35em 0.65em; font-weight: 600;"
+                                        <span class="text-info">{{ pago.pago_id }}</span>
+                                        {% if pago.editado %}
+                                            <i class="fas fa-edit text-warning ms-1" 
                                                data-bs-toggle="tooltip" 
-                                               title="Ver detalles de la remesa {{ pago.remesa.remesa_id }} y sus pagos">
-                                                <i class="fas fa-link"></i>
-                                                <i class="fas fa-paper-plane"></i>
-                                                <span>{{ pago.remesa.remesa_id }}</span>
-                                            </a>
-                                            {% if pago.editado %}
-                                                <i class="fas fa-edit text-warning" 
-                                                   data-bs-toggle="tooltip" 
-                                                   title="Editado el {{ pago.fecha_edicion|date:'d/m/Y H:i' }}{% if pago.usuario_editor %} por {{ pago.usuario_editor.first_name|default:pago.usuario_editor.username }}{% endif %}"></i>
-                                            {% endif %}
-                                        </div>
+                                               title="Editado el {{ pago.fecha_edicion|date:'d/m/Y H:i' }}{% if pago.usuario_editor %} por {{ pago.usuario_editor.first_name|default:pago.usuario_editor.username }}{% endif %}"></i>
+                                        {% endif %}
                                     </td>
                                     <td>
                                         {% if pago.tipo_pago == 'transferencia' %}
@@ -1435,20 +1424,10 @@
                         
                         <!-- Pagos de Remesa en móvil -->
                         {% for pago in pagos_remesa %}
-                        <div class="mobile-item" style="border-left: 3px solid #ffc107;">
+                        <div class="mobile-item">
                             <div class="mobile-item-header">
                                 <div>
                                     <span class="text-info fw-bold">{{ pago.pago_id }}</span>
-                                    <br>
-                                    <a href="{% url 'remesas:detalle_remesa' pago.remesa.id %}#pagos" 
-                                       class="badge bg-warning text-dark text-decoration-none d-inline-flex align-items-center gap-1 mt-1" 
-                                       style="font-size: 0.75rem; padding: 0.35em 0.65em; font-weight: 600;"
-                                       data-bs-toggle="tooltip" 
-                                       title="Ver detalles de la remesa {{ pago.remesa.remesa_id }} y sus pagos">
-                                        <i class="fas fa-link"></i>
-                                        <i class="fas fa-paper-plane"></i>
-                                        <span>{{ pago.remesa.remesa_id }}</span>
-                                    </a>
                                     {% if pago.editado %}
                                         <i class="fas fa-edit text-warning ms-1" 
                                            data-bs-toggle="tooltip" 
@@ -1655,7 +1634,7 @@
                     <div class="table-responsive table-container-total" style="border: 1px solid #495057; border-radius: 0.375rem;">
                         <!-- Vista Desktop -->
                         <table class="table table-dark table-sm mb-0">
-                            <thead class="sticky-top">
+                            <thead>
                                 <tr>
                                     <th style="min-width: 150px; z-index: 10;">ID Operación</th>
                                     <th style="min-width: 100px; z-index: 10;">Tipo</th>
@@ -4293,14 +4272,6 @@
     margin-bottom: 0;
 }
 
-.table-container-total .table thead th {
-    position: sticky;
-    top: 0;
-    background-color: #343a40 !important;
-    z-index: 10;
-    border-bottom: 2px solid #495057;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
 
 .table-container-total::-webkit-scrollbar {
     width: 8px;
@@ -4328,11 +4299,12 @@
 }
 
 #total .table thead th {
-    position: sticky;
-    top: 0;
+    position: static;
+    top: auto;
     background-color: #343a40;
-    z-index: 10;
+    z-index: auto;
     border-bottom: 2px solid #495057;
+    box-shadow: none;
 }
 
 /* Mejorar el scroll horizontal */

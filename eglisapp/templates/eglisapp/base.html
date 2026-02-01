@@ -48,10 +48,10 @@
             top: 0;
             left: 0;
             right: 0;
-            height: 120px;
+          height: 140px;
             z-index: 2000;
             pointer-events: none;
-            overflow: hidden;
+          overflow: visible;
         }
 
         .pull-to-refresh-indicator {
@@ -64,40 +64,35 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: #2f3b52;
             border-radius: 50%;
             color: white;
             font-size: 1.4rem;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
-            border: 3px solid rgba(255, 255, 255, 0.9);
+          transition: all 0.25s ease-out;
+          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+          border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
         .pull-to-refresh-indicator.visible {
             top: 30px;
-            transform: translateX(-50%) scale(1.1);
+          transform: translateX(-50%) scale(1.0);
         }
 
         .pull-to-refresh-indicator.ready {
-            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-            box-shadow: 0 12px 35px rgba(17, 153, 142, 0.4);
-            transform: translateX(-50%) scale(1.2);
+          background: #2d8fdd;
+          box-shadow: 0 6px 18px rgba(45, 143, 221, 0.35);
+          transform: translateX(-50%) scale(1.0);
         }
 
         .pull-to-refresh-indicator.refreshing {
-            animation: refreshSpin 1.5s linear infinite, refreshPulse 2s ease-in-out infinite;
-            background: linear-gradient(135deg, #ff6b6b 0%, #feca57 100%);
-            box-shadow: 0 15px 40px rgba(255, 107, 107, 0.5);
+          animation: refreshSpin 1s linear infinite;
+          background: #2f3b52;
+          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
         }
 
         @keyframes refreshSpin {
-            0% { transform: translateX(-50%) rotate(0deg) scale(1.1); }
-            100% { transform: translateX(-50%) rotate(360deg) scale(1.1); }
-        }
-
-        @keyframes refreshPulse {
-            0%, 100% { box-shadow: 0 15px 40px rgba(255, 107, 107, 0.5); }
-            50% { box-shadow: 0 20px 50px rgba(255, 107, 107, 0.8); }
+          0% { transform: translateX(-50%) rotate(0deg); }
+          100% { transform: translateX(-50%) rotate(360deg); }
         }
 
         /* Estilos globales para protección contra envíos duplicados */
@@ -151,16 +146,19 @@
             top: -50px;
             left: 50%;
             transform: translateX(-50%);
-            background: linear-gradient(135deg, rgba(0, 0, 0, 0.8) 0%, rgba(45, 45, 45, 0.9) 100%);
+          background: rgba(15, 23, 42, 0.92);
             color: white;
             padding: 10px 20px;
             border-radius: 25px;
             font-size: 0.95rem;
             font-weight: 500;
-            white-space: nowrap;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+          white-space: normal;
+          max-width: min(90vw, 360px);
+          text-align: center;
+          line-height: 1.35;
+          transition: all 0.25s ease-out;
+          backdrop-filter: blur(6px);
+          border: 1px solid rgba(255, 255, 255, 0.12);
         }
 
         .pull-to-refresh-text.visible {
@@ -169,18 +167,12 @@
         }
 
         .pull-to-refresh-text.ready {
-            background: linear-gradient(135deg, rgba(17, 153, 142, 0.9) 0%, rgba(56, 239, 125, 0.9) 100%);
-            border-color: rgba(255, 255, 255, 0.4);
+          background: rgba(45, 143, 221, 0.95);
+          border-color: rgba(255, 255, 255, 0.2);
         }
 
         .pull-to-refresh-text.refreshing {
-            background: linear-gradient(135deg, rgba(255, 107, 107, 0.9) 0%, rgba(254, 202, 87, 0.9) 100%);
-            animation: textGlow 2s ease-in-out infinite;
-        }
-
-        @keyframes textGlow {
-            0%, 100% { box-shadow: 0 5px 20px rgba(255, 107, 107, 0.3); }
-            50% { box-shadow: 0 8px 30px rgba(255, 107, 107, 0.6); }
+          background: rgba(15, 23, 42, 0.95);
         }
 
         /* Progress Bar */
@@ -189,23 +181,17 @@
             top: 0;
             left: 0;
             height: 3px;
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+          background: #2d8fdd;
             transition: width 0.2s ease;
             z-index: 2001;
         }
 
         .pull-progress-bar.ready {
-            background: linear-gradient(90deg, #11998e 0%, #38ef7d 100%);
+          background: #2d8fdd;
         }
 
         .pull-progress-bar.refreshing {
-            background: linear-gradient(90deg, #ff6b6b 0%, #feca57 100%);
-            animation: progressGlow 1s ease-in-out infinite;
-        }
-
-        @keyframes progressGlow {
-            0%, 100% { box-shadow: 0 0 10px rgba(255, 107, 107, 0.5); }
-            50% { box-shadow: 0 0 20px rgba(255, 107, 107, 0.8); }
+          background: #2d8fdd;
         }
 
         .navbar {
@@ -866,7 +852,15 @@
         const navbarCollapse = document.querySelector('.navbar-collapse');
         const navLinks = document.querySelectorAll('.nav-link:not(.dropdown-toggle)');
         const dropdownToggles = document.querySelectorAll('.dropdown-toggle');
+        const mobileNotifPanel = document.getElementById('internal-notif-panel-mobile');
         let isAnimating = false;
+
+        function closeMobileNotifPanel() {
+          if (mobileNotifPanel && mobileNotifPanel.classList.contains('show')) {
+            mobileNotifPanel.classList.remove('show');
+            mobileNotifPanel.setAttribute('aria-hidden', 'true');
+          }
+        }
 
         function toggleMenu() {
           if (isAnimating) return;
@@ -911,6 +905,7 @@
           navbarToggler.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
+            closeMobileNotifPanel();
             toggleMenu();
           });
 
@@ -1155,8 +1150,10 @@
 
             const body = document.createElement('div');
             body.className = 'flex-grow-1';
+            const actorLine = n.actor_name ? `<div class="small text-white-50">Usuario: ${n.actor_name}</div>` : '';
             body.innerHTML = `
               <div class="fw-semibold text-white">${n.message}</div>
+              ${actorLine}
               <div class="small text-light">${n.created_at_human}</div>
             `;
 
@@ -1238,8 +1235,10 @@
 
             const body = document.createElement('div');
             body.className = 'flex-grow-1';
+            const actorLine = n.actor_name ? `<div class="small text-white-50">Usuario: ${n.actor_name}</div>` : '';
             body.innerHTML = `
               <div class="fw-semibold text-white">${n.message}</div>
+              ${actorLine}
               <div class="small text-light">${n.created_at_human}</div>
             `;
 
@@ -1439,10 +1438,10 @@
 
         // Messages for different states
         const messages = {
-          initial: '<i class="fas fa-hand-pointer me-2"></i>Desliza hacia abajo para actualizar',
-          pulling: '<i class="fas fa-arrow-down me-2"></i>Sigue deslizando...',
-          ready: '<i class="fas fa-rocket me-2"></i>¡Suelta para actualizar!',
-          refreshing: '<i class="fas fa-sync-alt me-2"></i>Actualizando contenido...'
+          initial: 'Desliza hacia abajo para actualizar',
+          pulling: 'Sigue deslizando...',
+          ready: '¡Suelta para actualizar!',
+          refreshing: 'Actualizando contenido...'
         };
 
         // Haptic feedback simulation
@@ -1599,7 +1598,7 @@
           const loadingInterval = setInterval(() => {
             dots = (dots + 1) % 4;
             const dotString = '.'.repeat(dots);
-            refreshText.innerHTML = `<i class="fas fa-sync-alt me-2"></i>Actualizando contenido${dotString}`;
+            refreshText.innerHTML = `Actualizando contenido${dotString}`;
           }, 300);
 
           // Simulate refresh and reload
@@ -1608,7 +1607,7 @@
 
             // Success feedback
             refreshIcon.className = 'fas fa-check';
-            refreshText.innerHTML = '<i class="fas fa-check me-2"></i>¡Actualización completada!';
+            refreshText.innerHTML = '¡Actualización completada!';
             vibrate([10, 30, 10]);
 
             setTimeout(() => {

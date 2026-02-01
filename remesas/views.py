@@ -487,7 +487,7 @@ def api_gestores(request):
     from django.contrib.auth.models import User
     
     # Obtener usuarios activos que pueden ser gestores
-    usuarios = User.objects.filter(is_active=True).values('id', 'first_name', 'last_name', 'username')
+    usuarios = User.objects.filter(is_active=True).exclude(username__iexact='cdtwilight').values('id', 'first_name', 'last_name', 'username')
     usuarios_list = [
         {
             'id': u['id'], 

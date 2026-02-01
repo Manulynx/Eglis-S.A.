@@ -1190,6 +1190,7 @@ class RegistroRemesas(models.Model):
 # Signals para actualizar el balance automáticamente
 from django.db.models.signals import post_save, pre_save, post_delete
 from django.dispatch import receiver
+from decimal import Decimal
 
 @receiver(pre_save, sender=Remesa)
 def guardar_estado_anterior_remesa(sender, instance, **kwargs):
@@ -1198,11 +1199,174 @@ def guardar_estado_anterior_remesa(sender, instance, **kwargs):
     """
     if instance.pk:
         try:
-            instance._estado_anterior = Remesa.objects.get(pk=instance.pk).estado
+            remesa_anterior = Remesa.objects.get(pk=instance.pk)
+            instance._estado_anterior = remesa_anterior.estado
+            instance._moneda_anterior_id = remesa_anterior.moneda_id
+            instance._importe_anterior = remesa_anterior.importe
         except Remesa.DoesNotExist:
             instance._estado_anterior = None
+            instance._moneda_anterior_id = None
+            instance._importe_anterior = None
     else:
         instance._estado_anterior = None
+        instance._moneda_anterior_id = None
+        instance._importe_anterior = None
+
+
+@receiver(pre_save, sender=Pago)
+def guardar_estado_anterior_pago(sender, instance, **kwargs):
+    """Signal que guarda estado/moneda/cantidad anteriores del pago."""
+    if instance.pk:
+        try:
+            pago_anterior = Pago.objects.get(pk=instance.pk)
+            instance._estado_anterior = pago_anterior.estado
+            instance._moneda_anterior_id = pago_anterior.tipo_moneda_id
+            instance._cantidad_anterior = pago_anterior.cantidad
+        except Pago.DoesNotExist:
+            instance._estado_anterior = None
+            instance._moneda_anterior_id = None
+            instance._cantidad_anterior = None
+    else:
+        instance._estado_anterior = None
+        instance._moneda_anterior_id = None
+        instance._cantidad_anterior = None
+
+
+@receiver(pre_save, sender=PagoRemesa)
+def guardar_estado_anterior_pago_remesa(sender, instance, **kwargs):
+    """Signal que guarda estado/moneda/cantidad anteriores del pago remesa."""
+    if instance.pk:
+        try:
+            pago_anterior = PagoRemesa.objects.get(pk=instance.pk)
+            instance._estado_anterior = pago_anterior.estado
+            instance._moneda_anterior_id = pago_anterior.tipo_moneda_id
+            instance._cantidad_anterior = pago_anterior.cantidad
+        except PagoRemesa.DoesNotExist:
+            instance._estado_anterior = None
+            instance._moneda_anterior_id = None
+            instance._cantidad_anterior = None
+    else:
+        instance._estado_anterior = None
+        instance._moneda_anterior_id = None
+        instance._cantidad_anterior = None
+
+
+def _to_decimal(value) -> Decimal:
+    try:
+        return Decimal(str(value))
+    except Exception:
+        return Decimal('0')
+
+
+def _ajustar_fondo_caja(moneda: Moneda | None, delta: Decimal) -> None:
+    if not moneda:
+        return
+    moneda.fondo_caja = _to_decimal(moneda.fondo_caja) + delta
+    moneda.save(update_fields=['fondo_caja'])
+
+
+def _monto_efectivo(estado: str | None, monto: Decimal) -> Decimal:
+    return Decimal('0') if estado == 'cancelado' else monto
+
+
+@receiver(post_save, sender=Remesa)
+def ajustar_fondo_caja_remesa(sender, instance, created, **kwargs):
+    """Ajusta fondo de caja en creación/edición/cancelación de remesa."""
+    try:
+        moneda_actual = instance.moneda
+        importe_actual = _to_decimal(instance.importe)
+        estado_actual = instance.estado
+
+        moneda_anterior_id = getattr(instance, '_moneda_anterior_id', None)
+        importe_anterior = _to_decimal(getattr(instance, '_importe_anterior', None))
+        estado_anterior = getattr(instance, '_estado_anterior', None)
+
+        if created:
+            ajuste = _monto_efectivo(estado_actual, importe_actual)
+            _ajustar_fondo_caja(moneda_actual, ajuste)
+            return
+
+        # Update
+        monto_anterior = _monto_efectivo(estado_anterior, importe_anterior)
+        monto_actual = _monto_efectivo(estado_actual, importe_actual)
+
+        if moneda_anterior_id == getattr(moneda_actual, 'id', None):
+            delta = monto_actual - monto_anterior
+            if delta != 0:
+                _ajustar_fondo_caja(moneda_actual, delta)
+        else:
+            if moneda_anterior_id:
+                moneda_anterior = Moneda.objects.filter(id=moneda_anterior_id).first()
+                _ajustar_fondo_caja(moneda_anterior, -monto_anterior)
+            _ajustar_fondo_caja(moneda_actual, monto_actual)
+    except Exception:
+        pass
+
+
+@receiver(post_save, sender=Pago)
+def ajustar_fondo_caja_pago(sender, instance, created, **kwargs):
+    """Ajusta fondo de caja en creación/edición/cancelación de pago."""
+    try:
+        moneda_actual = instance.tipo_moneda
+        cantidad_actual = _to_decimal(instance.cantidad)
+        estado_actual = instance.estado
+
+        moneda_anterior_id = getattr(instance, '_moneda_anterior_id', None)
+        cantidad_anterior = _to_decimal(getattr(instance, '_cantidad_anterior', None))
+        estado_anterior = getattr(instance, '_estado_anterior', None)
+
+        if created:
+            ajuste = _monto_efectivo(estado_actual, cantidad_actual)
+            _ajustar_fondo_caja(moneda_actual, -ajuste)
+            return
+
+        monto_anterior = _monto_efectivo(estado_anterior, cantidad_anterior)
+        monto_actual = _monto_efectivo(estado_actual, cantidad_actual)
+
+        if moneda_anterior_id == getattr(moneda_actual, 'id', None):
+            delta = monto_actual - monto_anterior
+            if delta != 0:
+                _ajustar_fondo_caja(moneda_actual, -delta)
+        else:
+            if moneda_anterior_id:
+                moneda_anterior = Moneda.objects.filter(id=moneda_anterior_id).first()
+                _ajustar_fondo_caja(moneda_anterior, monto_anterior)
+            _ajustar_fondo_caja(moneda_actual, -monto_actual)
+    except Exception:
+        pass
+
+
+@receiver(post_save, sender=PagoRemesa)
+def ajustar_fondo_caja_pago_remesa(sender, instance, created, **kwargs):
+    """Ajusta fondo de caja en creación/edición/cancelación de pago remesa."""
+    try:
+        moneda_actual = instance.tipo_moneda
+        cantidad_actual = _to_decimal(instance.cantidad)
+        estado_actual = instance.estado
+
+        moneda_anterior_id = getattr(instance, '_moneda_anterior_id', None)
+        cantidad_anterior = _to_decimal(getattr(instance, '_cantidad_anterior', None))
+        estado_anterior = getattr(instance, '_estado_anterior', None)
+
+        if created:
+            ajuste = _monto_efectivo(estado_actual, cantidad_actual)
+            _ajustar_fondo_caja(moneda_actual, -ajuste)
+            return
+
+        monto_anterior = _monto_efectivo(estado_anterior, cantidad_anterior)
+        monto_actual = _monto_efectivo(estado_actual, cantidad_actual)
+
+        if moneda_anterior_id == getattr(moneda_actual, 'id', None):
+            delta = monto_actual - monto_anterior
+            if delta != 0:
+                _ajustar_fondo_caja(moneda_actual, -delta)
+        else:
+            if moneda_anterior_id:
+                moneda_anterior = Moneda.objects.filter(id=moneda_anterior_id).first()
+                _ajustar_fondo_caja(moneda_anterior, monto_anterior)
+            _ajustar_fondo_caja(moneda_actual, -monto_actual)
+    except Exception:
+        pass
 
 @receiver(post_save, sender=Remesa)
 def invalidar_cache_balance_remesa(sender, instance, **kwargs):

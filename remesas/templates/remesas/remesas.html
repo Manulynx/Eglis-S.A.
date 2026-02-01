@@ -29,11 +29,10 @@
                                 <label for="gestor" class="form-label text-white">Crear a nombre de</label>
                                 <select class="form-select bg-dark text-white border-secondary"
                                         id="gestor"
-                                        name="gestor"
-                                        required>
-                                    <option value="">Seleccionar usuario...</option>
+                                        name="gestor">
+                                    <option value="">Elegir</option>
                                 </select>
-                                <small class="form-text text-muted">La remesa se asignará al usuario seleccionado.</small>
+                                <small class="form-text text-white fw-semibold">La remesa se asignará al usuario seleccionado.</small>
                             </div>
                             {% endif %}
 
@@ -169,7 +168,7 @@
                                             <select class="form-select bg-dark text-white border-secondary"
                                                     id="pago_usuario_asignado"
                                                     name="usuario_asignado">
-                                                <option value="">Seleccionar usuario...</option>
+                                                <option value="">Elegir</option>
                                             </select>
                                             <div class="invalid-feedback"></div>
                                         </div>
@@ -1155,14 +1154,12 @@ function cargarGestores() {
         .then(response => response.json())
         .then(data => {
             // Limpiar opciones existentes excepto la primera
-            select.innerHTML = '<option value="">Seleccionar gestor...</option>';
+            select.innerHTML = '<option value="">Elegir</option>';
             
             data.forEach(gestor => {
                 const option = document.createElement('option');
                 option.value = gestor.id;
                 option.textContent = gestor.nombre;
-                
-                // Preseleccionar el usuario autenticado si existe
                 if (usuarioAutenticadoId && gestor.id == usuarioAutenticadoId) {
                     option.selected = true;
                 }
@@ -1463,7 +1460,7 @@ function cargarUsuariosPagoRemesa() {
     fetch('/remesas/api/gestores/')
         .then(r => r.json())
         .then(data => {
-            select.innerHTML = '<option value="">Seleccionar usuario...</option>';
+            select.innerHTML = '<option value="">Elegir</option>';
             data.forEach(u => {
                 const option = document.createElement('option');
                 option.value = u.id;

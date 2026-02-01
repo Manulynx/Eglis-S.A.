@@ -90,6 +90,7 @@ def manejar_notificaciones_remesa(sender, instance, created, **kwargs):
                     message=f"Nueva remesa {instance.remesa_id} creada",
                     link=link,
                     level='info',
+                    content_object=instance,
                 )
             else:
                 if hasattr(instance, '_estado_anterior'):
@@ -105,6 +106,7 @@ def manejar_notificaciones_remesa(sender, instance, created, **kwargs):
                             ),
                             link=link,
                             level='warning' if instance.estado in ['cancelada'] else 'info',
+                            content_object=instance,
                         )
         except Exception as e:
             logger.error(f"Error creando notificación interna de remesa: {e}")
@@ -177,7 +179,7 @@ def notificar_pago(sender, instance, created, **kwargs):
 
         # Notificaciones internas
         try:
-            link = reverse('remesas:registro_transacciones')
+            link = reverse('remesas:detalle_pago', args=[instance.id])
             if created:
                 notify_user_and_admins(
                     recipient=instance.usuario,
@@ -186,6 +188,7 @@ def notificar_pago(sender, instance, created, **kwargs):
                     message=f"Pago {instance.pago_id} creado (estado: {instance.estado})",
                     link=link,
                     level='info',
+                    content_object=instance,
                 )
             else:
                 if hasattr(instance, '_estado_anterior'):
@@ -198,6 +201,7 @@ def notificar_pago(sender, instance, created, **kwargs):
                             message=f"Pago {instance.pago_id} cambió de {estado_anterior} a {instance.estado}",
                             link=link,
                             level='warning' if instance.estado in ['cancelado'] else 'info',
+                            content_object=instance,
                         )
         except Exception as e:
             logger.error(f"Error creando notificación interna de pago: {e}")
@@ -290,6 +294,7 @@ def notificar_pago_remesa_interno(sender, instance, created, **kwargs):
                 message=msg,
                 link=link,
                 level='info',
+                content_object=instance,
             )
         else:
             if hasattr(instance, '_estado_anterior'):
@@ -303,6 +308,7 @@ def notificar_pago_remesa_interno(sender, instance, created, **kwargs):
                         message=msg,
                         link=link,
                         level='warning' if instance.estado in ['cancelado'] else 'info',
+                        content_object=instance,
                     )
     except Exception as e:
         logger.error(f"Error creando notificación interna de pago remesa: {e}")

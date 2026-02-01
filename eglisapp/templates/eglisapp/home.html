@@ -200,6 +200,12 @@
     font-size: 0.95rem;
     color: #fff;
     margin: 0;
+    table-layout: fixed;
+    width: 100%;
+}
+
+.cotizaciones-card .table-responsive {
+    overflow-x: visible;
 }
 
 .cotizaciones-table thead {
@@ -212,6 +218,10 @@
     color: rgba(255, 255, 255, 0.7);
     text-transform: uppercase;
     font-size: 0.8rem;
+    white-space: normal !important;
+    word-break: break-word;
+    overflow: visible;
+    text-overflow: initial;
 }
 
 .cotizacion-row {
@@ -226,6 +236,32 @@
 
 .cotizacion-row td {
     vertical-align: middle;
+    white-space: normal !important;
+    word-break: break-word;
+    overflow: visible;
+    text-overflow: initial;
+}
+
+.cotizacion-row td span {
+    display: inline-block;
+    max-width: 100%;
+    word-break: break-word;
+}
+
+.cotizaciones-table th,
+.cotizaciones-table td {
+    line-height: 1.3;
+}
+
+@media (max-width: 576px) {
+    .cotizaciones-table {
+        font-size: 0.85rem;
+    }
+
+    .cotizaciones-table th,
+    .cotizaciones-table td {
+        padding: 0.6rem 0.4rem;
+    }
 }
 
 .cotizacion-row:last-child {
