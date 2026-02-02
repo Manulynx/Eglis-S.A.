@@ -54,6 +54,85 @@
     user-select: none;
     margin-left: 0.5rem;
 }
+
+.notif-toggle-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: #e9ecef;
+    padding: 0.4rem 0.75rem;
+}
+
+.notif-toggle-btn:hover,
+.notif-toggle-btn:focus {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.28);
+    color: #ffffff;
+}
+
+.notif-dropdown-menu {
+    min-width: 220px;
+    max-height: 260px;
+    overflow-y: auto;
+    background-color: #1f1f1f;
+    border-color: #3b3b3b;
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+}
+
+.notif-dropdown-menu .dropdown-item-text {
+    color: #e9ecef;
+    font-size: 0.9rem;
+}
+
+.notif-dropdown-menu .dropdown-item-text .badge {
+    min-width: 46px;
+    text-align: center;
+    letter-spacing: 0.2px;
+}
+
+.mobile-notif-details {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 0.5rem 0.75rem;
+    color: #e9ecef;
+}
+
+.mobile-notif-details summary {
+    list-style: none;
+    cursor: pointer;
+    color: #e9ecef;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.25rem 0;
+    user-select: none;
+}
+
+/* Asegurar que el click en cualquier parte del summary abre/cierra */
+.mobile-notif-details summary * {
+    pointer-events: none;
+}
+
+.mobile-notif-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.mobile-notif-details[open] summary {
+    color: #ffffff;
+}
+
+.mobile-notif-details .notif-list {
+    margin-top: 0.5rem;
+    display: grid;
+    gap: 0.35rem;
+    color: #e9ecef;
+}
+
+.mobile-notif-details .notif-list > div {
+    display: flex;
+    align-items: center;
+    line-height: 1.25;
+}
 </style>
 <div class="container mt-5">
     <div class="row">
@@ -166,16 +245,53 @@
                                                 </button>
                                             </td>
                                             <td>
-                                                <div class="d-flex flex-wrap gap-1">
-                                                    {% if destinatario.recibir_remesas %}
-                                                        <span class="badge bg-info" title="Recibe notificaciones de remesas">R</span>
-                                                    {% endif %}
-                                                    {% if destinatario.recibir_pagos %}
-                                                        <span class="badge bg-warning" title="Recibe notificaciones de pagos">P</span>
-                                                    {% endif %}
-                                                    {% if destinatario.recibir_cambios_estado %}
-                                                        <span class="badge bg-secondary" title="Recibe notificaciones de cambios de estado">E</span>
-                                                    {% endif %}
+                                                <div class="dropdown">
+                                                    <button class="btn btn-sm notif-toggle-btn dropdown-toggle" type="button"
+                                                            id="notifDropdown{{ destinatario.pk }}" data-bs-toggle="dropdown"
+                                                            aria-expanded="false">
+                                                        Notificaciones
+                                                    </button>
+                                                    <ul class="dropdown-menu dropdown-menu-dark notif-dropdown-menu" aria-labelledby="notifDropdown{{ destinatario.pk }}">
+                                                        {% if destinatario.recibir_remesa_nueva %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-info me-2">RN</span>Remesa nueva</span></li>
+                                                        {% endif %}
+                                                        {% if destinatario.recibir_remesa_confirmada %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-info me-2">RC</span>Remesa confirmada</span></li>
+                                                        {% endif %}
+                                                        {% if destinatario.recibir_remesa_completada %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-info me-2">RCO</span>Remesa completada</span></li>
+                                                        {% endif %}
+                                                        {% if destinatario.recibir_remesa_cancelada %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-info me-2">RCA</span>Remesa cancelada</span></li>
+                                                        {% endif %}
+                                                        {% if destinatario.recibir_remesa_editada %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-info me-2">RE</span>Remesa editada</span></li>
+                                                        {% endif %}
+                                                        {% if destinatario.recibir_remesa_eliminada %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-info me-2">REL</span>Remesa eliminada</span></li>
+                                                        {% endif %}
+                                                        {% if destinatario.recibir_pago_nuevo %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-warning me-2">PN</span>Pago nuevo</span></li>
+                                                        {% endif %}
+                                                        {% if destinatario.recibir_pago_confirmado %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-warning me-2">PC</span>Pago confirmado</span></li>
+                                                        {% endif %}
+                                                        {% if destinatario.recibir_pago_cancelado %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-warning me-2">PCA</span>Pago cancelado</span></li>
+                                                        {% endif %}
+                                                        {% if destinatario.recibir_pago_editado %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-warning me-2">PE</span>Pago editado</span></li>
+                                                        {% endif %}
+                                                        {% if destinatario.recibir_pago_eliminado %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-warning me-2">PEL</span>Pago eliminado</span></li>
+                                                        {% endif %}
+                                                        {% if destinatario.recibir_alerta_fondo_bajo %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-danger me-2">AF</span>Fondo de caja bajo</span></li>
+                                                        {% endif %}
+                                                        {% if not destinatario.recibir_remesa_nueva and not destinatario.recibir_remesa_confirmada and not destinatario.recibir_remesa_completada and not destinatario.recibir_remesa_cancelada and not destinatario.recibir_remesa_editada and not destinatario.recibir_remesa_eliminada and not destinatario.recibir_pago_nuevo and not destinatario.recibir_pago_confirmado and not destinatario.recibir_pago_cancelado and not destinatario.recibir_pago_editado and not destinatario.recibir_pago_eliminado and not destinatario.recibir_alerta_fondo_bajo %}
+                                                            <li><span class="dropdown-item-text text-muted">Sin notificaciones</span></li>
+                                                        {% endif %}
+                                                    </ul>
                                                 </div>
                                             </td>
                                             <td>{{ destinatario.fecha_creacion|date:"d/m/Y" }}</td>
@@ -245,17 +361,55 @@
                                             {% endif %}
                                         </div>
                                         
-                                        <div class="d-flex flex-wrap gap-1 mb-2">
-                                            {% if destinatario.recibir_remesas %}
-                                                <span class="badge bg-info" title="Recibe notificaciones de remesas">Remesas</span>
-                                            {% endif %}
-                                            {% if destinatario.recibir_pagos %}
-                                                <span class="badge bg-warning" title="Recibe notificaciones de pagos">Pagos</span>
-                                            {% endif %}
-                                            {% if destinatario.recibir_cambios_estado %}
-                                                <span class="badge bg-secondary" title="Recibe notificaciones de cambios de estado">Estados</span>
-                                            {% endif %}
-                                        </div>
+                                        <details class="mobile-notif-details mb-2">
+                                            <summary>
+                                                <span>Notificaciones</span>
+                                                <i class="fas fa-chevron-down"></i>
+                                            </summary>
+                                            <div class="notif-list">
+                                                {% if destinatario.recibir_remesa_nueva %}
+                                                    <div><span class="badge bg-info me-2">RN</span>Remesa nueva</div>
+                                                {% endif %}
+                                                {% if destinatario.recibir_remesa_confirmada %}
+                                                    <div><span class="badge bg-info me-2">RC</span>Remesa confirmada</div>
+                                                {% endif %}
+                                                {% if destinatario.recibir_remesa_completada %}
+                                                    <div><span class="badge bg-info me-2">RCO</span>Remesa completada</div>
+                                                {% endif %}
+                                                {% if destinatario.recibir_remesa_cancelada %}
+                                                    <div><span class="badge bg-info me-2">RCA</span>Remesa cancelada</div>
+                                                {% endif %}
+                                                {% if destinatario.recibir_remesa_editada %}
+                                                    <div><span class="badge bg-info me-2">RE</span>Remesa editada</div>
+                                                {% endif %}
+                                                {% if destinatario.recibir_remesa_eliminada %}
+                                                    <div><span class="badge bg-info me-2">REL</span>Remesa eliminada</div>
+                                                {% endif %}
+
+                                                {% if destinatario.recibir_pago_nuevo %}
+                                                    <div><span class="badge bg-warning me-2">PN</span>Pago nuevo</div>
+                                                {% endif %}
+                                                {% if destinatario.recibir_pago_confirmado %}
+                                                    <div><span class="badge bg-warning me-2">PC</span>Pago confirmado</div>
+                                                {% endif %}
+                                                {% if destinatario.recibir_pago_cancelado %}
+                                                    <div><span class="badge bg-warning me-2">PCA</span>Pago cancelado</div>
+                                                {% endif %}
+                                                {% if destinatario.recibir_pago_editado %}
+                                                    <div><span class="badge bg-warning me-2">PE</span>Pago editado</div>
+                                                {% endif %}
+                                                {% if destinatario.recibir_pago_eliminado %}
+                                                    <div><span class="badge bg-warning me-2">PEL</span>Pago eliminado</div>
+                                                {% endif %}
+
+                                                {% if destinatario.recibir_alerta_fondo_bajo %}
+                                                    <div><span class="badge bg-danger me-2">AF</span>Fondo de caja bajo</div>
+                                                {% endif %}
+                                                {% if not destinatario.recibir_remesa_nueva and not destinatario.recibir_remesa_confirmada and not destinatario.recibir_remesa_completada and not destinatario.recibir_remesa_cancelada and not destinatario.recibir_remesa_editada and not destinatario.recibir_remesa_eliminada and not destinatario.recibir_pago_nuevo and not destinatario.recibir_pago_confirmado and not destinatario.recibir_pago_cancelado and not destinatario.recibir_pago_editado and not destinatario.recibir_pago_eliminado and not destinatario.recibir_alerta_fondo_bajo %}
+                                                    <div class="text-muted">Sin notificaciones</div>
+                                                {% endif %}
+                                            </div>
+                                        </details>
                                         
                                         <small class="text-muted">
                                             Registrado: {{ destinatario.fecha_creacion|date:"d/m/Y" }}
