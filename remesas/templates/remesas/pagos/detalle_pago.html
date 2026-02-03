@@ -189,6 +189,29 @@
                                     <small class="text-muted d-block d-sm-inline ml-sm-2">{{ pago.fecha_creacion|date:"H:i" }}</small>
                                 </div>
                             </div>
+
+
+                            {% if pago.tipo_pago == 'transferencia' and pago.tarjeta %}
+                            <div class="mb-3">
+                                <label class="text-muted small">Tarjeta:</label>
+                                <div class="text-white">
+                                    <i class="fas fa-credit-card mr-1"></i>
+                                    <span class="word-break">{{ pago.tarjeta }}</span>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            {% if pago.reactivado_desde %}
+                            <div class="mb-3">
+                                <label class="text-muted small">Reactivado desde:</label>
+                                <div class="text-white">
+                                    <i class="fas fa-redo mr-1"></i>
+                                    <a class="text-white text-decoration-none" href="{% url 'remesas:detalle_pago' pago.reactivado_desde.id %}">
+                                        {{ pago.reactivado_desde.pago_id|default:pago.reactivado_desde.id }}
+                                    </a>
+                                </div>
+                            </div>
+                            {% endif %}
                         </div>
 
                         <!-- Información del destinatario -->
@@ -262,6 +285,7 @@
                             {% endif %}
                         </div>
                     </div>
+
 
                     <!-- Observaciones -->
                     {% if pago.observaciones %}

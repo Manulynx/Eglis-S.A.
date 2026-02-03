@@ -11,7 +11,7 @@
 
   <div class="card bg-dark text-white border-0" style="background: rgba(0,0,0,0.25) !important;">
     <div class="card-body" id="notifications-list">
-      <div class="text-center text-muted">Cargando…</div>
+      <div class="text-center text-white">Cargando…</div>
     </div>
   </div>
 
@@ -43,7 +43,7 @@
     if (!append) listEl.innerHTML = '';
 
     if (!data.notifications || data.notifications.length === 0) {
-      if (!append) listEl.innerHTML = '<div class="text-center text-muted">No hay notificaciones.</div>';
+      if (!append) listEl.innerHTML = '<div class="text-center text-white">No hay notificaciones.</div>';
       btnLoadMore.disabled = true;
       return;
     }
@@ -61,9 +61,11 @@
 
       const body = document.createElement('div');
       body.className = 'flex-grow-1';
+      const actorLine = n.actor_name ? `<div class="small text-white-50">Usuario: ${n.actor_name}</div>` : '';
       body.innerHTML = `
-        <div class="fw-semibold">${n.message}</div>
-        <div class="small text-muted">${n.created_at_human}</div>
+        <div class="fw-semibold text-white">${n.message}</div>
+        ${actorLine}
+        <div class="small text-light">${n.created_at_human}</div>
       `;
 
       const actions = document.createElement('div');

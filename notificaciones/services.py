@@ -1,11 +1,11 @@
 import requests
-import json
 from twilio.rest import Client
-from django.conf import settings
 from django.utils import timezone
 from django.db.models import Q
 from .models import ConfiguracionNotificacion, DestinatarioNotificacion, LogNotificacion
 import logging
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +15,61 @@ class WhatsAppService:
     
     def __init__(self):
         self.config = ConfiguracionNotificacion.get_config()
+
+    @staticmethod
+    def _format_money(value) -> str:
+        """Formatea montos monetarios de forma consistente.
+
+        Evita salidas tipo '1000.0'.
+        Importante: no usa separador de miles (coma) para evitar que algunos
+        gateways (p.ej. CallMeBot/WhatsApp) muestren/trunquen el prefijo.
+        """
+        if value is None:
+            return "0.00"
+
+        try:
+            if isinstance(value, str):
+                # Normaliza entradas comunes (p.ej. '1.234,56' o '1234,56')
+                normalized = value.strip().replace(' ', '')
+                if normalized.count(',') == 1 and normalized.count('.') >= 1:
+                    # Asumir formato ES: miles '.' y decimal ','
+                    normalized = normalized.replace('.', '').replace(',', '.')
+                else:
+                    normalized = normalized.replace(',', '.')
+                amount = Decimal(normalized)
+            else:
+                amount = Decimal(str(value))
+        except (InvalidOperation, ValueError, TypeError):
+            return "0.00"
+
+        amount = amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+        # Si es entero, mostrar sin decimales (ej: 1000 en vez de 1000.00)
+        if amount == amount.to_integral_value():
+            return str(int(amount))
+
+        return f"{amount:.2f}"
+
+    @staticmethod
+    def _moneda_codigo(moneda, default: str = 'USD') -> str:
+        """Normaliza el código de moneda para mensajes.
+
+        En la BD puede existir un "codigo" con espacios (p.ej. 'CUP TRANFE').
+        Para notificaciones se usa el primer token ('CUP') para evitar ruido.
+        """
+        try:
+            codigo = getattr(moneda, 'codigo', None)
+        except Exception:
+            codigo = None
+
+        if not codigo:
+            return default
+
+        codigo = str(codigo).strip()
+        if not codigo:
+            return default
+
+        return codigo.split()[0]
     
     def enviar_notificacion(self, tipo, remesa=None, pago=None, estado_anterior=None, **kwargs):
         """
@@ -27,11 +82,8 @@ class WhatsAppService:
             estado_anterior: Estado anterior para cambios de estado
             **kwargs: Argumentos adicionales para tipos específicos
         """
-        print(f"DEBUG: WhatsAppService.enviar_notificacion llamado con tipo='{tipo}', kwargs={kwargs}")
-        
         # Verificar si las notificaciones están habilitadas globalmente
         if not self.config.activo:
-            print(f"DEBUG: Notificaciones globalmente desactivadas")
             return
         
         # Verificar si debe enviar este tipo de notificación (flags globales)
@@ -39,36 +91,55 @@ class WhatsAppService:
             'remesa_nueva', 'remesa_estado', 'remesa_confirmada', 'remesa_completada', 'remesa_cancelada',
             'remesa_editada', 'remesa_eliminada'
         ] and not getattr(self.config, 'notificar_remesas', True):
-            print(f"DEBUG: Notificaciones de remesas desactivadas")
             return
         if tipo in [
             'pago_nuevo', 'pago_estado', 'pago_confirmado', 'pago_cancelado', 'pago_editado', 'pago_eliminado'
         ] and not getattr(self.config, 'notificar_pagos', True):
-            print(f"DEBUG: Notificaciones de pagos desactivadas")
             return
         if tipo in ['remesa_estado', 'remesa_confirmada', 'remesa_completada', 'remesa_cancelada', 'pago_estado', 'pago_confirmado', 'pago_cancelado'] and not getattr(self.config, 'notificar_cambios_estado', True):
-            print(f"DEBUG: Notificaciones de cambios de estado desactivadas")
             return
 
         if tipo in ['remesa_editada', 'pago_editado'] and not getattr(self.config, 'notificar_ediciones', True):
-            print("DEBUG: Notificaciones de ediciones desactivadas")
             return
         
         # Generar mensaje
-        print(f"DEBUG: Generando mensaje para tipo '{tipo}'")
         mensaje = self._generar_mensaje(tipo, remesa, pago, estado_anterior, **kwargs)
-        print(f"DEBUG: Mensaje generado: {mensaje[:100]}...")
         
         # Obtener destinatarios activos
-        moneda_evento = self._resolver_moneda_evento(remesa=remesa, pago=pago)
-        print(f"DEBUG: Obteniendo destinatarios para tipo '{tipo}'")
+        moneda_evento = self._resolver_moneda_evento(remesa=remesa, pago=pago, moneda=kwargs.get('moneda'))
         destinatarios = self._obtener_destinatarios(tipo, moneda_evento)
-        print(f"DEBUG: Destinatarios encontrados: {destinatarios.count()}")
         
         # Enviar a cada destinatario
         for destinatario in destinatarios:
-            print(f"DEBUG: Enviando a {destinatario.nombre}")
             self._enviar_mensaje_individual(destinatario, mensaje, tipo, remesa, pago)
+
+    @staticmethod
+    def _limpiar_telefono(telefono: str) -> str:
+        """Normaliza teléfono para CallMeBot.
+
+        - Acepta formatos con '+', espacios, guiones.
+        - Devuelve solo dígitos (CallMeBot espera sin '+').
+        """
+        if not telefono:
+            return ''
+        return re.sub(r'\D+', '', str(telefono))
+
+    @staticmethod
+    def _telefono_normalizado(telefono: str) -> str:
+        """Normaliza teléfono para comparar en BD."""
+        if not telefono:
+            return ''
+        return re.sub(r'\D+', '', str(telefono))
+
+    @staticmethod
+    def _mensaje_callmebot_seguro(mensaje: str, limite: int = 1200) -> str:
+        """CallMeBot usa endpoint tipo querystring; evitar mensajes enormes."""
+        if mensaje is None:
+            return ''
+        mensaje = str(mensaje)
+        if len(mensaje) <= limite:
+            return mensaje
+        return mensaje[: (limite - 3)] + '...'
     
     def _generar_mensaje(self, tipo, remesa, pago, estado_anterior, **kwargs):
         """Genera el mensaje según el tipo de notificación"""
@@ -86,10 +157,10 @@ class WhatsAppService:
             
             return f"""NUEVA REMESA
 
-Destinatario: {remesa.moneda.nombre if remesa.moneda else 'Dólar Americano'}
+Moneda: {(remesa.moneda.nombre or '').strip() if remesa.moneda else 'Dólar Americano'}
 
 
-Importe: ${remesa.importe} {remesa.moneda.codigo if remesa.moneda else 'USD'}
+Importe: {self._format_money(remesa.importe)} {self._moneda_codigo(remesa.moneda)}
 
 Remitente: {remesa.receptor_nombre or 'N/A'}
 
@@ -112,7 +183,7 @@ ID: {remesa_id_formateado}{observaciones_texto}"""
 
 ID: {remesa_id_formateado}
 Gestor: {remesa.gestor.get_full_name() if remesa.gestor else 'N/A'}
-Importe: ${remesa.importe} {remesa.moneda.codigo if remesa.moneda else 'USD'}
+Importe: {self._format_money(remesa.importe)} {self._moneda_codigo(remesa.moneda)}
 Receptor: {remesa.receptor_nombre or 'N/A'}
 Estado anterior: {estado_anterior or 'N/A'}
 Estado actual: {remesa.estado.title()}
@@ -139,7 +210,7 @@ Sistema EGLIS - Notificacion automatica"""
 
 ID: {remesa_id_formateado}
 Gestor: {remesa.gestor.get_full_name() if remesa.gestor else 'N/A'}
-Importe: ${remesa.importe} {remesa.moneda.codigo if remesa.moneda else 'USD'}
+Importe: {self._format_money(remesa.importe)} {self._moneda_codigo(remesa.moneda)}
 Receptor: {remesa.receptor_nombre or 'N/A'}
 Estado anterior: {estado_anterior or 'N/A'}
 Estado actual: {remesa.estado.title()}
@@ -163,7 +234,7 @@ Sistema EGLIS - Notificacion automatica"""
 
 ID: {remesa_id_formateado}
 Gestor: {remesa.gestor.get_full_name() if remesa.gestor else 'N/A'}
-Importe: ${remesa.importe} {remesa.moneda.codigo if remesa.moneda else 'USD'}
+Importe: {self._format_money(remesa.importe)} {self._moneda_codigo(remesa.moneda)}
 Receptor: {remesa.receptor_nombre or 'N/A'}
 Estado: {remesa.get_estado_display()}
 Editado por: {editor_nombre}
@@ -192,20 +263,20 @@ Sistema EGLIS - Notificacion automatica"""
                     mensaje += f"{pago.tarjeta}\n\n"
                 
                 # Formato simplificado
-                mensaje += f"""Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'} TRANSFERENCIA
+                mensaje += f"""Cantidad: {self._format_money(pago.cantidad)} {self._moneda_codigo(pago.tipo_moneda)} TRANSFERENCIA
 
 Destinatario: {pago.destinatario}
 
 Gestor: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
 
-{pago_id_formateado}{observaciones_texto}"""
+ID: {pago_id_formateado}{observaciones_texto}"""
                 
             elif pago.tipo_pago == 'efectivo':
                 # Mensaje para efectivo - formato simplificado
                 mensaje = f"""NUEVO PAGO CREADO
 
 
-Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'} EFECTIVO
+Cantidad: {self._format_money(pago.cantidad)} {self._moneda_codigo(pago.tipo_moneda)} EFECTIVO
 
 
 Tipo: Efectivo
@@ -223,7 +294,7 @@ ID: {pago_id_formateado}{observaciones_texto}"""
                 mensaje = f"""NUEVO PAGO CREADO
 
 ID: {pago_id_formateado}
-Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'}
+Cantidad: {self._format_money(pago.cantidad)} {self._moneda_codigo(pago.tipo_moneda)}
 Estado: {pago.get_estado_display()}
 
 Gestor: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
@@ -263,7 +334,7 @@ Sistema EGLIS - Notificacion automatica"""
 
 ID Pago: {pago_id_formateado}
 Gestor: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
-Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'}
+Cantidad: {self._format_money(pago.cantidad)} {self._moneda_codigo(pago.tipo_moneda)}
 Destinatario: {pago.destinatario}
 Tipo: {pago.get_tipo_pago_display()}
 
@@ -302,7 +373,7 @@ Sistema EGLIS - Notificacion automatica"""
 
 ID Pago: {pago_id_formateado}
 Gestor: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
-Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'}
+Cantidad: {self._format_money(pago.cantidad)} {self._moneda_codigo(pago.tipo_moneda)}
 Destinatario: {pago.destinatario}
 Tipo: {pago.get_tipo_pago_display()}
 
@@ -331,7 +402,7 @@ Sistema EGLIS - Notificacion automatica"""
 
 ID Pago: {pago_id_formateado}
 Gestor: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
-Cantidad: ${pago.cantidad} {pago.tipo_moneda.codigo if pago.tipo_moneda else 'USD'}
+Cantidad: {self._format_money(pago.cantidad)} {self._moneda_codigo(pago.tipo_moneda)}
 Destinatario: {pago.destinatario}
 Tipo: {pago.get_tipo_pago_display()}
 Estado: {pago.get_estado_display()}
@@ -381,17 +452,50 @@ ATENCION: Este pago ha sido eliminado del sistema y el balance ha sido ajustado 
 
 Sistema EGLIS - Notificacion automatica"""
 
+        if tipo == 'alerta_fondo_bajo':
+            moneda = kwargs.get('moneda')
+            codigo = getattr(moneda, 'codigo', None) if moneda is not None else kwargs.get('codigo', 'N/A')
+            fondo_txt = self._format_money(getattr(moneda, 'fondo_caja', None) if moneda is not None else kwargs.get('fondo'))
+            minimo_txt = self._format_money(getattr(moneda, 'alerta_fondo_minimo', None) if moneda is not None else kwargs.get('minimo'))
+
+            return (
+                "ALERTA - FONDO DE CAJA BAJO\n\n"
+                f"Moneda: {codigo}\n"
+                f"Fondo actual: {fondo_txt}\n"
+                f"Mínimo: {minimo_txt}\n\n"
+                f"Fecha: {timezone.now().strftime('%d/%m/%Y %H:%M')}\n"
+                "Sistema EGLIS"
+            )
+
         return "Notificacion del sistema EGLIS"
     
-    def _resolver_moneda_evento(self, remesa=None, pago=None):
+    def _resolver_moneda_evento(self, remesa=None, pago=None, moneda=None):
         """Intenta resolver la moneda usada en la operación para filtrar destinatarios."""
-        moneda = None
-        if remesa is not None:
-            moneda = getattr(remesa, 'moneda', None)
-        elif pago is not None:
-            moneda = getattr(pago, 'tipo_moneda', None)
+        if moneda is None:
+            if remesa is not None:
+                moneda = getattr(remesa, 'moneda', None)
+            elif pago is not None:
+                moneda = getattr(pago, 'tipo_moneda', None)
 
         if moneda is not None:
+            # Normalizar códigos defectuosos con espacios (p.ej. 'CUP TRANFE')
+            # a un código canónico ('CUP') si existe en la tabla de Monedas.
+            codigo_normalizado = self._moneda_codigo(moneda, default='')
+            try:
+                codigo_actual = (getattr(moneda, 'codigo', '') or '').strip()
+            except Exception:
+                codigo_actual = ''
+
+            if codigo_normalizado and codigo_actual and codigo_normalizado != codigo_actual:
+                try:
+                    from remesas.models import Moneda
+
+                    moneda_normalizada = Moneda.objects.filter(codigo=codigo_normalizado).first()
+                    if moneda_normalizada is not None:
+                        return moneda_normalizada
+                except Exception:
+                    pass
+
             return moneda
 
         # Fallback: si el modelo no trae moneda explícita, asumir USD si existe.
@@ -423,6 +527,8 @@ Sistema EGLIS - Notificacion automatica"""
             'pago_cancelado': 'recibir_pago_cancelado',
             'pago_editado': 'recibir_pago_editado',
             'pago_eliminado': 'recibir_pago_eliminado',
+
+            'alerta_fondo_bajo': 'recibir_alerta_fondo_bajo',
         }
 
         flag = tipo_to_flag.get(tipo)
@@ -445,90 +551,80 @@ Sistema EGLIS - Notificacion automatica"""
     
     def _enviar_mensaje_individual(self, destinatario, mensaje, tipo, remesa, pago):
         """Envía mensaje a un destinatario específico"""
-        print(f"DEBUG: _enviar_mensaje_individual a {destinatario.nombre}")
-        
-        # Crear log inicial
         log_data = {
             'tipo': tipo,
             'destinatario': destinatario,
             'mensaje': mensaje,
             'estado': 'pendiente'
         }
-        
-        # Agregar referencia según el tipo
+
         if remesa:
             log_data['remesa_id'] = remesa.remesa_id
         if pago:
             log_data['pago_id'] = pago.id
-            
+
         log = LogNotificacion.objects.create(**log_data)
-        print(f"DEBUG: Log creado con ID {log.id}")
-        
+
         try:
-            # Intentar envío según la configuración
             if destinatario.callmebot_api_key:
-                print(f"DEBUG: Usando CallMeBot individual para {destinatario.nombre}")
                 exito, respuesta = self._enviar_con_callmebot_individual(destinatario, mensaje)
             elif hasattr(self.config, 'callmebot_api_key') and self.config.callmebot_api_key:
-                print(f"DEBUG: Usando CallMeBot global para {destinatario.nombre}")
                 exito, respuesta = self._enviar_con_callmebot_global(destinatario, mensaje)
             elif self.config.twilio_account_sid and self.config.twilio_auth_token:
-                print(f"DEBUG: Usando Twilio para {destinatario.nombre}")
                 exito, respuesta = self._enviar_con_twilio(destinatario, mensaje)
             elif self.config.whatsapp_business_token:
-                print(f"DEBUG: Usando WhatsApp Business para {destinatario.nombre}")
                 exito, respuesta = self._enviar_con_whatsapp_business(destinatario, mensaje)
             else:
                 exito = False
                 respuesta = "No hay configuración de API disponible"
-            
-            # Actualizar log
+
+            log.fecha_envio = timezone.now()
             if exito:
                 log.estado = 'enviado'
                 log.respuesta_api = respuesta
-                print(f"DEBUG: Mensaje enviado exitosamente a {destinatario.nombre}")
             else:
                 log.estado = 'fallido'
                 log.respuesta_api = respuesta
-                print(f"DEBUG: Error enviando mensaje a {destinatario.nombre}: {respuesta}")
+                log.error_mensaje = respuesta
                 
         except Exception as e:
-            log.estado = 'error'
+            log.estado = 'fallido'
             log.respuesta_api = str(e)
-            print(f"DEBUG: Excepción enviando mensaje a {destinatario.nombre}: {e}")
-        
+            log.error_mensaje = str(e)
+            log.fecha_envio = timezone.now()
+            logger.exception("Excepción enviando WhatsApp (%s) a %s", tipo, getattr(destinatario, 'telefono', ''))
+
         log.save()
-    
+
     def _enviar_con_callmebot_global(self, destinatario, mensaje):
         """Envía mensaje usando la API Key global"""
         try:
-            # Limpiar número de teléfono
-            telefono_limpio = destinatario.telefono.replace('+', '').replace(' ', '').replace('-', '')
-            
-            # URL de CallMeBot
+            telefono_limpio = self._limpiar_telefono(destinatario.telefono)
+            mensaje = self._mensaje_callmebot_seguro(mensaje)
+
             url = "https://api.callmebot.com/whatsapp.php"
-            
+
             params = {
                 'phone': telefono_limpio,
                 'text': mensaje,
                 'apikey': self.config.callmebot_api_key
             }
-            
-            response = requests.get(url, params=params)
-            
+
+            response = requests.get(url, params=params, timeout=(5, 15))
+
             if response.status_code == 200:
                 return True, response.text
-            else:
-                return False, f"HTTP {response.status_code}: {response.text}"
-                
+
+            return False, f"HTTP {response.status_code}: {response.text}"
+
         except Exception as e:
             return False, str(e)
     
     def _enviar_con_callmebot_individual(self, destinatario, mensaje):
         """Envía mensaje usando la API Key individual del destinatario"""
         try:
-            # Limpiar número de teléfono
-            telefono_limpio = destinatario.telefono.replace('+', '').replace(' ', '').replace('-', '')
+            telefono_limpio = self._limpiar_telefono(destinatario.telefono)
+            mensaje = self._mensaje_callmebot_seguro(mensaje)
             
             # URL de CallMeBot
             url = "https://api.callmebot.com/whatsapp.php"
@@ -538,13 +634,13 @@ Sistema EGLIS - Notificacion automatica"""
                 'text': mensaje,
                 'apikey': destinatario.callmebot_api_key
             }
-            
-            response = requests.get(url, params=params)
-            
+
+            response = requests.get(url, params=params, timeout=(5, 15))
+
             if response.status_code == 200:
                 return True, response.text
-            else:
-                return False, f"HTTP {response.status_code}: {response.text}"
+
+            return False, f"HTTP {response.status_code}: {response.text}"
                 
         except Exception as e:
             return False, str(e)
@@ -553,10 +649,14 @@ Sistema EGLIS - Notificacion automatica"""
         """Envía mensaje usando Twilio"""
         try:
             client = Client(self.config.twilio_account_sid, self.config.twilio_auth_token)
+
+            from_number = getattr(self.config, 'twilio_phone_number', None) or getattr(self.config, 'twilio_from_number', None)
+            if not from_number:
+                return False, 'Twilio no configurado: falta twilio_phone_number'
             
             message = client.messages.create(
                 body=mensaje,
-                from_=f'whatsapp:{self.config.twilio_from_number}',
+                from_=f'whatsapp:{from_number}',
                 to=f'whatsapp:{destinatario.telefono}'
             )
             
@@ -576,17 +676,18 @@ Sistema EGLIS - Notificacion automatica"""
             
             data = {
                 'messaging_product': 'whatsapp',
-                'to': destinatario.telefono.replace('+', ''),
+                'to': self._limpiar_telefono(destinatario.telefono),
                 'type': 'text',
                 'text': {'body': mensaje}
             }
             
-            response = requests.post(url, headers=headers, json=data)
-            
-            if response.status_code == 200:
+
+            response = requests.post(url, headers=headers, json=data, timeout=(5, 15))
+
+            if 200 <= response.status_code < 300:
                 return True, response.text
-            else:
-                return False, f"HTTP {response.status_code}: {response.text}"
+
+            return False, f"HTTP {response.status_code}: {response.text}"
                 
         except Exception as e:
             return False, str(e)
@@ -597,29 +698,34 @@ Sistema EGLIS - Notificacion automatica"""
         Usado para mensajes de prueba y envíos directos
         """
         try:
-            # Buscar destinatario para usar su API Key individual si existe
+            # Buscar destinatario para usar su API Key individual
             destinatario = DestinatarioNotificacion.objects.filter(telefono=telefono).first()
-            
+            if not destinatario:
+                telefono_norm = self._telefono_normalizado(telefono)
+                for cand in DestinatarioNotificacion.objects.all():
+                    if self._telefono_normalizado(cand.telefono) == telefono_norm:
+                        destinatario = cand
+                        break
+
             if destinatario and destinatario.callmebot_api_key:
-                # Usar API Key individual
                 return self._enviar_con_callmebot_individual(destinatario, mensaje)
-            elif hasattr(self.config, 'callmebot_api_key') and self.config.callmebot_api_key:
-                # Usar API Key global - crear objeto temporal para compatibilidad
+
+            if hasattr(self.config, 'callmebot_api_key') and self.config.callmebot_api_key:
                 destinatario_temp = type('obj', (object,), {
                     'telefono': telefono,
                     'callmebot_api_key': self.config.callmebot_api_key
                 })
                 return self._enviar_con_callmebot_individual(destinatario_temp, mensaje)
-            elif self.config.twilio_account_sid and self.config.twilio_auth_token:
-                # Usar Twilio - crear objeto temporal
+
+            if self.config.twilio_account_sid and self.config.twilio_auth_token:
                 destinatario_temp = type('obj', (object,), {'telefono': telefono})
                 return self._enviar_con_twilio(destinatario_temp, mensaje)
-            elif self.config.whatsapp_business_token:
-                # Usar WhatsApp Business - crear objeto temporal
+
+            if self.config.whatsapp_business_token:
                 destinatario_temp = type('obj', (object,), {'telefono': telefono})
                 return self._enviar_con_whatsapp_business(destinatario_temp, mensaje)
-            else:
-                return False, "No hay configuración de API disponible"
+
+            return False, "No hay configuración de API disponible"
                 
         except Exception as e:
             return False, str(e)
@@ -629,18 +735,25 @@ Sistema EGLIS - Notificacion automatica"""
         Prueba la conexión con las APIs configuradas
         """
         try:
+            existe_destinatario = DestinatarioNotificacion.objects.filter(
+                activo=True,
+                callmebot_api_key__isnull=False,
+            ).exclude(callmebot_api_key='').exists()
+
+            if existe_destinatario:
+                return True, "CallMeBot configurado en destinatarios"
+
             if hasattr(self.config, 'callmebot_api_key') and self.config.callmebot_api_key:
-                # Test básico de CallMeBot (solo verificar que la API key existe)
                 return True, "CallMeBot API configurada correctamente"
-            elif self.config.twilio_account_sid and self.config.twilio_auth_token:
-                # Test de Twilio
+
+            if self.config.twilio_account_sid and self.config.twilio_auth_token:
                 client = Client(self.config.twilio_account_sid, self.config.twilio_auth_token)
                 account = client.api.accounts(self.config.twilio_account_sid).fetch()
                 return True, f"Twilio conectado: {account.friendly_name}"
-            elif self.config.whatsapp_business_token:
-                # Test básico de WhatsApp Business
+
+            if self.config.whatsapp_business_token:
                 return True, "WhatsApp Business API configurada"
-            else:
-                return False, "No hay configuración de API disponible"
+
+            return False, "No hay configuración de API disponible"
         except Exception as e:
             return False, str(e)

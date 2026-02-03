@@ -177,6 +177,11 @@ body {
         transform: translateX(3px);
     }
     
+    .step-card {
+        margin-bottom: 1rem;
+    }
+}
+
 
 /* Reglas específicas para la página de destinatarios (antes estaban inline en template) */
 @media (max-width: 576px) {
@@ -390,10 +395,7 @@ body.login-page {
         font-size: 1rem;
     }
 }
-    .step-card {
-        margin-bottom: 1rem;
-    }
-}
+
 
 /* Navbar Styles */
 .navbar-dark {
@@ -554,5 +556,83 @@ body.login-page {
     body.login-page .auth-card .btn-lg {
         padding: 0.45rem 0.8rem !important;
         font-size: 0.98rem !important;
+    }
+}
+
+/* =========================
+   Global Mobile Tweaks
+   - Tablas: scroll horizontal + paddings
+   - Formularios: inputs cómodos + evitar overflow
+   ========================= */
+@media (max-width: 576px) {
+    /* Containers: un poco más de aire en laterales */
+    .container,
+    .container-fluid {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+
+    /* Tablas: que no se rompan en móvil */
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .table-responsive > .table {
+        margin-bottom: 0;
+    }
+
+    .table {
+        font-size: 0.86rem;
+    }
+
+    .table th,
+    .table td {
+        padding: 0.5rem 0.55rem;
+        vertical-align: middle;
+    }
+
+    /* Por defecto, evitar que cada celda haga wrap raro; se puede usar .text-wrap cuando haga falta */
+    .table th,
+    .table td {
+        white-space: nowrap;
+    }
+
+    .table .text-wrap,
+    .table td .text-wrap,
+    .table th .text-wrap {
+        white-space: normal;
+    }
+
+    /* Si una celda tiene badges o botones, que puedan envolver */
+    .table td .d-flex {
+        flex-wrap: wrap;
+    }
+
+    /* Formularios: evitar zoom en iOS y mejorar tacto */
+    .form-control,
+    .form-select,
+    .form-check-input {
+        font-size: 16px;
+    }
+
+    .form-label {
+        font-size: 0.92rem;
+    }
+
+    /* Input/btn groups: permitir wrap para no desbordar */
+    .input-group {
+        flex-wrap: wrap;
+    }
+
+    .btn-group {
+        flex-wrap: wrap;
+    }
+
+    /* Botones un poco más cómodos en móvil */
+    .btn,
+    .btn-sm {
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
     }
 }

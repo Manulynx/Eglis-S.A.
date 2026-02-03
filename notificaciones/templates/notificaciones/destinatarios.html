@@ -54,6 +54,85 @@
     user-select: none;
     margin-left: 0.5rem;
 }
+
+.notif-toggle-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: #e9ecef;
+    padding: 0.4rem 0.75rem;
+}
+
+.notif-toggle-btn:hover,
+.notif-toggle-btn:focus {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.28);
+    color: #ffffff;
+}
+
+.notif-dropdown-menu {
+    min-width: 220px;
+    max-height: 260px;
+    overflow-y: auto;
+    background-color: #1f1f1f;
+    border-color: #3b3b3b;
+    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+}
+
+.notif-dropdown-menu .dropdown-item-text {
+    color: #e9ecef;
+    font-size: 0.9rem;
+}
+
+.notif-dropdown-menu .dropdown-item-text .badge {
+    min-width: 46px;
+    text-align: center;
+    letter-spacing: 0.2px;
+}
+
+.mobile-notif-details {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 0.5rem 0.75rem;
+    color: #e9ecef;
+}
+
+.mobile-notif-details summary {
+    list-style: none;
+    cursor: pointer;
+    color: #e9ecef;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.25rem 0;
+    user-select: none;
+}
+
+/* Asegurar que el click en cualquier parte del summary abre/cierra */
+.mobile-notif-details summary * {
+    pointer-events: none;
+}
+
+.mobile-notif-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.mobile-notif-details[open] summary {
+    color: #ffffff;
+}
+
+.mobile-notif-details .notif-list {
+    margin-top: 0.5rem;
+    display: grid;
+    gap: 0.35rem;
+    color: #e9ecef;
+}
+
+.mobile-notif-details .notif-list > div {
+    display: flex;
+    align-items: center;
+    line-height: 1.25;
+}
 </style>
 <div class="container mt-5">
     <div class="row">
@@ -166,16 +245,53 @@
                                                 </button>
                                             </td>
                                             <td>
-                                                <div class="d-flex gap-1">
-                                                    {% if destinatario.recibir_remesas %}
-                                                        <span class="badge bg-info" title="Recibe notificaciones de remesas">R</span>
-                                                    {% endif %}
-                                                    {% if destinatario.recibir_pagos %}
-                                                        <span class="badge bg-warning" title="Recibe notificaciones de pagos">P</span>
-                                                    {% endif %}
-                                                    {% if destinatario.recibir_cambios_estado %}
-                                                        <span class="badge bg-secondary" title="Recibe notificaciones de cambios de estado">E</span>
-                                                    {% endif %}
+                                                <div class="dropdown">
+                                                    <button class="btn btn-sm notif-toggle-btn dropdown-toggle" type="button"
+                                                            id="notifDropdown{{ destinatario.pk }}" data-bs-toggle="dropdown"
+                                                            aria-expanded="false">
+                                                        Notificaciones
+                                                    </button>
+                                                    <ul class="dropdown-menu dropdown-menu-dark notif-dropdown-menu" aria-labelledby="notifDropdown{{ destinatario.pk }}">
+                                                        {% if destinatario.recibir_remesa_nueva %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-info me-2">RN</span>Remesa nueva</span></li>
+                                                        {% endif %}
+                                                        {% if destinatario.recibir_remesa_confirmada %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-info me-2">RC</span>Remesa confirmada</span></li>
+                                                        {% endif %}
+                                                        {% if destinatario.recibir_remesa_completada %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-info me-2">RCO</span>Remesa completada</span></li>
+                                                        {% endif %}
+                                                        {% if destinatario.recibir_remesa_cancelada %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-info me-2">RCA</span>Remesa cancelada</span></li>
+                                                        {% endif %}
+                                                        {% if destinatario.recibir_remesa_editada %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-info me-2">RE</span>Remesa editada</span></li>
+                                                        {% endif %}
+                                                        {% if destinatario.recibir_remesa_eliminada %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-info me-2">REL</span>Remesa eliminada</span></li>
+                                                        {% endif %}
+                                                        {% if destinatario.recibir_pago_nuevo %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-warning me-2">PN</span>Pago nuevo</span></li>
+                                                        {% endif %}
+                                                        {% if destinatario.recibir_pago_confirmado %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-warning me-2">PC</span>Pago confirmado</span></li>
+                                                        {% endif %}
+                                                        {% if destinatario.recibir_pago_cancelado %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-warning me-2">PCA</span>Pago cancelado</span></li>
+                                                        {% endif %}
+                                                        {% if destinatario.recibir_pago_editado %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-warning me-2">PE</span>Pago editado</span></li>
+                                                        {% endif %}
+                                                        {% if destinatario.recibir_pago_eliminado %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-warning me-2">PEL</span>Pago eliminado</span></li>
+                                                        {% endif %}
+                                                        {% if destinatario.recibir_alerta_fondo_bajo %}
+                                                            <li><span class="dropdown-item-text"><span class="badge bg-danger me-2">AF</span>Fondo de caja bajo</span></li>
+                                                        {% endif %}
+                                                        {% if not destinatario.recibir_remesa_nueva and not destinatario.recibir_remesa_confirmada and not destinatario.recibir_remesa_completada and not destinatario.recibir_remesa_cancelada and not destinatario.recibir_remesa_editada and not destinatario.recibir_remesa_eliminada and not destinatario.recibir_pago_nuevo and not destinatario.recibir_pago_confirmado and not destinatario.recibir_pago_cancelado and not destinatario.recibir_pago_editado and not destinatario.recibir_pago_eliminado and not destinatario.recibir_alerta_fondo_bajo %}
+                                                            <li><span class="dropdown-item-text text-muted">Sin notificaciones</span></li>
+                                                        {% endif %}
+                                                    </ul>
                                                 </div>
                                             </td>
                                             <td>{{ destinatario.fecha_creacion|date:"d/m/Y" }}</td>
@@ -245,17 +361,55 @@
                                             {% endif %}
                                         </div>
                                         
-                                        <div class="d-flex gap-1 mb-2">
-                                            {% if destinatario.recibir_remesas %}
-                                                <span class="badge bg-info" title="Recibe notificaciones de remesas">Remesas</span>
-                                            {% endif %}
-                                            {% if destinatario.recibir_pagos %}
-                                                <span class="badge bg-warning" title="Recibe notificaciones de pagos">Pagos</span>
-                                            {% endif %}
-                                            {% if destinatario.recibir_cambios_estado %}
-                                                <span class="badge bg-secondary" title="Recibe notificaciones de cambios de estado">Estados</span>
-                                            {% endif %}
-                                        </div>
+                                        <details class="mobile-notif-details mb-2">
+                                            <summary>
+                                                <span>Notificaciones</span>
+                                                <i class="fas fa-chevron-down"></i>
+                                            </summary>
+                                            <div class="notif-list">
+                                                {% if destinatario.recibir_remesa_nueva %}
+                                                    <div><span class="badge bg-info me-2">RN</span>Remesa nueva</div>
+                                                {% endif %}
+                                                {% if destinatario.recibir_remesa_confirmada %}
+                                                    <div><span class="badge bg-info me-2">RC</span>Remesa confirmada</div>
+                                                {% endif %}
+                                                {% if destinatario.recibir_remesa_completada %}
+                                                    <div><span class="badge bg-info me-2">RCO</span>Remesa completada</div>
+                                                {% endif %}
+                                                {% if destinatario.recibir_remesa_cancelada %}
+                                                    <div><span class="badge bg-info me-2">RCA</span>Remesa cancelada</div>
+                                                {% endif %}
+                                                {% if destinatario.recibir_remesa_editada %}
+                                                    <div><span class="badge bg-info me-2">RE</span>Remesa editada</div>
+                                                {% endif %}
+                                                {% if destinatario.recibir_remesa_eliminada %}
+                                                    <div><span class="badge bg-info me-2">REL</span>Remesa eliminada</div>
+                                                {% endif %}
+
+                                                {% if destinatario.recibir_pago_nuevo %}
+                                                    <div><span class="badge bg-warning me-2">PN</span>Pago nuevo</div>
+                                                {% endif %}
+                                                {% if destinatario.recibir_pago_confirmado %}
+                                                    <div><span class="badge bg-warning me-2">PC</span>Pago confirmado</div>
+                                                {% endif %}
+                                                {% if destinatario.recibir_pago_cancelado %}
+                                                    <div><span class="badge bg-warning me-2">PCA</span>Pago cancelado</div>
+                                                {% endif %}
+                                                {% if destinatario.recibir_pago_editado %}
+                                                    <div><span class="badge bg-warning me-2">PE</span>Pago editado</div>
+                                                {% endif %}
+                                                {% if destinatario.recibir_pago_eliminado %}
+                                                    <div><span class="badge bg-warning me-2">PEL</span>Pago eliminado</div>
+                                                {% endif %}
+
+                                                {% if destinatario.recibir_alerta_fondo_bajo %}
+                                                    <div><span class="badge bg-danger me-2">AF</span>Fondo de caja bajo</div>
+                                                {% endif %}
+                                                {% if not destinatario.recibir_remesa_nueva and not destinatario.recibir_remesa_confirmada and not destinatario.recibir_remesa_completada and not destinatario.recibir_remesa_cancelada and not destinatario.recibir_remesa_editada and not destinatario.recibir_remesa_eliminada and not destinatario.recibir_pago_nuevo and not destinatario.recibir_pago_confirmado and not destinatario.recibir_pago_cancelado and not destinatario.recibir_pago_editado and not destinatario.recibir_pago_eliminado and not destinatario.recibir_alerta_fondo_bajo %}
+                                                    <div class="text-muted">Sin notificaciones</div>
+                                                {% endif %}
+                                            </div>
+                                        </details>
                                         
                                         <small class="text-muted">
                                             Registrado: {{ destinatario.fecha_creacion|date:"d/m/Y" }}
@@ -308,14 +462,14 @@
 <!-- Modal para Agregar/Editar Destinatario -->
 <div class="modal fade" id="addDestinatarioModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
-        <div class="modal-content bg-dark">
+        <div class="modal-content bg-dark border border-secondary">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title text-white" id="destinatarioModalTitle">
                     <i class="fas fa-plus me-2"></i>Agregar Destinatario
                 </h5>
                 
             </div>
-            <div class="modal-body">
+            <div class="modal-body text-white">
                 <form id="destinatarioForm" method="post">
                     {% csrf_token %}
                     <input type="hidden" id="destinatario_id" name="destinatario_id">
@@ -323,23 +477,23 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label text-white">Nombre *</label>
-                            <input type="text" class="form-control" name="nombre" id="nombre" required>
+                            <input type="text" class="form-control bg-dark text-white border-secondary" name="nombre" id="nombre" required>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label text-white">Teléfono WhatsApp *</label>
-                            <input type="tel" class="form-control" name="telefono" id="telefono" placeholder="+1234567890" required>
-                            <small class="form-text text-muted">Incluye el código de país</small>
+                            <input type="tel" class="form-control bg-dark text-white border-secondary" name="telefono" id="telefono" placeholder="+1234567890" required>
+                            <small class="form-text text-secondary">Incluye el código de país</small>
                         </div>
                     </div>
                     
                     <div class="row">
                         <div class="col-12 mb-3">
                             <label class="form-label text-white">CallMeBot API Key</label>
-                            <input type="text" class="form-control" name="callmebot_api_key" id="callmebot_api_key" placeholder="Ingresa tu API Key de CallMeBot">
-                            <small class="form-text text-muted">
+                            <input type="text" class="form-control bg-dark text-white border-secondary" name="callmebot_api_key" id="callmebot_api_key" placeholder="Ingresa tu API Key de CallMeBot">
+                            <small class="form-text text-secondary">
                                 <i class="fas fa-info-circle me-1"></i>
                                 Opcional. Se usa para enviar mensajes vía CallMeBot API. 
-                                <a href="https://api.callmebot.com/start.php" target="_blank" class="text-info">Obtener API Key</a>
+                                <a href="https://api.callmebot.com/start.php" target="_blank" class="link-info">Obtener API Key</a>
                             </small>
                         </div>
                     </div>
@@ -351,7 +505,7 @@
                         <div class="col-md-3 mb-3">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" name="activo" id="activo" checked>
-                                <label class="form-check-label text-white">
+                                <label class="form-check-label text-white" for="activo">
                                     Destinatario Activo
                                 </label>
                             </div>
@@ -359,8 +513,8 @@
                         <div class="col-12 mb-2">
                             <div class="row g-2">
                                 <div class="col-12">
-                                    <div class="alert alert-secondary py-2 mb-0">
-                                        <strong>Remesas</strong>
+                                    <div class="border border-secondary rounded p-2 bg-secondary bg-opacity-10">
+                                        <strong class="text-white">Remesas</strong>
                                         <div class="d-flex flex-wrap gap-3 mt-2">
                                             <div class="form-check">
                                                 <input class="form-check-input" type="checkbox" name="recibir_remesa_nueva" id="recibir_remesa_nueva" checked>
@@ -390,8 +544,8 @@
                                     </div>
                                 </div>
                                 <div class="col-12">
-                                    <div class="alert alert-secondary py-2 mb-0">
-                                        <strong>Pagos</strong>
+                                    <div class="border border-secondary rounded p-2 bg-secondary bg-opacity-10">
+                                        <strong class="text-white">Pagos</strong>
                                         <div class="d-flex flex-wrap gap-3 mt-2">
                                             <div class="form-check">
                                                 <input class="form-check-input" type="checkbox" name="recibir_pago_nuevo" id="recibir_pago_nuevo" checked>
@@ -416,14 +570,25 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="col-12">
+                                    <div class="border border-secondary rounded p-2 bg-secondary bg-opacity-10">
+                                        <strong class="text-white">Alertas</strong>
+                                        <div class="d-flex flex-wrap gap-3 mt-2">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="recibir_alerta_fondo_bajo" id="recibir_alerta_fondo_bajo" checked>
+                                                <label class="form-check-label text-white" for="recibir_alerta_fondo_bajo">Fondo de caja bajo</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     <div class="row mt-2">
                         <div class="col-12 mb-3">
-                            <label class="form-label text-white">Monedas Asignadas <span class="text-warning">(Opcional)</span></label>
-                            <div class="alert alert-info mb-2">
+                            <label class="form-label text-white">Monedas Asignadas <span class="text-secondary">(Opcional)</span></label>
+                            <div class="alert alert-secondary border-secondary text-white mb-2 bg-secondary bg-opacity-10">
                                 <i class="fas fa-info-circle me-2"></i>
                                 <strong>Sin selección:</strong> recibirá notificaciones para <strong>todas las monedas</strong>.
                             </div>
@@ -431,10 +596,10 @@
                                 <div id="checkboxMonedasDestinatarioContainer" class="row g-2">
                                     {% for m in monedas %}
                                     <div class="col-12 col-md-6">
-                                        <div class="form-check p-3 bg-secondary bg-opacity-10 rounded hover-highlight">
+                                        <div class="form-check p-3 bg-secondary bg-opacity-10 border border-secondary rounded">
                                             <input class="form-check-input" type="checkbox" name="monedas" value="{{ m.id }}" id="monedaDest{{ m.id }}">
                                             <label class="form-check-label w-100 cursor-pointer" for="monedaDest{{ m.id }}">
-                                                <strong class="text-warning">{{ m.codigo }}</strong> <span class="text-muted">-</span> {{ m.nombre }}
+                                                <strong class="text-info">{{ m.codigo }}</strong> <span class="text-secondary">-</span> <span class="text-white">{{ m.nombre }}</span>
                                             </label>
                                         </div>
                                     </div>
@@ -445,16 +610,16 @@
                                 <button type="button" class="btn btn-outline-secondary btn-sm" onclick="limpiarMonedasDestinatario()">
                                     <i class="fas fa-times me-1"></i>Limpiar
                                 </button>
-                                <small class="text-muted">
+                                <small class="text-secondary">
                                     <i class="fas fa-mouse-pointer me-1"></i>
                                     Marca/desmarca monedas
                                 </small>
                             </div>
                             <div id="monedasSeleccionadasDestinatarioDisplay" class="mt-2" style="display: none;">
-                                <small class="text-muted d-block mb-2">Monedas seleccionadas:</small>
+                                <small class="text-secondary d-block mb-2">Monedas seleccionadas:</small>
                                 <div id="monedasSeleccionadasDestinatarioList" class="d-flex flex-wrap gap-2"></div>
                             </div>
-                            <small class="form-text text-muted">Si seleccionas monedas, solo recibirá notificaciones cuando la operación use una de esas monedas.</small>
+                            <small class="form-text text-secondary">Si seleccionas monedas, solo recibirá notificaciones cuando la operación use una de esas monedas.</small>
                         </div>
                     </div>
                 </form>
@@ -516,6 +681,9 @@ document.getElementById('guardarDestinatario').addEventListener('click', functio
     formData.set('recibir_pago_cancelado', document.getElementById('recibir_pago_cancelado').checked);
     formData.set('recibir_pago_editado', document.getElementById('recibir_pago_editado').checked);
     formData.set('recibir_pago_eliminado', document.getElementById('recibir_pago_eliminado').checked);
+
+    // Alertas
+    formData.set('recibir_alerta_fondo_bajo', document.getElementById('recibir_alerta_fondo_bajo').checked);
     
     const url = destinatarioId ? 
         `/notificaciones/destinatarios/${destinatarioId}/editar/` : 
@@ -628,6 +796,9 @@ function editarDestinatario(id) {
         document.getElementById('recibir_pago_cancelado').checked = !!d.recibir_pago_cancelado;
         document.getElementById('recibir_pago_editado').checked = !!d.recibir_pago_editado;
         document.getElementById('recibir_pago_eliminado').checked = !!d.recibir_pago_eliminado;
+
+        // Alertas
+        document.getElementById('recibir_alerta_fondo_bajo').checked = !!d.recibir_alerta_fondo_bajo;
 
         // Monedas
         const selected = new Set((d.moneda_ids || []).map(Number));
@@ -986,6 +1157,7 @@ function abrirModalAgregar() {
     document.getElementById('recibir_pago_cancelado').checked = true;
     document.getElementById('recibir_pago_editado').checked = true;
     document.getElementById('recibir_pago_eliminado').checked = true;
+    document.getElementById('recibir_alerta_fondo_bajo').checked = true;
 
     // Limpiar selección de monedas
     limpiarMonedasDestinatario();

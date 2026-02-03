@@ -74,9 +74,9 @@ form[data-enviando="true"] .btn[type="submit"] {
                             <select class="form-select bg-dark text-white border-secondary"
                                     id="usuario_asignado"
                                     name="usuario_asignado">
-                                <option value="">Seleccionar usuario...</option>
+                                <option value="">Elegir</option>
                             </select>
-                            <small class="form-text text-muted">El pago se asignará al usuario seleccionado.</small>
+                            <small class="form-text text-white fw-semibold">El pago se asignará al usuario seleccionado.</small>
                         </div>
                         {% endif %}
                         
@@ -376,7 +376,7 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('/remesas/api/gestores/')
             .then(r => r.json())
             .then(data => {
-                select.innerHTML = '<option value="">Seleccionar usuario...</option>';
+                select.innerHTML = '<option value="">Elegir</option>';
                 data.forEach(u => {
                     const option = document.createElement('option');
                     option.value = u.id;

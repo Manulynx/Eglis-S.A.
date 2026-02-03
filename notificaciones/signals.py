@@ -31,6 +31,8 @@ def detectar_cambio_estado_remesa(sender, instance, **kwargs):
 def manejar_notificaciones_remesa(sender, instance, created, **kwargs):
     """Maneja todas las notificaciones de remesas (creación y cambio de estado)"""
     try:
+        if bool(getattr(instance, '_skip_notifications', False)):
+            return
         # Permite suprimir WhatsApp en operaciones automáticas (ej: cancelación por tiempo)
         skip_whatsapp = bool(getattr(instance, '_skip_whatsapp', False))
         whatsapp_service = None if skip_whatsapp else WhatsAppService()
@@ -88,6 +90,7 @@ def manejar_notificaciones_remesa(sender, instance, created, **kwargs):
                     message=f"Nueva remesa {instance.remesa_id} creada",
                     link=link,
                     level='info',
+                    content_object=instance,
                 )
             else:
                 if hasattr(instance, '_estado_anterior'):
@@ -103,6 +106,7 @@ def manejar_notificaciones_remesa(sender, instance, created, **kwargs):
                             ),
                             link=link,
                             level='warning' if instance.estado in ['cancelada'] else 'info',
+                            content_object=instance,
                         )
         except Exception as e:
             logger.error(f"Error creando notificación interna de remesa: {e}")
@@ -128,6 +132,8 @@ def detectar_cambio_estado_pago(sender, instance, **kwargs):
 def notificar_pago(sender, instance, created, **kwargs):
     """Envía notificación cuando se crea un nuevo pago y cuando cambia de estado"""
     try:
+        if bool(getattr(instance, '_skip_notifications', False)):
+            return
         # Permite suprimir WhatsApp en operaciones automáticas (ej: cancelación por tiempo)
         skip_whatsapp = bool(getattr(instance, '_skip_whatsapp', False))
         whatsapp_service = None if skip_whatsapp else WhatsAppService()
@@ -173,7 +179,7 @@ def notificar_pago(sender, instance, created, **kwargs):
 
         # Notificaciones internas
         try:
-            link = reverse('remesas:registro_transacciones')
+            link = reverse('remesas:detalle_pago', args=[instance.id])
             if created:
                 notify_user_and_admins(
                     recipient=instance.usuario,
@@ -182,6 +188,7 @@ def notificar_pago(sender, instance, created, **kwargs):
                     message=f"Pago {instance.pago_id} creado (estado: {instance.estado})",
                     link=link,
                     level='info',
+                    content_object=instance,
                 )
             else:
                 if hasattr(instance, '_estado_anterior'):
@@ -194,6 +201,7 @@ def notificar_pago(sender, instance, created, **kwargs):
                             message=f"Pago {instance.pago_id} cambió de {estado_anterior} a {instance.estado}",
                             link=link,
                             level='warning' if instance.estado in ['cancelado'] else 'info',
+                            content_object=instance,
                         )
         except Exception as e:
             logger.error(f"Error creando notificación interna de pago: {e}")
@@ -208,14 +216,63 @@ def detectar_cambio_estado_pago_remesa(sender, instance, **kwargs):
         try:
             pago_anterior = PagoRemesa.objects.get(pk=instance.pk)
             instance._estado_anterior = pago_anterior.estado
+            instance._fecha_edicion_anterior = pago_anterior.fecha_edicion
         except PagoRemesa.DoesNotExist:
             instance._estado_anterior = None
+            instance._fecha_edicion_anterior = None
+
+
+@receiver(post_save, sender=PagoRemesa)
+def notificar_pago_remesa(sender, instance, created, **kwargs):
+    """Envía notificación WhatsApp para pagos enlazados a remesas (como pagos generales)."""
+    try:
+        if bool(getattr(instance, '_skip_notifications', False)):
+            return
+        skip_whatsapp = bool(getattr(instance, '_skip_whatsapp', False))
+        whatsapp_service = None if skip_whatsapp else WhatsAppService()
+
+        if created and whatsapp_service:
+            whatsapp_service.enviar_notificacion(
+                tipo='pago_nuevo',
+                pago=instance,
+            )
+
+        if not created and hasattr(instance, '_estado_anterior'):
+            estado_anterior = instance._estado_anterior
+            if estado_anterior != instance.estado:
+                tipo_estado = {
+                    'confirmado': 'pago_confirmado',
+                    'cancelado': 'pago_cancelado',
+                }.get(instance.estado, 'pago_estado')
+
+                if whatsapp_service:
+                    whatsapp_service.enviar_notificacion(
+                        tipo=tipo_estado,
+                        pago=instance,
+                        estado_anterior=estado_anterior,
+                    )
+
+        if not created:
+            try:
+                fecha_edicion_anterior = getattr(instance, '_fecha_edicion_anterior', None)
+                if instance.fecha_edicion and instance.fecha_edicion != fecha_edicion_anterior:
+                    if whatsapp_service:
+                        whatsapp_service.enviar_notificacion(
+                            tipo='pago_editado',
+                            pago=instance,
+                        )
+            except Exception as e:
+                logger.error(f"Error enviando notificación de pago remesa editado: {e}")
+    except Exception as e:
+        logger.error(f"Error enviando notificación de pago remesa: {e}")
 
 
 @receiver(post_save, sender=PagoRemesa)
 def notificar_pago_remesa_interno(sender, instance, created, **kwargs):
     """Notificaciones internas para pagos enlazados a remesas."""
     try:
+        if bool(getattr(instance, '_skip_notifications', False)):
+            return
         remesa = getattr(instance, 'remesa', None)
         link = reverse('remesas:detalle_remesa', args=[remesa.id]) if remesa else reverse('remesas:registro_transacciones')
 
@@ -237,6 +294,7 @@ def notificar_pago_remesa_interno(sender, instance, created, **kwargs):
                 message=msg,
                 link=link,
                 level='info',
+                content_object=instance,
             )
         else:
             if hasattr(instance, '_estado_anterior'):
@@ -250,6 +308,7 @@ def notificar_pago_remesa_interno(sender, instance, created, **kwargs):
                         message=msg,
                         link=link,
                         level='warning' if instance.estado in ['cancelado'] else 'info',
+                        content_object=instance,
                     )
     except Exception as e:
         logger.error(f"Error creando notificación interna de pago remesa: {e}")

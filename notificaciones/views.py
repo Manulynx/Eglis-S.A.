@@ -63,6 +63,8 @@ def destinatarios_notificaciones(request):
                 'recibir_pago_cancelado': _is_true(request.POST.get('recibir_pago_cancelado')),
                 'recibir_pago_editado': _is_true(request.POST.get('recibir_pago_editado')),
                 'recibir_pago_eliminado': _is_true(request.POST.get('recibir_pago_eliminado')),
+
+                'recibir_alerta_fondo_bajo': _is_true(request.POST.get('recibir_alerta_fondo_bajo')),
             }
 
             moneda_ids = request.POST.getlist('monedas')
@@ -157,6 +159,8 @@ def editar_destinatario(request, destinatario_id):
                 'recibir_pago_cancelado': _is_true(request.POST.get('recibir_pago_cancelado')),
                 'recibir_pago_editado': _is_true(request.POST.get('recibir_pago_editado')),
                 'recibir_pago_eliminado': _is_true(request.POST.get('recibir_pago_eliminado')),
+
+                'recibir_alerta_fondo_bajo': _is_true(request.POST.get('recibir_alerta_fondo_bajo')),
             }
 
             for key, value in flags.items():
@@ -245,6 +249,8 @@ def destinatario_json(request, destinatario_id):
             'recibir_pago_editado': bool(destinatario.recibir_pago_editado),
             'recibir_pago_eliminado': bool(destinatario.recibir_pago_eliminado),
 
+            'recibir_alerta_fondo_bajo': bool(destinatario.recibir_alerta_fondo_bajo),
+
             'moneda_ids': list(destinatario.monedas.values_list('id', flat=True)),
         }
     })
@@ -312,18 +318,10 @@ def enviar_test_destinatario(request, destinatario_id):
                     'message': f'El destinatario {destinatario.nombre} está inactivo'
                 })
             
-            # Verificar que hay alguna configuración disponible
-            config = ConfiguracionNotificacion.get_config()
-            has_global_config = (
-                config.callmebot_api_key or 
-                (config.twilio_account_sid and config.twilio_auth_token) or 
-                config.whatsapp_business_token
-            )
-            
-            if not destinatario.callmebot_api_key and not has_global_config:
+            if not destinatario.callmebot_api_key:
                 return JsonResponse({
                     'success': False,
-                    'message': 'No hay configuración de API disponible. Configure CallMeBot API Key individual o global.'
+                    'message': 'El destinatario no tiene API Key de CallMeBot configurada.'
                 })
             
             # Crear servicio de WhatsApp
@@ -346,13 +344,13 @@ _Sistema de gestión de remesas Eglis_"""
             
             if exito:
                 # Registrar en log
-                LogNotificacion.objects.create(
-                    tipo='TEST',
-                    destinatario=destinatario,
-                    mensaje=mensaje,
-                    estado='enviado',
-                    respuesta_api=respuesta
-                )
+                # LogNotificacion.objects.create(
+                #     tipo='TEST',
+                #     destinatario=destinatario,
+                #     mensaje=mensaje,
+                #     estado='enviado',
+                #     respuesta_api=respuesta
+                # )
                 
                 return JsonResponse({
                     'success': True,
@@ -360,14 +358,14 @@ _Sistema de gestión de remesas Eglis_"""
                 })
             else:
                 # Registrar error en log
-                LogNotificacion.objects.create(
-                    tipo='TEST',
-                    destinatario=destinatario,
-                    mensaje=mensaje,
-                    estado='fallido',
-                    respuesta_api=respuesta,
-                    error_mensaje=respuesta
-                )
+                # LogNotificacion.objects.create(
+                #     tipo='TEST',
+                #     destinatario=destinatario,
+                #     mensaje=mensaje,
+                #     estado='fallido',
+                #     respuesta_api=respuesta,
+                #     error_mensaje=respuesta
+                # )
                 
                 return JsonResponse({
                     'success': False,
@@ -398,12 +396,32 @@ def internas_api_unread_count(request):
 
 def _serialize_notificacion(request, n: NotificacionInterna):
     created_local = timezone.localtime(n.created_at)
+    actor_name = ''
+    if n.actor:
+        actor_name = n.actor.get_full_name() or n.actor.username
+    link = n.link
+    content_object = getattr(n, 'content_object', None)
+    if content_object is not None:
+        try:
+            from remesas.models import Remesa, Pago, PagoRemesa
+
+            if isinstance(content_object, Remesa):
+                link = reverse('remesas:detalle_remesa', args=[content_object.id])
+            elif isinstance(content_object, Pago):
+                link = reverse('remesas:detalle_pago', args=[content_object.id])
+            elif isinstance(content_object, PagoRemesa):
+                remesa = getattr(content_object, 'remesa', None)
+                if remesa:
+                    link = reverse('remesas:detalle_remesa', args=[remesa.id])
+        except Exception:
+            link = n.link
     return {
         'id': n.id,
         'message': n.message,
         'level': n.level,
-        'link': n.link,
+        'link': link,
         'is_read': n.is_read,
+        'actor_name': actor_name,
         'created_at': n.created_at.isoformat(),
         'created_at_human': created_local.strftime('%d/%m/%Y %H:%M'),
         'mark_read_url': reverse('notificaciones:internas_api_mark_read', args=[n.id]),
@@ -495,20 +513,13 @@ Sistema EGLIS - Notificación de prueba""".format(
             
             # Enviar directamente sin usar signals
             try:
-                config = whatsapp_service.config
-                if config.twilio_account_sid and config.twilio_auth_token:
-                    success, response = whatsapp_service._enviar_con_twilio(telefono, mensaje)
-                elif config.whatsapp_business_token:
-                    success, response = whatsapp_service._enviar_con_whatsapp_business(telefono, mensaje)
-                else:
-                    success = False
-                    response = "No hay configuración válida de API"
-                
+                success, response = whatsapp_service.enviar_mensaje(telefono, mensaje)
+
                 return JsonResponse({
                     'success': success,
                     'message': response if not success else 'Mensaje de prueba enviado correctamente'
                 })
-                
+
             except Exception as e:
                 return JsonResponse({
                     'success': False,
