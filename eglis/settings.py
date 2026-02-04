@@ -135,12 +135,14 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 
-# Para desarrollo, agregar la ruta de archivos estáticos
-import os
+# Carpeta destino de `collectstatic` (ideal para producción/PythonAnywhere)
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Rutas extra de estáticos (además de los `static/` dentro de cada app)
 STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'eglisapp/static'),
+    BASE_DIR / 'eglisapp' / 'static',
 ]
 
 # Media files (User uploaded content)

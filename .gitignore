@@ -204,3 +204,6 @@ cython_debug/
 # Django media (uploads)
 media/
 mediafiles/
+
+# Django collectstatic output
+staticfiles/
