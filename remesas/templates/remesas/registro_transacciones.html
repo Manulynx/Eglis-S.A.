@@ -123,7 +123,7 @@
     </div>
 
     <!-- Filtros Rápidos de Fecha -->
-    <div class="mb-4 text-center">
+    <div class="mb-4 text-center quick-date-filters">
         <div class="btn-group" role="group" aria-label="Filtros de fecha">
             <a href="?filtro_fecha=hoy&tab={{ tab_activa }}" class="btn btn-outline-light {% if filtro_fecha == 'hoy' %}active{% endif %}">Hoy</a>
             <a href="?filtro_fecha=ayer&tab={{ tab_activa }}" class="btn btn-outline-light {% if filtro_fecha == 'ayer' %}active{% endif %}">Ayer</a>
@@ -1097,7 +1097,20 @@
                                 {% for pago in pagos_remesa %}
                                 <tr>
                                     <td>
-                                        <span class="text-info">{{ pago.pago_id }}</span>
+                                        <div class="d-flex flex-column gap-1">
+                                            <span class="text-info">{{ pago.pago_id }}</span>
+                                            {% if pago.remesa %}
+                                                <a href="{% url 'remesas:detalle_remesa' pago.remesa.id %}#pagos"
+                                                   class="badge bg-warning text-dark text-decoration-none d-inline-flex align-items-center gap-1"
+                                                   style="width: fit-content; font-size: 0.7rem; padding: 0.3em 0.6em; font-weight: 600;"
+                                                   data-bs-toggle="tooltip"
+                                                   title="Ver detalles de la remesa {{ pago.remesa.remesa_id }} y sus pagos">
+                                                    <i class="fas fa-link"></i>
+                                                    <i class="fas fa-paper-plane"></i>
+                                                    <span>{{ pago.remesa.remesa_id }}</span>
+                                                </a>
+                                            {% endif %}
+                                        </div>
                                         {% if pago.editado %}
                                             <i class="fas fa-edit text-warning ms-1" 
                                                data-bs-toggle="tooltip" 
@@ -1428,6 +1441,18 @@
                             <div class="mobile-item-header">
                                 <div>
                                     <span class="text-info fw-bold">{{ pago.pago_id }}</span>
+                                    {% if pago.remesa %}
+                                        <br>
+                                        <a href="{% url 'remesas:detalle_remesa' pago.remesa.id %}#pagos" 
+                                           class="badge bg-warning text-dark text-decoration-none d-inline-flex align-items-center gap-1 mt-1" 
+                                           style="font-size: 0.7rem; padding: 0.3em 0.6em; font-weight: 600;"
+                                           data-bs-toggle="tooltip" 
+                                           title="Ver detalles de la remesa {{ pago.remesa.remesa_id }} y sus pagos">
+                                            <i class="fas fa-link"></i>
+                                            <i class="fas fa-paper-plane"></i>
+                                            <span>{{ pago.remesa.remesa_id }}</span>
+                                        </a>
+                                    {% endif %}
                                     {% if pago.editado %}
                                         <i class="fas fa-edit text-warning ms-1" 
                                            data-bs-toggle="tooltip" 
@@ -4849,6 +4874,33 @@
 }
 
 /* Estilos mejorados para filtros rápidos de fecha */
+.quick-date-filters {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.quick-date-filters .btn-group[aria-label="Filtros de fecha"] {
+    white-space: nowrap;
+    flex-wrap: nowrap;
+}
+
+.btn-group[aria-label="Filtros de fecha"] .btn {
+    white-space: nowrap;
+}
+
+@media (max-width: 576px) {
+    .btn-group[aria-label="Filtros de fecha"] {
+        padding: 3px;
+        border-radius: 40px;
+    }
+
+    .btn-group[aria-label="Filtros de fecha"] .btn {
+        padding: 6px 10px;
+        font-size: 0.78rem;
+        margin: 0 1px;
+    }
+}
+
 .btn-group[aria-label="Filtros de fecha"] {
     background: rgba(33, 37, 41, 0.8);
     padding: 5px;

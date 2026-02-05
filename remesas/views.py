@@ -1844,13 +1844,8 @@ def confirmar_pago(request, pago_id):
             
             # Confirmar el pago (esto descuenta del balance)
             if pago.confirmar():
-                # Enviar notificación de cambio de estado
-                try:
-                    from notificaciones.services import WhatsAppService
-                    servicio = WhatsAppService()
-                    servicio.enviar_notificacion('pago_estado', pago=pago, estado_anterior='pendiente')
-                except Exception as e:
-                    logger.exception("Error enviando notificación WhatsApp de cambio de estado (confirmar pago)")
+                # WhatsApp: la notificación se envía vía signals (notificaciones/signals.py)
+                # para evitar duplicados y usar el tipo correcto (pago_confirmado/pago_estado).
                 
                 # Obtener balance actualizado dinámicamente
                 if hasattr(pago.usuario, 'perfil'):
@@ -1909,13 +1904,8 @@ def cancelar_pago(request, pago_id):
             
             # Cancelar el pago
             if pago.cancelar():
-                # Enviar notificación de cambio de estado
-                try:
-                    from notificaciones.services import WhatsAppService
-                    servicio = WhatsAppService()
-                    servicio.enviar_notificacion('pago_estado', pago=pago, estado_anterior='pendiente')
-                except Exception as e:
-                    logger.exception("Error enviando notificación WhatsApp de cambio de estado (cancelar pago)")
+                # WhatsApp: la notificación se envía vía signals (notificaciones/signals.py)
+                # para evitar duplicados y usar el tipo correcto (pago_cancelado/pago_estado).
                 
                 return JsonResponse({
                     'success': True,

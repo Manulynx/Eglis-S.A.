@@ -327,7 +327,8 @@ def enviar_test_destinatario(request, destinatario_id):
             # Crear servicio de WhatsApp
             whatsapp_service = WhatsAppService()
             
-            # Mensaje de prueba
+            # WhatsApp: mensaje de prueba manual (desde el panel) para validar que el destinatario
+            # recibe mensajes y que su API Key individual funciona.
             mensaje = f"""🔔 *Mensaje de Prueba - Eglis*
 
 Hola {destinatario.nombre},
@@ -337,7 +338,9 @@ Este es un mensaje de prueba del sistema de notificaciones.
 📅 Fecha: {timezone.now().strftime('%d/%m/%Y %H:%M')}
 ✅ Tu número está configurado correctamente.
 
-_Sistema de gestión de remesas Eglis_"""
+_Sistema de gestión de remesas Eglis_
+
+Sistema EGLIS - Notificacion automatica"""
             
             # Enviar mensaje usando el método público
             exito, respuesta = whatsapp_service.enviar_mensaje(destinatario.telefono, mensaje)
@@ -441,9 +444,30 @@ def internas_api_list(request):
     limit = max(1, min(limit, 50))
     offset = max(0, offset)
 
-    qs = NotificacionInterna.objects.filter(recipient=request.user).order_by('-created_at')
-    total_unread = qs.filter(read_at__isnull=True).count()
-    items = list(qs[offset:offset + limit])
+    # Importante UX: mientras existan notificaciones sin leer, deben verse siempre.
+    # Si solo listamos las más recientes, una no leída "vieja" puede quedar oculta por el límite.
+    unread_qs = NotificacionInterna.objects.filter(
+        recipient=request.user,
+        read_at__isnull=True,
+    ).order_by('-created_at')
+    read_qs = NotificacionInterna.objects.filter(
+        recipient=request.user,
+        read_at__isnull=False,
+    ).order_by('-created_at')
+
+    total_unread = unread_qs.count()
+
+    if offset == 0:
+        # Primera página: devolver TODAS las no leídas + completar con leídas hasta `limit`.
+        unread_items = list(unread_qs)
+        remaining = max(0, limit - len(unread_items))
+        read_items = list(read_qs[:remaining]) if remaining else []
+        items = unread_items + read_items
+    else:
+        # Para páginas siguientes, el offset que usa el frontend incluye las no leídas.
+        # Como ya las devolvimos completas en la primera página, paginamos solo sobre leídas.
+        read_offset = max(0, offset - total_unread)
+        items = list(read_qs[read_offset:read_offset + limit])
 
     return JsonResponse({
         'unread_count': total_unread,
@@ -498,7 +522,8 @@ def enviar_test(request):
         if telefono:
             whatsapp_service = WhatsAppService()
             
-            # Crear un mensaje de prueba
+            # WhatsApp: mensaje de prueba manual (enviando a un teléfono) para validar conectividad
+            # general del sistema de notificaciones.
             mensaje = """🧪 *MENSAJE DE PRUEBA*
 
 Este es un mensaje de prueba del sistema de notificaciones EGLIS.
@@ -507,7 +532,9 @@ Si recibes este mensaje, la configuración está funcionando correctamente.
 
 📅 Enviado: {fecha}
 
-Sistema EGLIS - Notificación de prueba""".format(
+Sistema EGLIS - Notificación de prueba
+
+Sistema EGLIS - Notificacion automatica""".format(
                 fecha=timezone.now().strftime('%d/%m/%Y %H:%M')
             )
             

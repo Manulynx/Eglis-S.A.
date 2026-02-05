@@ -6,12 +6,16 @@ from .models import ConfiguracionNotificacion, DestinatarioNotificacion, LogNoti
 import logging
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import re
+import unicodedata
+from urllib.parse import quote_plus
 
 logger = logging.getLogger(__name__)
 
 
 class WhatsAppService:
     """Servicio para enviar notificaciones por WhatsApp"""
+
+    SIGNATURE = "Sistema EGLIS - Notificacion automatica"
     
     def __init__(self):
         self.config = ConfiguracionNotificacion.get_config()
@@ -132,19 +136,96 @@ class WhatsAppService:
         return re.sub(r'\D+', '', str(telefono))
 
     @staticmethod
-    def _mensaje_callmebot_seguro(mensaje: str, limite: int = 1200) -> str:
-        """CallMeBot usa endpoint tipo querystring; evitar mensajes enormes."""
+    def _normalizar_texto_callmebot(mensaje: str) -> str:
+        """Normaliza texto para CallMeBot.
+
+        Observación: en algunos casos CallMeBot/stack intermedio no maneja bien caracteres con
+        tilde/diacríticos y pueden "desaparecer". Para evitar omisiones, se aplica:
+        - Normalización NFC
+        - Remoción de marcas diacríticas (á->a, ñ->n)
+
+        Nota: esto solo se usa para CallMeBot; Twilio/WhatsApp Business mantienen Unicode.
+        """
         if mensaje is None:
             return ''
-        mensaje = str(mensaje)
-        if len(mensaje) <= limite:
+
+        text = str(mensaje).replace('\r\n', '\n').replace('\r', '\n')
+        text = unicodedata.normalize('NFC', text)
+
+        # Quitar diacríticos (Mn) para maximizar compatibilidad.
+        decomposed = unicodedata.normalize('NFKD', text)
+        text = ''.join(ch for ch in decomposed if unicodedata.category(ch) != 'Mn')
+
+        return text
+
+    @staticmethod
+    def _mensaje_callmebot_seguro(mensaje: str, limite: int = 1200) -> str:
+        """Recorta el texto para CallMeBot evitando truncados dentro del URL-encoding.
+
+        CallMeBot usa endpoint tipo querystring. Si algún proxy/servidor corta una URL demasiado
+        larga, puede truncar en medio de un %XX (o de una secuencia multibyte como %C3%A1) y
+        aparentar "letras omitidas". Por eso el límite se aplica sobre el texto URL-encoded.
+        """
+        if mensaje is None:
+            return ''
+
+        mensaje = WhatsAppService._normalizar_texto_callmebot(mensaje)
+
+        encoded = quote_plus(mensaje, safe='', encoding='utf-8', errors='strict')
+        if len(encoded) <= limite:
             return mensaje
-        return mensaje[: (limite - 3)] + '...'
+
+        suffix = '...'
+        suffix_encoded_len = len(quote_plus(suffix, safe='', encoding='utf-8', errors='strict'))
+        target = max(1, limite - suffix_encoded_len)
+
+        # Buscar por bisección el prefijo más largo cuyo URL-encoding entre en `target`.
+        lo = 0
+        hi = len(mensaje)
+        while lo < hi:
+            mid = (lo + hi + 1) // 2
+            if len(quote_plus(mensaje[:mid], safe='', encoding='utf-8', errors='strict')) <= target:
+                lo = mid
+            else:
+                hi = mid - 1
+
+        return mensaje[:lo] + suffix
+
+    @classmethod
+    def _with_signature(cls, mensaje: str) -> str:
+        """Unifica la firma final para todos los mensajes enviados por WhatsApp."""
+        if mensaje is None:
+            mensaje = ''
+
+        text = str(mensaje).rstrip()
+        if not text:
+            return cls.SIGNATURE
+
+        lines = text.splitlines()
+
+        # Eliminar líneas vacías al final
+        while lines and not lines[-1].strip():
+            lines.pop()
+
+        # Si ya termina con la firma exacta, dejarlo tal cual.
+        if lines and lines[-1].strip().lower() == cls.SIGNATURE.lower():
+            return '\n'.join(lines)
+
+        # Si termina con variantes antiguas, reemplazar.
+        if lines and lines[-1].strip().lower() in {
+            'sistema eglis',
+            'notificacion del sistema eglis',
+        }:
+            lines.pop()
+
+        base = '\n'.join(lines).rstrip()
+        return base + '\n\n' + cls.SIGNATURE
     
     def _generar_mensaje(self, tipo, remesa, pago, estado_anterior, **kwargs):
         """Genera el mensaje según el tipo de notificación"""
         
         if tipo == 'remesa_nueva' and remesa:
+            # WhatsApp: aviso a administradores/destinatarios de que se creó una REMESA nueva.
             # Formatear el ID con # antes de los últimos 6 dígitos
             remesa_id_formateado = remesa.remesa_id
             if len(remesa_id_formateado) >= 6:
@@ -155,7 +236,7 @@ class WhatsAppService:
             if remesa.observaciones and remesa.observaciones.strip():
                 observaciones_texto = f"\n\nObservaciones: {remesa.observaciones.strip()}"
             
-            return f"""NUEVA REMESA
+            return self._with_signature(f"""NUEVA REMESA
 
 Moneda: {(remesa.moneda.nombre or '').strip() if remesa.moneda else 'Dólar Americano'}
 
@@ -166,9 +247,10 @@ Remitente: {remesa.receptor_nombre or 'N/A'}
 
 Gestor: {remesa.gestor.get_full_name() if remesa.gestor else 'N/A'}
 
-ID: {remesa_id_formateado}{observaciones_texto}"""
+ID: {remesa_id_formateado}{observaciones_texto}""")
 
         elif tipo == 'remesa_estado' and remesa:
+            # WhatsApp: aviso de CAMBIO DE ESTADO genérico en una remesa.
             # Formatear el ID con # antes de los últimos 6 dígitos
             remesa_id_formateado = remesa.remesa_id
             if len(remesa_id_formateado) >= 6:
@@ -179,7 +261,7 @@ ID: {remesa_id_formateado}{observaciones_texto}"""
             if remesa.observaciones and remesa.observaciones.strip():
                 observaciones_texto = f"\n\nObservaciones: {remesa.observaciones.strip()}"
                 
-            return f"""CAMBIO DE ESTADO - REMESA
+            return self._with_signature(f"""CAMBIO DE ESTADO - REMESA
 
 ID: {remesa_id_formateado}
 Gestor: {remesa.gestor.get_full_name() if remesa.gestor else 'N/A'}
@@ -189,9 +271,10 @@ Estado anterior: {estado_anterior or 'N/A'}
 Estado actual: {remesa.estado.title()}
 Actualizado: {timezone.now().strftime('%d/%m/%Y %H:%M')}{observaciones_texto}
 
-Sistema EGLIS - Notificacion automatica"""
+Sistema EGLIS - Notificacion automatica""")
 
         elif tipo in ['remesa_confirmada', 'remesa_completada', 'remesa_cancelada'] and remesa:
+            # WhatsApp: aviso explícito de CONFIRMACIÓN / COMPLETADO / CANCELACIÓN de una remesa.
             remesa_id_formateado = remesa.remesa_id
             if len(remesa_id_formateado) >= 6:
                 remesa_id_formateado = remesa_id_formateado[:-6] + '#' + remesa_id_formateado[-6:]
@@ -206,7 +289,7 @@ Sistema EGLIS - Notificacion automatica"""
                 'remesa_cancelada': 'REMESA CANCELADA',
             }.get(tipo, 'CAMBIO DE ESTADO - REMESA')
 
-            return f"""{titulo}
+            return self._with_signature(f"""{titulo}
 
 ID: {remesa_id_formateado}
 Gestor: {remesa.gestor.get_full_name() if remesa.gestor else 'N/A'}
@@ -216,9 +299,10 @@ Estado anterior: {estado_anterior or 'N/A'}
 Estado actual: {remesa.estado.title()}
 Actualizado: {timezone.now().strftime('%d/%m/%Y %H:%M')}{observaciones_texto}
 
-Sistema EGLIS - Notificacion automatica"""
+Sistema EGLIS - Notificacion automatica""")
 
         elif tipo == 'remesa_editada' and remesa:
+            # WhatsApp: aviso de que una remesa fue EDITADA (cambio de datos, no necesariamente de estado).
             remesa_id_formateado = remesa.remesa_id
             if len(remesa_id_formateado) >= 6:
                 remesa_id_formateado = remesa_id_formateado[:-6] + '#' + remesa_id_formateado[-6:]
@@ -230,7 +314,7 @@ Sistema EGLIS - Notificacion automatica"""
             editor = getattr(remesa, 'usuario_editor', None)
             editor_nombre = editor.get_full_name() if editor else 'N/A'
 
-            return f"""REMESA EDITADA
+            return self._with_signature(f"""REMESA EDITADA
 
 ID: {remesa_id_formateado}
 Gestor: {remesa.gestor.get_full_name() if remesa.gestor else 'N/A'}
@@ -240,9 +324,10 @@ Estado: {remesa.get_estado_display()}
 Editado por: {editor_nombre}
 Fecha edición: {timezone.now().strftime('%d/%m/%Y %H:%M')}{observaciones_texto}
 
-Sistema EGLIS - Notificacion automatica"""
+Sistema EGLIS - Notificacion automatica""")
 
         elif tipo == 'pago_nuevo' and pago:
+            # WhatsApp: aviso de creación de un PAGO nuevo (varía el cuerpo según tipo_pago).
             # Formatear el ID con # antes de los últimos 6 dígitos
             pago_id_formateado = str(pago.pago_id)
             if len(pago_id_formateado) >= 6:
@@ -255,6 +340,7 @@ Sistema EGLIS - Notificacion automatica"""
             
             # Verificar el tipo de pago y generar mensaje específico
             if pago.tipo_pago == 'transferencia':
+                # WhatsApp: alta de pago por TRANSFERENCIA (muestra tarjeta primero y formato compacto).
                 # Mensaje para transferencia - formato simplificado
                 mensaje = ""
                 
@@ -272,6 +358,7 @@ Gestor: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
 ID: {pago_id_formateado}{observaciones_texto}"""
                 
             elif pago.tipo_pago == 'efectivo':
+                # WhatsApp: alta de pago en EFECTIVO (incluye datos de contacto/dirección/CI).
                 # Mensaje para efectivo - formato simplificado
                 mensaje = f"""NUEVO PAGO CREADO
 
@@ -290,6 +377,7 @@ Gestor: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
 ID: {pago_id_formateado}{observaciones_texto}"""
             
             else:
+                # WhatsApp: alta de pago OTROS (plantilla genérica con nota de balance).
                 # Mensaje genérico para otros tipos
                 mensaje = f"""NUEVO PAGO CREADO
 
@@ -309,9 +397,10 @@ Nota: El balance se descontara cuando el pago sea confirmado.
 
 Sistema EGLIS - Notificacion automatica"""
             
-            return mensaje
+            return self._with_signature(mensaje)
 
         elif tipo == 'pago_estado' and pago:
+            # WhatsApp: aviso de CAMBIO DE ESTADO en un pago (usa estado actual para el texto).
             # Formatear el ID con # antes de los últimos 6 dígitos
             pago_id_formateado = str(pago.pago_id)
             if len(pago_id_formateado) >= 6:
@@ -330,7 +419,7 @@ Sistema EGLIS - Notificacion automatica"""
             else:
                 mensaje_estado = f"El pago cambio al estado: {pago.get_estado_display()}"
             
-            return f"""CAMBIO DE ESTADO - PAGO
+            return self._with_signature(f"""CAMBIO DE ESTADO - PAGO
 
 ID Pago: {pago_id_formateado}
 Gestor: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
@@ -345,9 +434,10 @@ Estado actual: {pago.get_estado_display()}
 
 Actualizado: {timezone.now().strftime('%d/%m/%Y %H:%M')}{observaciones_texto}
 
-Sistema EGLIS - Notificacion automatica"""
+Sistema EGLIS - Notificacion automatica""")
 
         elif tipo in ['pago_confirmado', 'pago_cancelado'] and pago:
+            # WhatsApp: aviso explícito de CONFIRMACIÓN / CANCELACIÓN de pago (título más directo).
             # Reutilizar la plantilla de pago_estado (más explícita en título)
             pago_id_formateado = str(pago.pago_id)
             if len(pago_id_formateado) >= 6:
@@ -369,7 +459,7 @@ Sistema EGLIS - Notificacion automatica"""
             else:
                 mensaje_estado = f"El pago cambio al estado: {pago.get_estado_display()}"
 
-            return f"""{titulo}
+            return self._with_signature(f"""{titulo}
 
 ID Pago: {pago_id_formateado}
 Gestor: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
@@ -384,9 +474,10 @@ Estado actual: {pago.get_estado_display()}
 
 Actualizado: {timezone.now().strftime('%d/%m/%Y %H:%M')}{observaciones_texto}
 
-Sistema EGLIS - Notificacion automatica"""
+Sistema EGLIS - Notificacion automatica""")
 
         elif tipo == 'pago_editado' and pago:
+            # WhatsApp: aviso de que un pago fue EDITADO (cambio de datos).
             pago_id_formateado = str(pago.pago_id)
             if len(pago_id_formateado) >= 6:
                 pago_id_formateado = pago_id_formateado[:-6] + '#' + pago_id_formateado[-6:]
@@ -398,7 +489,7 @@ Sistema EGLIS - Notificacion automatica"""
             editor = getattr(pago, 'usuario_editor', None)
             editor_nombre = editor.get_full_name() if editor else 'N/A'
 
-            return f"""PAGO EDITADO
+            return self._with_signature(f"""PAGO EDITADO
 
 ID Pago: {pago_id_formateado}
 Gestor: {pago.usuario.get_full_name() if pago.usuario else 'N/A'}
@@ -409,9 +500,10 @@ Estado: {pago.get_estado_display()}
 Editado por: {editor_nombre}
 Fecha edición: {timezone.now().strftime('%d/%m/%Y %H:%M')}{observaciones_texto}
 
-Sistema EGLIS - Notificacion automatica"""
+Sistema EGLIS - Notificacion automatica""")
 
         elif tipo == 'remesa_eliminada':
+            # WhatsApp: aviso de que una remesa fue ELIMINADA (incluye ajustes de balance si aplica).
             # Formatear el ID con # antes de los últimos 6 dígitos
             remesa_id = str(kwargs.get('remesa_id', 'N/A'))
             if remesa_id != 'N/A' and len(remesa_id) >= 6:
@@ -419,7 +511,7 @@ Sistema EGLIS - Notificacion automatica"""
             else:
                 remesa_id_formateado = remesa_id
                 
-            return f"""REMESA ELIMINADA
+            return self._with_signature(f"""REMESA ELIMINADA
 
 ID: {remesa_id_formateado}
 Monto: {kwargs.get('monto', 'N/A')}
@@ -429,9 +521,10 @@ Fecha eliminacion: {timezone.now().strftime('%d/%m/%Y %H:%M')}
 
 ATENCION: Esta remesa ha sido eliminada del sistema y el balance ha sido ajustado automaticamente.
 
-Sistema EGLIS - Notificacion automatica"""
+Sistema EGLIS - Notificacion automatica""")
 
         elif tipo == 'pago_eliminado':
+            # WhatsApp: aviso de que un pago fue ELIMINADO (incluye ajustes de balance si aplica).
             # Formatear el ID con # antes de los últimos 6 dígitos
             pago_id = str(kwargs.get('pago_id', 'N/A'))
             if pago_id != 'N/A' and len(pago_id) >= 6:
@@ -439,7 +532,7 @@ Sistema EGLIS - Notificacion automatica"""
             else:
                 pago_id_formateado = pago_id
                 
-            return f"""PAGO ELIMINADO
+            return self._with_signature(f"""PAGO ELIMINADO
 
 ID: {pago_id_formateado}
 Monto: {kwargs.get('monto', 'N/A')}
@@ -450,24 +543,28 @@ Fecha eliminacion: {timezone.now().strftime('%d/%m/%Y %H:%M')}
 
 ATENCION: Este pago ha sido eliminado del sistema y el balance ha sido ajustado automaticamente.
 
-Sistema EGLIS - Notificacion automatica"""
+Sistema EGLIS - Notificacion automatica""")
 
         if tipo == 'alerta_fondo_bajo':
+            # WhatsApp: alerta operativa cuando el fondo de caja cae por debajo del mínimo configurado.
             moneda = kwargs.get('moneda')
             codigo = getattr(moneda, 'codigo', None) if moneda is not None else kwargs.get('codigo', 'N/A')
             fondo_txt = self._format_money(getattr(moneda, 'fondo_caja', None) if moneda is not None else kwargs.get('fondo'))
             minimo_txt = self._format_money(getattr(moneda, 'alerta_fondo_minimo', None) if moneda is not None else kwargs.get('minimo'))
 
-            return (
+            return self._with_signature(
+                (
                 "ALERTA - FONDO DE CAJA BAJO\n\n"
                 f"Moneda: {codigo}\n"
                 f"Fondo actual: {fondo_txt}\n"
                 f"Mínimo: {minimo_txt}\n\n"
                 f"Fecha: {timezone.now().strftime('%d/%m/%Y %H:%M')}\n"
                 "Sistema EGLIS"
+                )
             )
 
-        return "Notificacion del sistema EGLIS"
+        # WhatsApp: mensaje por defecto si se invoca un tipo desconocido.
+        return self._with_signature("Notificacion del sistema EGLIS")
     
     def _resolver_moneda_evento(self, remesa=None, pago=None, moneda=None):
         """Intenta resolver la moneda usada en la operación para filtrar destinatarios."""
@@ -600,6 +697,8 @@ Sistema EGLIS - Notificacion automatica"""
         """Envía mensaje usando la API Key global"""
         try:
             telefono_limpio = self._limpiar_telefono(destinatario.telefono)
+            if not telefono_limpio:
+                return False, 'Teléfono inválido o vacío para CallMeBot'
             mensaje = self._mensaje_callmebot_seguro(mensaje)
 
             url = "https://api.callmebot.com/whatsapp.php"
@@ -610,6 +709,7 @@ Sistema EGLIS - Notificacion automatica"""
                 'apikey': self.config.callmebot_api_key
             }
 
+            # CallMeBot funciona vía querystring; algunos despliegues ignoran el body en POST.
             response = requests.get(url, params=params, timeout=(5, 15))
 
             if response.status_code == 200:
@@ -624,6 +724,8 @@ Sistema EGLIS - Notificacion automatica"""
         """Envía mensaje usando la API Key individual del destinatario"""
         try:
             telefono_limpio = self._limpiar_telefono(destinatario.telefono)
+            if not telefono_limpio:
+                return False, 'Teléfono inválido o vacío para CallMeBot'
             mensaje = self._mensaje_callmebot_seguro(mensaje)
             
             # URL de CallMeBot
@@ -635,6 +737,7 @@ Sistema EGLIS - Notificacion automatica"""
                 'apikey': destinatario.callmebot_api_key
             }
 
+            # CallMeBot funciona vía querystring; algunos despliegues ignoran el body en POST.
             response = requests.get(url, params=params, timeout=(5, 15))
 
             if response.status_code == 200:
