@@ -162,8 +162,8 @@ LOGIN_REDIRECT_URL = '/'   # URL para redirigir después del login exitoso
 LOGOUT_REDIRECT_URL = 'login:login'  # URL para redirigir después del logout
 
 # Configuración de sesiones para seguridad
-# La sesión expira después de 15 horas de inactividad
-SESSION_COOKIE_AGE = 54000  # 15 horas en segundos (15 * 60 * 60)
+# La sesión expira después de 6 horas de inactividad
+SESSION_COOKIE_AGE = 21600  # 6 horas en segundos (6 * 60 * 60)
 
 # Actualiza el tiempo de expiración en cada petición (mantiene activa la sesión mientras se usa)
 SESSION_SAVE_EVERY_REQUEST = True
