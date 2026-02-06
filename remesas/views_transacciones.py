@@ -21,7 +21,15 @@ def registro_transacciones(request):
     user_tipo = 'admin' if request.user.is_superuser else (
         request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
     )
-    
+
+    perfil = getattr(request.user, 'perfil', None)
+    monedas_disponibles = None
+    if perfil is not None:
+        try:
+            monedas_disponibles = perfil.get_monedas_disponibles()
+        except Exception:
+            monedas_disponibles = None
+
     if user_tipo == 'admin':
         # Si es admin, mostrar todos los registros
         remesas = Remesa.objects.select_related('moneda', 'gestor').all()
@@ -32,6 +40,16 @@ def registro_transacciones(request):
         remesas = Remesa.objects.select_related('moneda', 'gestor').all()
         pagos = Pago.objects.select_related('tipo_moneda').all()
         pagos_remesa = PagoRemesa.objects.select_related('tipo_moneda', 'usuario', 'remesa').all()
+    elif user_tipo == 'domicilio':
+        # Domicilio: ver TODAS las transacciones que usen sus monedas asignadas
+        remesas = Remesa.objects.select_related('moneda', 'gestor').all()
+        pagos = Pago.objects.select_related('tipo_moneda').all()
+        pagos_remesa = PagoRemesa.objects.select_related('tipo_moneda', 'usuario', 'remesa').all()
+
+        if monedas_disponibles is not None:
+            remesas = remesas.filter(moneda__in=monedas_disponibles)
+            pagos = pagos.filter(tipo_moneda__in=monedas_disponibles)
+            pagos_remesa = pagos_remesa.filter(tipo_moneda__in=monedas_disponibles)
     else:
         # Si es gestor u otro tipo, mostrar solo los registros del usuario actual
         remesas = Remesa.objects.select_related('moneda', 'gestor').filter(gestor=request.user)
@@ -489,7 +507,15 @@ def registro_transacciones(request):
         total_pagos += sum(pago.calcular_monto_en_usd() for pago in pagos_remesa if pago.estado == 'confirmado')
     
     # Obtener monedas para filtros
-    monedas = Moneda.objects.filter(activa=True)
+    # - Admin/contable: todas las activas
+    # - Gestor/domicilio: solo las disponibles (si no tiene asignadas, retorna todas las activas)
+    if perfil is not None and getattr(perfil, 'tipo_usuario', None) in ['gestor', 'domicilio']:
+        try:
+            monedas = perfil.get_monedas_disponibles()
+        except Exception:
+            monedas = Moneda.objects.filter(activa=True)
+    else:
+        monedas = Moneda.objects.filter(activa=True)
     
     # Obtener usuarios para filtros (admin y contable ven todos, gestor no ve filtros de usuario)
     usuarios = []
@@ -683,6 +709,14 @@ def exportar_excel(request, tipo):
             request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
         )
         
+        perfil = getattr(request.user, 'perfil', None)
+        monedas_disponibles = None
+        if perfil is not None:
+            try:
+                monedas_disponibles = perfil.get_monedas_disponibles()
+            except Exception:
+                monedas_disponibles = None
+
         if user_tipo == 'admin':
             remesas = Remesa.objects.select_related('moneda', 'gestor').all()
             pagos = Pago.objects.select_related('tipo_moneda').all()
@@ -690,6 +724,14 @@ def exportar_excel(request, tipo):
             # Los contables ahora pueden ver todas las operaciones (incluyendo las de administradores)
             remesas = Remesa.objects.select_related('moneda', 'gestor').all()
             pagos = Pago.objects.select_related('tipo_moneda').all()
+        elif user_tipo == 'domicilio':
+            # Domicilio: exportar todas las transacciones de sus monedas disponibles
+            remesas = Remesa.objects.select_related('moneda', 'gestor').all()
+            pagos = Pago.objects.select_related('tipo_moneda').all()
+
+            if monedas_disponibles is not None:
+                remesas = remesas.filter(moneda__in=monedas_disponibles)
+                pagos = pagos.filter(tipo_moneda__in=monedas_disponibles)
         else:
             remesas = Remesa.objects.select_related('moneda', 'gestor').filter(gestor=request.user)
             pagos = Pago.objects.select_related('tipo_moneda').filter(usuario=request.user)

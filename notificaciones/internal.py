@@ -15,6 +15,24 @@ def get_admin_users_queryset():
     ).distinct()
 
 
+def get_domicilio_users_queryset_for_moneda(moneda) -> "User.objects":
+    """Usuarios domicilio que deben recibir notificaciones para una moneda.
+
+    Regla:
+    - Si el domicilio tiene monedas asignadas, solo recibe si incluye la moneda.
+    - Si NO tiene monedas asignadas, recibe para todas las monedas.
+    """
+    qs = User.objects.filter(is_active=True, perfil__tipo_usuario='domicilio')
+
+    if moneda is None:
+        return qs.distinct()
+
+    # ManyToMany: incluir quienes no tienen asignaciones y quienes tienen la moneda.
+    return qs.filter(
+        Q(perfil__monedas_asignadas__isnull=True) | Q(perfil__monedas_asignadas=moneda)
+    ).distinct()
+
+
 def create_internal_notification(
     *,
     recipients: Iterable[User],
@@ -73,6 +91,39 @@ def notify_user_and_admins(
     if recipient is not None:
         recipients.append(recipient)
     recipients.extend(list(get_admin_users_queryset()))
+
+    return create_internal_notification(
+        recipients=recipients,
+        message=message,
+        actor=actor,
+        verb=verb,
+        link=link,
+        level=level,
+        content_object=content_object,
+        content_type=content_type,
+        object_id=object_id,
+    )
+
+
+def notify_user_admins_and_domicilios(
+    *,
+    recipient: Optional[User],
+    message: str,
+    moneda=None,
+    actor: Optional[User] = None,
+    verb: str = '',
+    link: str = '',
+    level: str = 'info',
+    content_object: Optional[object] = None,
+    content_type: Optional[ContentType] = None,
+    object_id: Optional[str] = None,
+) -> int:
+    """Notifica al usuario objetivo, admins, y domicilios por moneda."""
+    recipients: list[User] = []
+    if recipient is not None:
+        recipients.append(recipient)
+    recipients.extend(list(get_admin_users_queryset()))
+    recipients.extend(list(get_domicilio_users_queryset_for_moneda(moneda)))
 
     return create_internal_notification(
         recipients=recipients,

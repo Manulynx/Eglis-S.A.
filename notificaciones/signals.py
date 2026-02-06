@@ -2,7 +2,12 @@ from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from remesas.models import Remesa, Pago, PagoRemesa
 from .services import WhatsAppService
-from .internal import notify_user_and_admins, create_internal_notification, get_admin_users_queryset
+from .internal import (
+    notify_user_admins_and_domicilios,
+    create_internal_notification,
+    get_admin_users_queryset,
+    get_domicilio_users_queryset_for_moneda,
+)
 from django.urls import reverse
 import logging
 
@@ -83,8 +88,9 @@ def manejar_notificaciones_remesa(sender, instance, created, **kwargs):
         try:
             if created:
                 link = reverse('remesas:detalle_remesa', args=[instance.id])
-                notify_user_and_admins(
+                notify_user_admins_and_domicilios(
                     recipient=instance.gestor,
+                    moneda=getattr(instance, 'moneda', None),
                     actor=instance.gestor,
                     verb='remesa_creada',
                     message=f"Nueva remesa {instance.remesa_id} creada",
@@ -97,8 +103,9 @@ def manejar_notificaciones_remesa(sender, instance, created, **kwargs):
                     estado_anterior = instance._estado_anterior
                     if estado_anterior != instance.estado:
                         link = reverse('remesas:detalle_remesa', args=[instance.id])
-                        notify_user_and_admins(
+                        notify_user_admins_and_domicilios(
                             recipient=instance.gestor,
+                            moneda=getattr(instance, 'moneda', None),
                             actor=getattr(instance, 'usuario_editor', None) or instance.gestor,
                             verb='remesa_estado',
                             message=(
@@ -181,8 +188,9 @@ def notificar_pago(sender, instance, created, **kwargs):
         try:
             link = reverse('remesas:detalle_pago', args=[instance.id])
             if created:
-                notify_user_and_admins(
+                notify_user_admins_and_domicilios(
                     recipient=instance.usuario,
+                    moneda=getattr(instance, 'tipo_moneda', None),
                     actor=instance.usuario,
                     verb='pago_creado',
                     message=f"Pago {instance.pago_id} creado (estado: {instance.estado})",
@@ -194,8 +202,9 @@ def notificar_pago(sender, instance, created, **kwargs):
                 if hasattr(instance, '_estado_anterior'):
                     estado_anterior = instance._estado_anterior
                     if estado_anterior != instance.estado:
-                        notify_user_and_admins(
+                        notify_user_admins_and_domicilios(
                             recipient=instance.usuario,
+                            moneda=getattr(instance, 'tipo_moneda', None),
                             actor=getattr(instance, 'usuario_editor', None) or instance.usuario,
                             verb='pago_estado',
                             message=f"Pago {instance.pago_id} cambió de {estado_anterior} a {instance.estado}",
@@ -276,7 +285,8 @@ def notificar_pago_remesa_interno(sender, instance, created, **kwargs):
         remesa = getattr(instance, 'remesa', None)
         link = reverse('remesas:detalle_remesa', args=[remesa.id]) if remesa else reverse('remesas:registro_transacciones')
 
-        # Notificar al usuario que creó/editó el pago, al gestor dueño de la remesa, y a los admins.
+        # Notificar al usuario que creó/editó el pago, al gestor dueño de la remesa, a los admins,
+        # y a domicilios cuya moneda asignada coincida.
         actor = getattr(instance, 'usuario_editor', None) or getattr(instance, 'usuario', None)
         recipients = []
         if getattr(instance, 'usuario', None):
@@ -284,6 +294,9 @@ def notificar_pago_remesa_interno(sender, instance, created, **kwargs):
         if remesa and getattr(remesa, 'gestor', None):
             recipients.append(remesa.gestor)
         recipients.extend(list(get_admin_users_queryset()))
+
+        moneda_notif = getattr(instance, 'tipo_moneda', None) or getattr(remesa, 'moneda', None)
+        recipients.extend(list(get_domicilio_users_queryset_for_moneda(moneda_notif)))
 
         if created:
             msg = f"Pago {instance.pago_id} agregado a remesa {remesa.remesa_id if remesa else ''}".strip()

@@ -87,6 +87,14 @@
                                 <i class="fas fa-redo mr-1"></i>Reactivar
                             </button>
                         {% endif %}
+                    {% elif user_tipo == 'domicilio' %}
+                        <!-- Botones para Domicilios (solo confirmar) -->
+                        {% if pago.estado == 'pendiente' %}
+                            <button type="button" class="btn btn-success btn-sm btn-confirmar-pago"
+                                    data-pago-id="{{ pago.id }}" data-pago-destinatario="{{ pago.destinatario }}">
+                                <i class="fas fa-check mr-1"></i>Confirmar
+                            </button>
+                        {% endif %}
                     {% else %}
                         <!-- Botones para Gestores (solo editar) -->
                         {% if pago.estado == 'pendiente' %}

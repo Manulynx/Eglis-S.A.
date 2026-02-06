@@ -92,6 +92,14 @@
                                 <i class="fas fa-redo mr-1"></i>Reactivar
                             </button>
                         {% endif %}
+                    {% elif user_tipo == 'domicilio' %}
+                        <!-- Botones para Domicilios (solo confirmar) -->
+                        {% if remesa.estado == 'pendiente' %}
+                            <button type="button" class="btn btn-success btn-sm btn-confirmar-remesa"
+                                    data-remesa-id="{{ remesa.id }}" data-remesa-numero="{{ remesa.remesa_id }}">
+                                <i class="fas fa-check mr-1"></i>Confirmar
+                            </button>
+                        {% endif %}
                     {% else %}
                         <!-- Botones para Gestores (solo editar) -->
                         {% if remesa.estado == 'pendiente' %}
@@ -292,11 +300,13 @@
                         <i class="fas fa-money-bill-wave mr-1"></i>
                         Pagos Enlazados a esta Remesa
                     </h6>
+                    {% if user_tipo != 'domicilio' %}
                     {% if remesa.estado == 'pendiente' or user_tipo == 'admin' or user_tipo == 'contable' %}
                     <button type="button" class="btn btn-sm btn-light" id="btnMostrarFormularioPago">
                         <i class="fas fa-plus mr-1"></i>
                         Agregar Pago
                     </button>
+                    {% endif %}
                     {% endif %}
                 </div>
                 <div class="card-body p-2 p-md-3">
@@ -448,7 +458,7 @@
                                     </div>
                                     <div>
                                         {% if pago.estado == 'pendiente' %}
-                                            {% if user_tipo == 'admin' or user_tipo == 'contable' or remesa.gestor == request.user %}
+                                            {% if user_tipo == 'admin' or user_tipo == 'contable' or remesa.gestor == request.user and user_tipo != 'domicilio' %}
                                             <a href="{% url 'remesas:editar_pago_remesa' pago.id %}" 
                                                class="btn btn-sm btn-warning mr-1"
                                                title="Editar pago">
@@ -471,7 +481,7 @@
                                                 </button>
                                                 {% endif %}
                                             {% else %}
-                                                {% if user_tipo == 'admin' or user_tipo == 'contable' or remesa.gestor == request.user %}
+                                                {% if user_tipo == 'admin' or user_tipo == 'contable' or remesa.gestor == request.user and user_tipo != 'domicilio' %}
                                                 <button type="button" class="btn btn-sm btn-outline-danger btn-eliminar-pago-remesa" 
                                                         data-pago-id="{{ pago.id }}" 
                                                         data-pago-numero="{{ pago.pago_id }}"
@@ -782,7 +792,7 @@
                                     <div class="mt-3 pt-2 border-top border-secondary">
                                         <div class="d-flex gap-2 flex-wrap">
                                             {% if pago.estado == 'pendiente' %}
-                                                {% if user_tipo == 'admin' or user_tipo == 'contable' or remesa.gestor == request.user %}
+                                                {% if user_tipo == 'admin' or user_tipo == 'contable' or remesa.gestor == request.user and user_tipo != 'domicilio' %}
                                                 <a href="{% url 'remesas:editar_pago_remesa' pago.id %}" 
                                                    class="btn btn-sm btn-warning flex-fill">
                                                     <i class="fas fa-edit"></i> Editar
@@ -802,7 +812,7 @@
                                                     </button>
                                                     {% endif %}
                                                 {% else %}
-                                                    {% if user_tipo == 'admin' or user_tipo == 'contable' or remesa.gestor == request.user %}
+                                                    {% if user_tipo == 'admin' or user_tipo == 'contable' or remesa.gestor == request.user and user_tipo != 'domicilio' %}
                                                     <button type="button" class="btn btn-sm btn-outline-danger flex-fill btn-eliminar-pago-remesa" 
                                                             data-pago-id="{{ pago.id }}" 
                                                             data-pago-numero="{{ pago.pago_id }}">

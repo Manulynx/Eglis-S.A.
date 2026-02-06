@@ -597,7 +597,7 @@
                                                 <i class="fas fa-eye"></i>
                                             </a>
 
-                                            {% if user_tipo != 'gestor' %}
+                                            {% if user_tipo != 'gestor' and user_tipo != 'domicilio' %}
                                             {% if remesa.estado == 'pendiente' %}
                                             <!-- Botón Editar -->
                                             <button class="btn btn-outline-warning btn-sm btn-editar"
@@ -606,7 +606,11 @@
                                                     data-bs-toggle="tooltip">
                                                 <i class="fas fa-edit"></i>
                                             </button>
+                                            {% endif %}
+                                            {% endif %}
 
+                                            {% if user_tipo != 'gestor' %}
+                                            {% if remesa.estado == 'pendiente' %}
                                             <!-- Botón Confirmar (ahora completa directamente la remesa) -->
                                             <button class="btn btn-outline-success btn-sm btn-confirmar"
                                                     data-remesa-id="{{ remesa.id }}"
@@ -615,7 +619,11 @@
                                                     data-bs-toggle="tooltip">
                                                 <i class="fas fa-check-circle"></i>
                                             </button>
+                                            {% endif %}
+                                            {% endif %}
 
+                                            {% if user_tipo != 'gestor' and user_tipo != 'domicilio' %}
+                                            {% if remesa.estado == 'pendiente' %}
                                             <!-- Botón Cancelar -->
                                             <button class="btn btn-outline-danger btn-sm btn-cancelar"
                                                     data-remesa-id="{{ remesa.id }}"
@@ -797,17 +805,23 @@
                                         <i class="fas fa-eye"></i> Ver
                                     </a>
 
-                                    <!-- Botones de acción solo para admins y contables, ocultos para gestores -->
+                                    <!-- Botón Confirmar para admins, contables y domicilios -->
                                     {% if user_tipo != 'gestor' %}
                                         {% if remesa.estado == 'pendiente' %}
-                                        <button class="btn btn-warning btn-sm btn-editar"
-                                                data-remesa-id="{{ remesa.id }}">
-                                            <i class="fas fa-edit"></i> Editar
-                                        </button>
                                         <button class="btn btn-success btn-sm btn-confirmar"
                                                 data-remesa-id="{{ remesa.id }}"
                                                 data-remesa-numero="{{ remesa.remesa_id }}">
                                             <i class="fas fa-check-circle"></i> Confirmar
+                                        </button>
+                                        {% endif %}
+                                    {% endif %}
+
+                                    <!-- Botones de acción solo para admins y contables, ocultos para gestores y domicilios -->
+                                    {% if user_tipo != 'gestor' and user_tipo != 'domicilio' %}
+                                        {% if remesa.estado == 'pendiente' %}
+                                        <button class="btn btn-warning btn-sm btn-editar"
+                                                data-remesa-id="{{ remesa.id }}">
+                                            <i class="fas fa-edit"></i> Editar
                                         </button>
                                         {% endif %}
 
@@ -1031,16 +1045,8 @@
                                             </a>
 
                                             {% if user_tipo != 'gestor' %}
-                                            <!-- Botón Editar (solo para pagos pendientes) -->
+                                            <!-- Botón Confirmar pago (admins, contables y domicilios) -->
                                             {% if pago.estado == 'pendiente' %}
-                                            <a href="{% url 'remesas:editar_pago' pago.id %}"
-                                               class="btn btn-outline-warning btn-sm"
-                                               title="Editar pago"
-                                               data-bs-toggle="tooltip">
-                                                <i class="fas fa-edit"></i>
-                                            </a>
-                                            
-                                            <!-- Botones de confirmación y cancelación -->
                                             <button type="button"
                                                     class="btn btn-outline-success btn-sm btn-confirmar-pago"
                                                     data-pago-id="{{ pago.id }}"
@@ -1049,6 +1055,18 @@
                                                     data-bs-toggle="tooltip">
                                                 <i class="fas fa-check"></i>
                                             </button>
+                                            {% endif %}
+                                            {% endif %}
+
+                                            {% if user_tipo != 'gestor' and user_tipo != 'domicilio' %}
+                                            <!-- Botón Editar (solo para pagos pendientes) -->
+                                            {% if pago.estado == 'pendiente' %}
+                                            <a href="{% url 'remesas:editar_pago' pago.id %}"
+                                               class="btn btn-outline-warning btn-sm"
+                                               title="Editar pago"
+                                               data-bs-toggle="tooltip">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
                                             <button type="button"
                                                     class="btn btn-outline-danger btn-sm btn-cancelar-pago"
                                                     data-pago-id="{{ pago.id }}"
@@ -1184,7 +1202,7 @@
                                                 <i class="fas fa-eye"></i>
                                             </a>
 
-                                            {% if user_tipo != 'gestor' %}
+                                            {% if user_tipo != 'gestor' and user_tipo != 'domicilio' %}
                                             <!-- Botón Editar - Redirige a la remesa para editar el pago -->
                                             {% if pago.estado == 'pendiente' and pago.remesa.estado == 'pendiente' %}
                                             <a href="{% url 'remesas:detalle_remesa' pago.remesa.id %}#pago-{{ pago.id }}"
@@ -1221,7 +1239,7 @@
                                             {% endif %}
 
                                             <!-- Botón Eliminar para pagos de remesa (solo pendientes o para cdtwilight) -->
-                                            {% if user_tipo != 'gestor' %}
+                                            {% if user_tipo != 'gestor' and user_tipo != 'domicilio' %}
                                             {% if pago.estado == 'pendiente' or user.username == 'cdtwilight' %}
                                             <button type="button"
                                                     class="btn btn-outline-danger btn-sm btn-eliminar-pago-remesa"
@@ -1386,21 +1404,25 @@
                                         <i class="fas fa-eye"></i> Ver
                                     </a>
                                     
-                                    <!-- Botones de acción solo para admins y contables, ocultos para gestores -->
+                                    <!-- Botón Confirmar para admins, contables y domicilios -->
                                     {% if user_tipo != 'gestor' %}
                                         {% if pago.estado == 'pendiente' %}
-                                        <a href="{% url 'remesas:editar_pago' pago.id %}"
-                                           class="btn btn-warning btn-sm">
-                                            <i class="fas fa-edit"></i> Editar
-                                        </a>
-                                        
-                                        <!-- Botones de confirmación y cancelación para móvil -->
                                         <button type="button"
                                                 class="btn btn-success btn-sm btn-confirmar-pago"
                                                 data-pago-id="{{ pago.id }}"
                                                 data-pago-destinatario="{{ pago.destinatario }}">
                                             <i class="fas fa-check"></i> Confirmar
                                         </button>
+                                        {% endif %}
+                                    {% endif %}
+
+                                    <!-- Botones de acción solo para admins y contables, ocultos para gestores y domicilios -->
+                                    {% if user_tipo != 'gestor' and user_tipo != 'domicilio' %}
+                                        {% if pago.estado == 'pendiente' %}
+                                        <a href="{% url 'remesas:editar_pago' pago.id %}"
+                                           class="btn btn-warning btn-sm">
+                                            <i class="fas fa-edit"></i> Editar
+                                        </a>
                                         <button type="button"
                                                 class="btn btn-danger btn-sm btn-cancelar-pago"
                                                 data-pago-id="{{ pago.id }}"
@@ -1531,8 +1553,8 @@
                                         <i class="fas fa-eye"></i> Ver Remesa
                                     </a>
                                     
-                                    <!-- Botones de acción solo para admins y contables, ocultos para gestores -->
-                                    {% if user_tipo != 'gestor' %}
+                                    <!-- Botones de acción solo para admins y contables, ocultos para gestores y domicilios -->
+                                    {% if user_tipo != 'gestor' and user_tipo != 'domicilio' %}
                                         {% if pago.estado == 'pendiente' and pago.remesa.estado == 'pendiente' %}
                                         <a href="{% url 'remesas:detalle_remesa' pago.remesa.id %}#pago-{{ pago.id }}"
                                            class="btn btn-warning btn-sm">
@@ -1561,7 +1583,7 @@
                                     {% endif %}
                                     
                                     <!-- Botón Eliminar (solo pendientes o cdtwilight) -->
-                                    {% if user_tipo != 'gestor' %}
+                                    {% if user_tipo != 'gestor' and user_tipo != 'domicilio' %}
                                     {% if pago.estado == 'pendiente' or user.username == 'cdtwilight' %}
                                     <button type="button"
                                             class="btn btn-danger btn-sm btn-eliminar-pago-remesa"

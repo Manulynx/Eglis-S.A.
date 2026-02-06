@@ -883,6 +883,13 @@ def cancelar_remesa(request, remesa_id):
     """
     if request.method == 'POST':
         try:
+            # Verificar que el usuario no sea domicilio
+            if hasattr(request.user, 'perfil') and request.user.perfil.tipo_usuario == 'domicilio':
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Los usuarios domicilio no tienen permisos para cancelar remesas.'
+                }, status=403)
+            
             remesa = get_object_or_404(models.Remesa, id=remesa_id)
             
             if not remesa.puede_cancelar():
@@ -1043,6 +1050,11 @@ def editar_remesa(request, remesa_id):
         user_tipo = 'admin' if request.user.is_superuser else (
             request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
         )
+
+        # Domicilios no pueden editar remesas
+        if user_tipo == 'domicilio':
+            messages.error(request, 'Los usuarios domicilio no tienen permisos para editar remesas')
+            return redirect('remesas:detalle_remesa', remesa_id=remesa.id)
 
         # Verificar permisos (admin/contable o el gestor de la remesa)
         if user_tipo not in ['admin', 'contable'] and remesa.gestor != request.user:
@@ -1598,6 +1610,11 @@ def editar_pago(request, pago_id):
         request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
     )
 
+    # Domicilios no pueden editar pagos
+    if user_tipo == 'domicilio':
+        messages.error(request, 'Los usuarios domicilio no tienen permisos para editar pagos')
+        return redirect('remesas:registro_transacciones')
+
     # Verificar permisos (dueño o admin/contable)
     if user_tipo not in ['admin', 'contable'] and pago.usuario != request.user:
         messages.error(request, 'No tiene permisos para editar este pago')
@@ -1885,6 +1902,13 @@ def cancelar_pago(request, pago_id):
     """
     if request.method == 'POST':
         try:
+            # Verificar que el usuario no sea domicilio
+            if hasattr(request.user, 'perfil') and request.user.perfil.tipo_usuario == 'domicilio':
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Los usuarios domicilio no tienen permisos para cancelar pagos.'
+                }, status=403)
+            
             pago = get_object_or_404(models.Pago, id=pago_id)
             
             # Verificar que el usuario tenga permisos
@@ -2518,6 +2542,11 @@ def editar_pago_remesa(request, pago_id):
         request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
     )
     
+    # Domicilios no pueden editar pagos de remesa
+    if user_tipo == 'domicilio':
+        messages.error(request, 'Los usuarios domicilio no tienen permisos para editar pagos')
+        return redirect('remesas:detalle_remesa', remesa_id=remesa.id)
+    
     if user_tipo not in ['admin', 'contable'] and remesa.gestor != request.user:
         messages.error(request, 'No tiene permisos para editar este pago')
         return redirect('remesas:detalle_remesa', remesa_id=remesa.id)
@@ -2642,6 +2671,13 @@ def eliminar_pago_remesa(request, pago_id):
         user_tipo = 'admin' if request.user.is_superuser else (
             request.user.perfil.tipo_usuario if hasattr(request.user, 'perfil') else 'gestor'
         )
+        
+        # Domicilios no pueden eliminar pagos de remesa
+        if user_tipo == 'domicilio':
+            return JsonResponse({
+                'success': False,
+                'message': 'Los usuarios domicilio no tienen permisos para eliminar pagos'
+            }, status=403)
         
         if user_tipo not in ['admin', 'contable'] and pago.remesa.gestor != request.user:
             return JsonResponse({
