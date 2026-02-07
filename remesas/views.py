@@ -356,13 +356,8 @@ def remesas(request):
                     # El balance se actualiza automáticamente mediante cálculo dinámico
                     # No es necesario actualizar manualmente
                     
-                    if not defer_notificaciones:
-                        try:
-                            from notificaciones.services import WhatsAppService
-                            whatsapp_service = WhatsAppService()
-                            whatsapp_service.enviar_notificacion('remesa_nueva', remesa=remesa)
-                        except Exception:
-                            logger.exception("Error enviando notificación WhatsApp de remesa nueva")
+                    # Las notificaciones se envían automáticamente via signal post_save
+                    # No es necesario enviar manualmente aquí (evita duplicados)
                     from django.urls import reverse
                     detalle_url = reverse('remesas:detalle_remesa', kwargs={'remesa_id': remesa.id})
                     
@@ -1565,13 +1560,8 @@ def crear_pago(request):
             # Guardar el pago sin afectar el balance (pendiente)
             pago.save()
             
-            # Enviar notificación de nuevo pago
-            try:
-                from notificaciones.services import WhatsAppService
-                servicio = WhatsAppService()
-                servicio.enviar_notificacion('pago_nuevo', pago=pago)
-            except Exception as e:
-                logger.exception("Error enviando notificación WhatsApp de nuevo pago")
+            # Las notificaciones se envían automáticamente via signal post_save
+            # No es necesario enviar manualmente aquí (evita duplicados)
             
             # Mensaje informativo sobre el estado pendiente
             messages.success(request, f'Pago creado exitosamente. ID: {pago.pago_id}. Estado: Pendiente. El balance se descontará cuando se confirme el pago.')
@@ -2480,6 +2470,7 @@ def finalizar_notificaciones_remesa(request, remesa_id):
         return JsonResponse({'success': False, 'message': 'No tiene permisos para finalizar notificaciones'}, status=403)
 
     try:
+        import time
         servicio = WhatsAppService()
         servicio.enviar_notificacion('remesa_nueva', remesa=remesa)
     except Exception:
@@ -2500,6 +2491,8 @@ def finalizar_notificaciones_remesa(request, remesa_id):
 
     for pago in remesa.pagos_enlazados.all():
         try:
+            # Delay entre notificaciones para evitar rate-limit de CallMeBot
+            time.sleep(3)
             servicio.enviar_notificacion('pago_nuevo', pago=pago)
         except Exception:
             logger.exception("Error enviando notificación WhatsApp diferida de pago remesa")
@@ -3004,8 +2997,6 @@ def actualizar_fondo_caja(request):
         # Validar que el fondo sea un número válido
         try:
             nuevo_fondo = Decimal(str(nuevo_fondo))
-            if nuevo_fondo < 0:
-                return JsonResponse({'success': False, 'message': 'El fondo no puede ser negativo'})
         except (ValueError, decimal.InvalidOperation):
             return JsonResponse({'success': False, 'message': 'Valor numérico inválido'})
         

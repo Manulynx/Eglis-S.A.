@@ -211,27 +211,44 @@ def registro_transacciones(request):
             Q(destinatario__icontains=search_pagos) |
             Q(pago_id__icontains=search_pagos)
         )
+        pagos_remesa = pagos_remesa.filter(
+            Q(id__icontains=search_pagos) |
+            Q(destinatario__icontains=search_pagos) |
+            Q(pago_id__icontains=search_pagos)
+        )
     
-    # NUEVO: Filtro por estado
+    # Filtro por estado (aplica a Pago y PagoRemesa)
     if estado_pagos:
         pagos = pagos.filter(estado=estado_pagos)
+        pagos_remesa = pagos_remesa.filter(estado=estado_pagos)
     
     if tipo_pago_pagos:
         pagos = pagos.filter(tipo_pago=tipo_pago_pagos)
+        pagos_remesa = pagos_remesa.filter(tipo_pago=tipo_pago_pagos)
     
     if moneda_pagos:
         pagos = pagos.filter(tipo_moneda_id=moneda_pagos)
+        pagos_remesa = pagos_remesa.filter(tipo_moneda_id=moneda_pagos)
     
     if usuario_pagos:
         pagos = pagos.filter(usuario_id=usuario_pagos)
+        pagos_remesa = pagos_remesa.filter(usuario_id=usuario_pagos)
     
     if destinatario_pagos:
         pagos = pagos.filter(destinatario__icontains=destinatario_pagos)
+        pagos_remesa = pagos_remesa.filter(destinatario__icontains=destinatario_pagos)
     
     if fecha_desde_pagos:
         try:
             fecha_desde = datetime.strptime(fecha_desde_pagos, '%Y-%m-%d').date()
             pagos = pagos.filter(
+                Q(fecha_creacion__date__gte=fecha_desde)
+                | Q(
+                    cancelado_por_tiempo=True,
+                    cancelado_por_tiempo_en__date__gte=fecha_desde,
+                )
+            )
+            pagos_remesa = pagos_remesa.filter(
                 Q(fecha_creacion__date__gte=fecha_desde)
                 | Q(
                     cancelado_por_tiempo=True,
@@ -251,6 +268,13 @@ def registro_transacciones(request):
                     cancelado_por_tiempo_en__date__lte=fecha_hasta,
                 )
             )
+            pagos_remesa = pagos_remesa.filter(
+                Q(fecha_creacion__date__lte=fecha_hasta)
+                | Q(
+                    cancelado_por_tiempo=True,
+                    cancelado_por_tiempo_en__date__lte=fecha_hasta,
+                )
+            )
         except ValueError:
             pass
     
@@ -258,6 +282,7 @@ def registro_transacciones(request):
         try:
             cantidad_min = float(cantidad_min_pagos)
             pagos = pagos.filter(cantidad__gte=cantidad_min)
+            pagos_remesa = pagos_remesa.filter(cantidad__gte=cantidad_min)
         except ValueError:
             pass
     
@@ -265,6 +290,7 @@ def registro_transacciones(request):
         try:
             cantidad_max = float(cantidad_max_pagos)
             pagos = pagos.filter(cantidad__lte=cantidad_max)
+            pagos_remesa = pagos_remesa.filter(cantidad__lte=cantidad_max)
         except ValueError:
             pass
     
@@ -452,7 +478,7 @@ def registro_transacciones(request):
     
     # Detectar si hay filtros aplicados para PAGOS
     filtros_pagos_aplicados = bool(
-        search_pagos or tipo_pago_pagos or moneda_pagos or usuario_pagos or destinatario_pagos or 
+        search_pagos or estado_pagos or tipo_pago_pagos or moneda_pagos or usuario_pagos or destinatario_pagos or 
         fecha_desde_pagos or fecha_hasta_pagos or cantidad_min_pagos or cantidad_max_pagos
     )
     

@@ -1,4 +1,5 @@
 import requests
+import time
 from twilio.rest import Client
 from django.utils import timezone
 from django.db.models import Q
@@ -113,8 +114,14 @@ class WhatsAppService:
         moneda_evento = self._resolver_moneda_evento(remesa=remesa, pago=pago, moneda=kwargs.get('moneda'))
         destinatarios = self._obtener_destinatarios(tipo, moneda_evento)
         
-        # Enviar a cada destinatario
-        for destinatario in destinatarios:
+        # Enviar a cada destinatario con delay entre mensajes para evitar
+        # rate-limiting de CallMeBot (~25 msg/min). Sin pausa los mensajes
+        # pueden perderse o fusionarse en uno solo.
+        CALLMEBOT_DELAY = 3  # segundos entre envíos a distintos destinatarios
+        destinatarios_list = list(destinatarios)
+        for i, destinatario in enumerate(destinatarios_list):
+            if i > 0 and self._usa_callmebot(destinatario):
+                time.sleep(CALLMEBOT_DELAY)
             self._enviar_mensaje_individual(destinatario, mensaje, tipo, remesa, pago)
 
     @staticmethod
@@ -693,6 +700,59 @@ Sistema EGLIS - Notificacion automatica""")
 
         log.save()
 
+    def _usa_callmebot(self, destinatario):
+        """Determina si el envío a este destinatario usará CallMeBot."""
+        if getattr(destinatario, 'callmebot_api_key', None):
+            return True
+        if hasattr(self.config, 'callmebot_api_key') and self.config.callmebot_api_key:
+            return True
+        return False
+
+    @staticmethod
+    def _callmebot_request_with_retry(url, params, max_retries=2, base_delay=4):
+        """Realiza petición a CallMeBot con reintentos y backoff exponencial.
+
+        CallMeBot tiene rate-limit estricto. Si devuelve error (especialmente
+        HTTP 200 con texto de error, o 429/5xx), reintentamos con delay creciente.
+        """
+        last_error = ''
+        for attempt in range(max_retries + 1):
+            try:
+                response = requests.get(url, params=params, timeout=(5, 15))
+                body = response.text or ''
+
+                if response.status_code == 200:
+                    # CallMeBot a veces retorna 200 pero con mensaje de error
+                    body_lower = body.lower()
+                    if 'error' in body_lower and 'queued' not in body_lower and 'sent' not in body_lower:
+                        last_error = f"CallMeBot error en respuesta: {body}"
+                        logger.warning("CallMeBot respuesta con error (intento %d/%d): %s",
+                                       attempt + 1, max_retries + 1, body)
+                    else:
+                        return True, body
+                elif response.status_code in (429, 500, 502, 503):
+                    last_error = f"HTTP {response.status_code}: {body}"
+                    logger.warning("CallMeBot rate-limit/error (intento %d/%d): HTTP %d",
+                                   attempt + 1, max_retries + 1, response.status_code)
+                else:
+                    # Error definitivo (4xx distinto de 429)
+                    return False, f"HTTP {response.status_code}: {body}"
+
+            except requests.exceptions.Timeout:
+                last_error = 'Timeout en petición a CallMeBot'
+                logger.warning("CallMeBot timeout (intento %d/%d)", attempt + 1, max_retries + 1)
+            except Exception as e:
+                last_error = str(e)
+                logger.warning("CallMeBot excepción (intento %d/%d): %s", attempt + 1, max_retries + 1, e)
+
+            # Esperar antes de reintentar (backoff exponencial)
+            if attempt < max_retries:
+                delay = base_delay * (2 ** attempt)
+                logger.info("Reintentando CallMeBot en %d segundos...", delay)
+                time.sleep(delay)
+
+        return False, f"Fallido tras {max_retries + 1} intentos: {last_error}"
+
     def _enviar_con_callmebot_global(self, destinatario, mensaje):
         """Envía mensaje usando la API Key global"""
         try:
@@ -709,13 +769,7 @@ Sistema EGLIS - Notificacion automatica""")
                 'apikey': self.config.callmebot_api_key
             }
 
-            # CallMeBot funciona vía querystring; algunos despliegues ignoran el body en POST.
-            response = requests.get(url, params=params, timeout=(5, 15))
-
-            if response.status_code == 200:
-                return True, response.text
-
-            return False, f"HTTP {response.status_code}: {response.text}"
+            return self._callmebot_request_with_retry(url, params)
 
         except Exception as e:
             return False, str(e)
@@ -737,13 +791,7 @@ Sistema EGLIS - Notificacion automatica""")
                 'apikey': destinatario.callmebot_api_key
             }
 
-            # CallMeBot funciona vía querystring; algunos despliegues ignoran el body en POST.
-            response = requests.get(url, params=params, timeout=(5, 15))
-
-            if response.status_code == 200:
-                return True, response.text
-
-            return False, f"HTTP {response.status_code}: {response.text}"
+            return self._callmebot_request_with_retry(url, params)
                 
         except Exception as e:
             return False, str(e)

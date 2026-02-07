@@ -1417,21 +1417,6 @@ document.addEventListener('DOMContentLoaded', function() {
             nuevoFondo = fondoActual + cantidadNum;
         } else if (operacion === 'restar') {
             nuevoFondo = fondoActual - cantidadNum;
-            if (nuevoFondo < 0) {
-                if (typeof Swal !== 'undefined') {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Error',
-                        text: 'La cantidad a restar no puede ser mayor que el fondo actual',
-                        confirmButtonColor: '#e74c3c',
-                        background: '#2c3e50',
-                        color: '#fff'
-                    });
-                } else {
-                    alert('La cantidad a restar no puede ser mayor que el fondo actual');
-                }
-                return;
-            }
         }
         
         // Validar datos antes de enviar
@@ -2140,12 +2125,10 @@ function abrirModalAjustarFondo(btn) {
         
         document.getElementById('editarFondoNuevo').value = '$' + nuevoFondo.toFixed(2);
         
-        // Validar que no sea negativo al restar
-        if (operacion === 'restar' && nuevoFondo < 0) {
-            inputCantidad.setCustomValidity('La cantidad a restar no puede ser mayor que el fondo actual');
+        // Mostrar en rojo si el fondo queda negativo (solo visual, se permite)
+        if (nuevoFondo < 0) {
             document.getElementById('editarFondoNuevo').style.color = '#dc3545';
         } else {
-            inputCantidad.setCustomValidity('');
             document.getElementById('editarFondoNuevo').style.color = '';
         }
     };
