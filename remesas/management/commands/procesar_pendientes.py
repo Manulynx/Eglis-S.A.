@@ -143,8 +143,16 @@ class Command(BaseCommand):
         count = 0
         for remesa in qs.iterator():
             link = reverse("remesas:detalle_remesa", args=[remesa.id])
+            rid = remesa.remesa_id
+            if len(str(rid)) >= 6:
+                rid = str(rid)[:-6] + '#' + str(rid)[-6:]
+            cod = (getattr(getattr(remesa, 'moneda', None), 'codigo', None) or 'USD').strip()
+            imp = str(int(remesa.importe)) if remesa.importe and remesa.importe == int(remesa.importe) else str(remesa.importe or 0)
+            remitente = remesa.receptor_nombre or 'N/A'
             msg = (
-                f"Remesa {remesa.remesa_id} lleva ~30h pendiente."
+                f"Remesa mas de 30h\n\n"
+                f"{imp} {cod} + {remitente}\n\n"
+                f"ID: {rid}"
             )
 
             if dry_run:
@@ -183,8 +191,16 @@ class Command(BaseCommand):
         count = 0
         for pago in qs.iterator():
             link = reverse("remesas:detalle_pago", args=[pago.id])
+            pid = pago.pago_id
+            if len(str(pid)) >= 6:
+                pid = str(pid)[:-6] + '#' + str(pid)[-6:]
+            cod = (getattr(getattr(pago, 'tipo_moneda', None), 'codigo', None) or 'USD').strip()
+            cant = str(int(pago.cantidad)) if pago.cantidad and pago.cantidad == int(pago.cantidad) else str(pago.cantidad or 0)
+            dest = pago.destinatario or 'N/A'
             msg = (
-                f"Pago {pago.pago_id} lleva ~30h pendiente."
+                f"Pago mas de 30h\n\n"
+                f"{cant} {cod} + {dest}\n\n"
+                f"ID: {pid}"
             )
 
             if dry_run:
@@ -228,9 +244,17 @@ class Command(BaseCommand):
                 if remesa is not None
                 else reverse("remesas:registro_transacciones")
             )
+            pid = pago.pago_id
+            if len(str(pid)) >= 6:
+                pid = str(pid)[:-6] + '#' + str(pid)[-6:]
+            cod = (getattr(getattr(pago, 'tipo_moneda', None), 'codigo', None) or 'USD').strip()
+            cant = str(int(pago.cantidad)) if pago.cantidad and pago.cantidad == int(pago.cantidad) else str(pago.cantidad or 0)
+            dest = pago.destinatario or 'N/A'
             msg = (
-                f"Pago {pago.pago_id} (en remesa {remesa.remesa_id if remesa else ''}) lleva ~30h pendiente."
-            ).strip()
+                f"Pago mas de 30h\n\n"
+                f"{cant} {cod} + {dest}\n\n"
+                f"ID: {pid}"
+            )
 
             if dry_run:
                 self.stdout.write(f"[dry-run] Notificaría pago remesa 30h: {pago.pago_id}")

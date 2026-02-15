@@ -1,5 +1,6 @@
 import requests
 import time
+import threading
 from twilio.rest import Client
 from django.utils import timezone
 from django.db.models import Q
@@ -11,6 +12,17 @@ import unicodedata
 from urllib.parse import quote_plus
 
 logger = logging.getLogger(__name__)
+
+# --- Throttle global para CallMeBot ---
+# CallMeBot descarta silenciosamente mensajes si llegan demasiado rápido
+# al mismo número. Este lock + timestamp global garantiza un mínimo de
+# CALLMEBOT_MIN_GAP segundos entre CUALQUIER petición a CallMeBot,
+# sin importar si viene del mismo signal/vista o de otro.
+_callmebot_lock = threading.Lock()
+_callmebot_last_send: dict[str, float] = {}  # phone -> timestamp
+CALLMEBOT_MIN_GAP = 5  # segundos mínimos entre mensajes al MISMO número
+CALLMEBOT_GLOBAL_GAP = 3  # segundos mínimos entre CUALQUIER mensaje CallMeBot
+_callmebot_last_global = 0.0
 
 
 class WhatsAppService:
@@ -117,11 +129,10 @@ class WhatsAppService:
         # Enviar a cada destinatario con delay entre mensajes para evitar
         # rate-limiting de CallMeBot (~25 msg/min). Sin pausa los mensajes
         # pueden perderse o fusionarse en uno solo.
-        CALLMEBOT_DELAY = 3  # segundos entre envíos a distintos destinatarios
+        # El throttle real se maneja dentro de _throttle_callmebot() con
+        # lock global, aquí solo iteramos.
         destinatarios_list = list(destinatarios)
         for i, destinatario in enumerate(destinatarios_list):
-            if i > 0 and self._usa_callmebot(destinatario):
-                time.sleep(CALLMEBOT_DELAY)
             self._enviar_mensaje_individual(destinatario, mensaje, tipo, remesa, pago)
 
     @staticmethod
@@ -709,7 +720,40 @@ Sistema EGLIS - Notificacion automatica""")
         return False
 
     @staticmethod
-    def _callmebot_request_with_retry(url, params, max_retries=2, base_delay=4):
+    def _throttle_callmebot(telefono_limpio: str):
+        """Espera lo necesario para respetar el rate-limit de CallMeBot.
+
+        - Mínimo CALLMEBOT_MIN_GAP (5s) entre mensajes al MISMO número.
+        - Mínimo CALLMEBOT_GLOBAL_GAP (3s) entre CUALQUIER mensaje CallMeBot.
+        Esto evita que mensajes simultáneos de distintos signals se pisen.
+        """
+        global _callmebot_last_global
+        with _callmebot_lock:
+            now = time.monotonic()
+
+            # Espera global (cualquier destino)
+            elapsed_global = now - _callmebot_last_global
+            if elapsed_global < CALLMEBOT_GLOBAL_GAP:
+                wait_global = CALLMEBOT_GLOBAL_GAP - elapsed_global
+                logger.debug("CallMeBot throttle global: esperando %.1fs", wait_global)
+                time.sleep(wait_global)
+                now = time.monotonic()
+
+            # Espera por número específico
+            last_for_phone = _callmebot_last_send.get(telefono_limpio, 0.0)
+            elapsed_phone = now - last_for_phone
+            if elapsed_phone < CALLMEBOT_MIN_GAP:
+                wait_phone = CALLMEBOT_MIN_GAP - elapsed_phone
+                logger.debug("CallMeBot throttle per-phone (%s): esperando %.1fs", telefono_limpio, wait_phone)
+                time.sleep(wait_phone)
+                now = time.monotonic()
+
+            # Registrar el momento de envío
+            _callmebot_last_send[telefono_limpio] = now
+            _callmebot_last_global = now
+
+    @staticmethod
+    def _callmebot_request_with_retry(url, params, max_retries=3, base_delay=5):
         """Realiza petición a CallMeBot con reintentos y backoff exponencial.
 
         CallMeBot tiene rate-limit estricto. Si devuelve error (especialmente
@@ -718,7 +762,7 @@ Sistema EGLIS - Notificacion automatica""")
         last_error = ''
         for attempt in range(max_retries + 1):
             try:
-                response = requests.get(url, params=params, timeout=(5, 15))
+                response = requests.get(url, params=params, timeout=(10, 30))
                 body = response.text or ''
 
                 if response.status_code == 200:
@@ -761,6 +805,9 @@ Sistema EGLIS - Notificacion automatica""")
                 return False, 'Teléfono inválido o vacío para CallMeBot'
             mensaje = self._mensaje_callmebot_seguro(mensaje)
 
+            # Throttle: esperar si se envió recientemente a este número o globalmente
+            self._throttle_callmebot(telefono_limpio)
+
             url = "https://api.callmebot.com/whatsapp.php"
 
             params = {
@@ -782,6 +829,9 @@ Sistema EGLIS - Notificacion automatica""")
                 return False, 'Teléfono inválido o vacío para CallMeBot'
             mensaje = self._mensaje_callmebot_seguro(mensaje)
             
+            # Throttle: esperar si se envió recientemente a este número o globalmente
+            self._throttle_callmebot(telefono_limpio)
+
             # URL de CallMeBot
             url = "https://api.callmebot.com/whatsapp.php"
             

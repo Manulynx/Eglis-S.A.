@@ -14,6 +14,34 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _fmt_id(raw_id):
+    """Inserta '#' antes de los últimos 6 caracteres del ID."""
+    s = str(raw_id)
+    if len(s) >= 6:
+        return s[:-6] + '#' + s[-6:]
+    return s
+
+
+def _moneda_cod(moneda, default='USD'):
+    codigo = getattr(moneda, 'codigo', None)
+    if not codigo:
+        return default
+    return str(codigo).strip()
+
+
+def _fmt_money(value):
+    if value is None:
+        return '0'
+    try:
+        from decimal import Decimal, ROUND_HALF_UP
+        amount = Decimal(str(value)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        if amount == amount.to_integral_value():
+            return str(int(amount))
+        return f"{amount:.2f}"
+    except Exception:
+        return str(value)
+
+
 @receiver(pre_save, sender=Remesa)
 def detectar_cambio_estado_remesa(sender, instance, **kwargs):
     """Detecta cambios de estado en remesas"""
@@ -86,14 +114,26 @@ def manejar_notificaciones_remesa(sender, instance, created, **kwargs):
 
         # Notificaciones internas
         try:
+            link = reverse('remesas:detalle_remesa', args=[instance.id])
+            rid = _fmt_id(instance.remesa_id)
+            cod = _moneda_cod(getattr(instance, 'moneda', None))
+            nombre_moneda = (getattr(instance.moneda, 'nombre', '') or '') if instance.moneda else ''
+            imp = _fmt_money(instance.importe)
+            remitente = instance.receptor_nombre or 'N/A'
+
             if created:
-                link = reverse('remesas:detalle_remesa', args=[instance.id])
+                msg = (
+                    f"NUEVA REMESA\n\n"
+                    f"{imp} {cod} {nombre_moneda}\n\n"
+                    f"{remitente}\n\n"
+                    f"ID: {rid}"
+                )
                 notify_user_admins_and_domicilios(
                     recipient=instance.gestor,
                     moneda=getattr(instance, 'moneda', None),
                     actor=instance.gestor,
                     verb='remesa_creada',
-                    message=f"Nueva remesa {instance.remesa_id} creada",
+                    message=msg,
                     link=link,
                     level='info',
                     content_object=instance,
@@ -102,19 +142,56 @@ def manejar_notificaciones_remesa(sender, instance, created, **kwargs):
                 if hasattr(instance, '_estado_anterior'):
                     estado_anterior = instance._estado_anterior
                     if estado_anterior != instance.estado:
-                        link = reverse('remesas:detalle_remesa', args=[instance.id])
+                        if instance.estado == 'completada':
+                            msg = (
+                                f"REMESA COMPLETADA\n"
+                                f"{imp} {cod} {remitente}\n\n"
+                                f"ID: {rid}"
+                            )
+                        elif instance.estado == 'cancelada':
+                            msg = (
+                                f"REMESA CANCELADA\n"
+                                f"{imp} {cod} {remitente}\n\n"
+                                f"ID: {rid}"
+                            )
+                        else:
+                            msg = f"Remesa {instance.remesa_id} cambió de {estado_anterior} a {instance.estado}"
                         notify_user_admins_and_domicilios(
                             recipient=instance.gestor,
                             moneda=getattr(instance, 'moneda', None),
                             actor=getattr(instance, 'usuario_editor', None) or instance.gestor,
                             verb='remesa_estado',
-                            message=(
-                                f"Remesa {instance.remesa_id} cambió de {estado_anterior} a {instance.estado}"
-                            ),
+                            message=msg,
                             link=link,
                             level='warning' if instance.estado in ['cancelada'] else 'info',
                             content_object=instance,
                         )
+
+                # Notificación interna de edición
+                try:
+                    fecha_edicion_anterior = getattr(instance, '_fecha_edicion_anterior', None)
+                    if instance.fecha_edicion and instance.fecha_edicion != fecha_edicion_anterior:
+                        editor = getattr(instance, 'usuario_editor', None)
+                        editor_nombre = editor.get_full_name() if editor else 'N/A'
+                        msg = (
+                            f"REMESA EDITADA\n\n"
+                            f"Importe actual : {imp} {cod}\n"
+                            f"Receptor: {remitente}\n"
+                            f"Editado por: {editor_nombre}\n\n"
+                            f"ID: {rid}"
+                        )
+                        notify_user_admins_and_domicilios(
+                            recipient=instance.gestor,
+                            moneda=getattr(instance, 'moneda', None),
+                            actor=editor or instance.gestor,
+                            verb='remesa_editada',
+                            message=msg,
+                            link=link,
+                            level='info',
+                            content_object=instance,
+                        )
+                except Exception as e:
+                    logger.error(f"Error creando notificación interna de remesa editada: {e}")
         except Exception as e:
             logger.error(f"Error creando notificación interna de remesa: {e}")
         
@@ -187,13 +264,26 @@ def notificar_pago(sender, instance, created, **kwargs):
         # Notificaciones internas
         try:
             link = reverse('remesas:detalle_pago', args=[instance.id])
+            pid = _fmt_id(instance.pago_id)
+            cod = _moneda_cod(getattr(instance, 'tipo_moneda', None))
+            nombre_moneda = (getattr(instance.tipo_moneda, 'nombre', '') or '') if instance.tipo_moneda else ''
+            cant = _fmt_money(instance.cantidad)
+            tipo_display = (instance.get_tipo_pago_display() or '').upper()
+            dest = instance.destinatario or 'N/A'
+
             if created:
+                msg = (
+                    f"NUEVO PAGO\n\n"
+                    f"{cant} {cod} {nombre_moneda}\n\n"
+                    f"{dest}\n\n"
+                    f"ID: {pid}"
+                )
                 notify_user_admins_and_domicilios(
                     recipient=instance.usuario,
                     moneda=getattr(instance, 'tipo_moneda', None),
                     actor=instance.usuario,
                     verb='pago_creado',
-                    message=f"Pago {instance.pago_id} creado (estado: {instance.estado})",
+                    message=msg,
                     link=link,
                     level='info',
                     content_object=instance,
@@ -202,16 +292,56 @@ def notificar_pago(sender, instance, created, **kwargs):
                 if hasattr(instance, '_estado_anterior'):
                     estado_anterior = instance._estado_anterior
                     if estado_anterior != instance.estado:
+                        if instance.estado == 'confirmado':
+                            msg = (
+                                f"PAGO COMPLETADO\n"
+                                f"{cant} {cod} {dest}\n\n"
+                                f"ID: {pid}"
+                            )
+                        elif instance.estado == 'cancelado':
+                            msg = (
+                                f"PAGO CANCELADO\n"
+                                f"{cant} {cod} {dest}\n\n"
+                                f"ID: {pid}"
+                            )
+                        else:
+                            msg = f"Pago {instance.pago_id} cambió de {estado_anterior} a {instance.estado}"
                         notify_user_admins_and_domicilios(
                             recipient=instance.usuario,
                             moneda=getattr(instance, 'tipo_moneda', None),
                             actor=getattr(instance, 'usuario_editor', None) or instance.usuario,
                             verb='pago_estado',
-                            message=f"Pago {instance.pago_id} cambió de {estado_anterior} a {instance.estado}",
+                            message=msg,
                             link=link,
                             level='warning' if instance.estado in ['cancelado'] else 'info',
                             content_object=instance,
                         )
+
+                # Notificación interna de edición
+                try:
+                    fecha_edicion_anterior = getattr(instance, '_fecha_edicion_anterior', None)
+                    if instance.fecha_edicion and instance.fecha_edicion != fecha_edicion_anterior:
+                        editor = getattr(instance, 'usuario_editor', None)
+                        editor_nombre = editor.get_full_name() if editor else 'N/A'
+                        msg = (
+                            f"PAGO EDITADO\n\n"
+                            f"Importe actual : {cant} {cod}\n"
+                            f"Receptor: {dest}\n"
+                            f"Editado por: {editor_nombre}\n\n"
+                            f"ID: {pid}"
+                        )
+                        notify_user_admins_and_domicilios(
+                            recipient=instance.usuario,
+                            moneda=getattr(instance, 'tipo_moneda', None),
+                            actor=editor or instance.usuario,
+                            verb='pago_editado',
+                            message=msg,
+                            link=link,
+                            level='info',
+                            content_object=instance,
+                        )
+                except Exception as e:
+                    logger.error(f"Error creando notificación interna de pago editado: {e}")
         except Exception as e:
             logger.error(f"Error creando notificación interna de pago: {e}")
         
@@ -299,7 +429,17 @@ def notificar_pago_remesa_interno(sender, instance, created, **kwargs):
         recipients.extend(list(get_domicilio_users_queryset_for_moneda(moneda_notif)))
 
         if created:
-            msg = f"Pago {instance.pago_id} agregado a remesa {remesa.remesa_id if remesa else ''}".strip()
+            pid = _fmt_id(instance.pago_id)
+            cod = _moneda_cod(getattr(instance, 'tipo_moneda', None))
+            nombre_moneda = (getattr(instance.tipo_moneda, 'nombre', '') or '') if instance.tipo_moneda else ''
+            cant = _fmt_money(instance.cantidad)
+            dest = instance.destinatario or 'N/A'
+            msg = (
+                f"NUEVO PAGO\n\n"
+                f"{cant} {cod} {nombre_moneda}\n\n"
+                f"{dest}\n\n"
+                f"ID: {pid}"
+            )
             create_internal_notification(
                 recipients=recipients,
                 actor=actor,
@@ -313,7 +453,24 @@ def notificar_pago_remesa_interno(sender, instance, created, **kwargs):
             if hasattr(instance, '_estado_anterior'):
                 estado_anterior = instance._estado_anterior
                 if estado_anterior != instance.estado:
-                    msg = f"Pago {instance.pago_id} cambió de {estado_anterior} a {instance.estado}"
+                    pid = _fmt_id(instance.pago_id)
+                    cod = _moneda_cod(getattr(instance, 'tipo_moneda', None))
+                    cant = _fmt_money(instance.cantidad)
+                    dest = instance.destinatario or 'N/A'
+                    if instance.estado == 'confirmado':
+                        msg = (
+                            f"Pago COMPLETADO\n"
+                            f"{cant} {cod} + {dest}\n\n"
+                            f"ID: {pid}"
+                        )
+                    elif instance.estado == 'cancelado':
+                        msg = (
+                            f"PAGO CANCELADO\n"
+                            f"{cant} {cod} {dest}\n\n"
+                            f"ID: {pid}"
+                        )
+                    else:
+                        msg = f"Pago {instance.pago_id} cambió de {estado_anterior} a {instance.estado}"
                     create_internal_notification(
                         recipients=recipients,
                         actor=actor,

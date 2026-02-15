@@ -2478,11 +2478,25 @@ def finalizar_notificaciones_remesa(request, remesa_id):
 
     try:
         link = reverse('remesas:detalle_remesa', args=[remesa.id])
+        # Formatear ID con # antes de los últimos 6 dígitos
+        rid = remesa.remesa_id or ''
+        if len(rid) >= 6:
+            rid = rid[:-6] + '#' + rid[-6:]
+        cod = (remesa.moneda.codigo if remesa.moneda else '').upper()
+        nombre_moneda = (remesa.moneda.nombre if remesa.moneda else '') or ''
+        imp = f"{remesa.importe:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.') if remesa.importe else '0'
+        remitente = remesa.receptor_nombre or 'N/A'
+        msg = (
+            f"NUEVA REMESA\n\n"
+            f"{imp} {cod} {nombre_moneda}\n\n"
+            f"{remitente}\n\n"
+            f"ID: {rid}"
+        )
         notify_user_and_admins(
             recipient=remesa.gestor,
             actor=remesa.gestor,
             verb='remesa_creada',
-            message=f"Nueva remesa {remesa.remesa_id} creada",
+            message=msg,
             link=link,
             level='info',
         )
